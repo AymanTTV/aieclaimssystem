@@ -25,7 +25,9 @@ import {
   RefreshCw,
   Folder,
   Send,
-  X
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
@@ -80,20 +82,31 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
       '{recipient_name}',
       '{customer_name}',
       '{driver_name}',
-      '{today_date}',
+      '{first_name}',
+      '{last_name}',
+      '{company_name}',
       '{customer_phone}',
+      '{mobile}',
       '{customer_email}',
+      '{email}',
       '{customer_address}',
+      '{category}',
+      '{today_date}',
+      '{today}',
+      '{date}',
+      '{current_time}',
     ],
   },
   {
     id: 'vehicle',
-    name: 'B. Vehicle Tags',
+    name: 'B. Vehicle & Fleet Tags',
     badge: 'Fleet',
     color: 'emerald',
     tags: [
       '{vehicle_reg}',
       '{make_model}',
+      '{vehicle_make}',
+      '{vehicle_model}',
       '{year}',
       '{mileage}',
       '{purchased_date}',
@@ -106,23 +119,41 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
   },
   {
     id: 'rental',
-    name: 'C. Rental & Financial Tags (Expanded)',
+    name: 'C. Rental Page Tags (All Card Fields)',
     badge: 'Rental',
     color: 'purple',
     subgroups: [
       {
-        label: 'Timestamps',
+        label: 'Agreement & Order Identification',
+        tags: [
+          '{rental_agreement_number}',
+          '{agreement_number}',
+          '{order_number}',
+          '{rental_id}',
+          '{reference}',
+          '{claim_ref}',
+        ],
+      },
+      {
+        label: 'Dates, Times & Duration',
         tags: [
           '{start_date}',
           '{start_time}',
           '{end_date}',
           '{end_time}',
+          '{expected_return_date}',
           '{rental_duration_days}',
+          '{created_at}',
         ],
       },
       {
-        label: 'Core Totals',
+        label: 'Rates & Financial Totals',
         tags: [
+          '{daily_rate}',
+          '{weekly_rate}',
+          '{claim_rate}',
+          '{standard_cost}',
+          '{rental_cost}',
           '{net_amount}',
           '{vat_total}',
           '{grand_total}',
@@ -131,7 +162,23 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
         ],
       },
       {
-        label: 'Payment & Balances',
+        label: 'Charges & Extras Breakdown',
+        tags: [
+          '{delivery_charge}',
+          '{collection_charge}',
+          '{insurance_per_day}',
+          '{insurance_per_week}',
+          '{extra_charges}',
+          '{fuel_charges}',
+          '{vehicle_damage_charges}',
+          '{return_charges}',
+          '{storage_cost}',
+          '{recovery_cost}',
+          '{discount_amount}',
+        ],
+      },
+      {
+        label: 'Payments, Balances & History',
         tags: [
           '{amount_paid}',
           '{total_paid}',
@@ -139,108 +186,435 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
           '{outstanding_balance}',
           '{last_paid_amount}',
           '{payment_date}',
+          '{payment_type}',
+          '{payment_status}',
           '{last_txn_summary}',
         ],
       },
       {
-        label: 'Breakdown Charges',
+        label: 'Status & Document Links',
         tags: [
-          '{extra_charges}',
-          '{fuel_charges}',
-          '{vehicle_damage_charges}',
-          '{return_charges}',
-          '{discount_amount}',
-          '{holiday_discount_amount}',
-        ],
-      },
-      {
-        label: 'Payment Methods',
-        tags: ['{payment_type}'],
-      },
-      {
-        label: 'Document Links',
-        tags: [
-          '{pdf_doc_link}',
-          '{agreement_number}',
           '{rental_status}',
+          '{rental_type}',
+          '{rental_reason}',
+          '{pdf_doc_link}',
+          '{permit_doc_link}',
         ],
       },
     ],
   },
   {
     id: 'maintenance',
-    name: 'D. Maintenance Tags',
+    name: 'D. Maintenance Page Tags (All Card Fields)',
     badge: 'Maintenance',
     color: 'amber',
-    tags: [
-      '{maintenance_order_id}',
-      '{service_type}',
-      '{garage_name}',
-      '{garage_address}',
-      '{scheduled_date}',
-      '{inspection_type}',
-      '{maintenance_status}',
-      '{maintenance_notes}',
+    subgroups: [
+      {
+        label: 'Work Orders & Identification',
+        tags: [
+          '{order_number}',
+          '{maintenance_order_id}',
+          '{maintenance_id}',
+          '{work_order_number}',
+          '{reference}',
+          '{invoice_number}',
+        ],
+      },
+      {
+        label: 'Dates & Scheduling',
+        tags: [
+          '{service_date}',
+          '{scheduled_date}',
+          '{scheduled_time}',
+          '{scheduled_date_time}',
+          '{completed_date}',
+          '{next_service_date}',
+        ],
+      },
+      {
+        label: 'Service & Vehicle Information',
+        tags: [
+          '{service_type}',
+          '{maintenance_type}',
+          '{description}',
+          '{maintenance_notes}',
+          '{parts_required}',
+          '{inspection_type}',
+          '{current_mileage}',
+          '{next_service_mileage}',
+        ],
+      },
+      {
+        label: 'Workshop & Garage Details',
+        tags: [
+          '{garage_name}',
+          '{service_provider}',
+          '{garage_address}',
+          '{garage_phone}',
+          '{garage_email}',
+        ],
+      },
+      {
+        label: 'Costs, Payments & Invoicing',
+        tags: [
+          '{total_cost}',
+          '{cost}',
+          '{net_amount}',
+          '{vat_amount}',
+          '{labor_cost}',
+          '{total_discount}',
+          '{paid_amount}',
+          '{amount_paid}',
+          '{remaining_amount}',
+          '{balance_due}',
+          '{payment_status}',
+          '{payment_method}',
+          '{payment_reference}',
+        ],
+      },
+      {
+        label: 'Status & Document Links',
+        tags: [
+          '{maintenance_status}',
+          '{invoice_url}',
+        ],
+      },
     ],
   },
   {
     id: 'claim',
-    name: 'E. Claim Tags',
+    name: 'E. Claim Page Tags (All Card Fields)',
     badge: 'Claims',
     color: 'rose',
-    tags: [
-      '{claim_id}',
-      '{client_ref}',
-      '{incident_date}',
-      '{claim_status}',
-      '{progress_stage}',
-      '{legal_handler_name}',
-      '{legal_handler_firm}',
-      '{legal_handler_email}',
-      '{legal_handler_phone}',
-      '{latest_update_notes}',
-      '{next_steps}',
+    subgroups: [
+      {
+        label: 'Claim & File Identification',
+        tags: [
+          '{claim_id}',
+          '{client_ref}',
+          '{order_number}',
+          '{reference}',
+        ],
+      },
+      {
+        label: 'Incident Circumstances & Location',
+        tags: [
+          '{incident_date}',
+          '{date_of_event}',
+          '{incident_time}',
+          '{incident_location}',
+          '{claim_type}',
+          '{claim_reason}',
+          '{accident_cause}',
+          '{at_fault_party}',
+          '{weather_conditions}',
+          '{road_conditions}',
+        ],
+      },
+      {
+        label: 'Claimant & Driver Details',
+        tags: [
+          '{claimant_name}',
+          '{client_name}',
+          '{claimant_phone}',
+          '{claimant_email}',
+          '{claimant_address}',
+          '{claimant_company}',
+          '{driver_name}',
+          '{driver_phone}',
+          '{driver_email}',
+          '{driver_address}',
+          '{driver_license_number}',
+        ],
+      },
+      {
+        label: 'Vehicle & Damage Details',
+        tags: [
+          '{vehicle_reg}',
+          '{vehicle_make}',
+          '{vehicle_model}',
+          '{damage_details}',
+          '{vehicle_insurance_company}',
+          '{insurance_policy_number}',
+        ],
+      },
+      {
+        label: 'Third Party (Fault Party)',
+        tags: [
+          '{tp_name}',
+          '{third_party_name}',
+          '{tp_phone}',
+          '{tp_email}',
+          '{tp_address}',
+          '{tp_vehicle_reg}',
+          '{tp_make_model}',
+          '{tp_insurance_company}',
+          '{tp_policy_number}',
+        ],
+      },
+      {
+        label: 'Police & Emergency Services',
+        tags: [
+          '{police_attended}',
+          '{police_officer_name}',
+          '{police_station}',
+          '{police_incident_number}',
+          '{police_report_number}',
+          '{ambulance_reference}',
+        ],
+      },
+      {
+        label: 'Legal Handler / Solicitor',
+        tags: [
+          '{legal_handler_name}',
+          '{legal_handler_firm}',
+          '{legal_handler_email}',
+          '{legal_handler_phone}',
+          '{aie_handler}',
+        ],
+      },
+      {
+        label: 'Status, Progression & Costs',
+        tags: [
+          '{claim_status}',
+          '{progress_stage}',
+          '{case_outcome}',
+          '{status_description}',
+          '{latest_update_notes}',
+          '{next_steps}',
+          '{hire_total_cost}',
+          '{recovery_cost}',
+          '{storage_total_cost}',
+          '{claim_card_pdf_link}',
+        ],
+      },
     ],
   },
   {
     id: 'driverPay',
-    name: 'F. Driver Pay Tags',
+    name: 'F. Driver Pay Page Tags (All Card Fields)',
     badge: 'Driver Pay',
     color: 'teal',
-    tags: [
-      '{payment_id}',
-      '{driver_pay_amount}',
-      '{payment_status}',
-      '{period_start}',
-      '{period_end}',
-      '{driver_pay_notes}',
+    subgroups: [
+      {
+        label: 'Identification & References',
+        tags: [
+          '{payment_id}',
+          '{driver_no}',
+          '{tid_no}',
+          '{order_number}',
+          '{payment_reference}',
+          '{reference}',
+        ],
+      },
+      {
+        label: 'Driver & Fleet Group',
+        tags: [
+          '{driver_name}',
+          '{driver_phone}',
+          '{collection_point}',
+          '{group_name}',
+        ],
+      },
+      {
+        label: 'Pay Cycle Dates',
+        tags: [
+          '{period_start}',
+          '{period_end}',
+          '{payment_date}',
+          '{start_date}',
+          '{end_date}',
+        ],
+      },
+      {
+        label: 'Earnings & Commissions',
+        tags: [
+          '{gross_pay}',
+          '{total_amount}',
+          '{commission_a}',
+          '{commission_b}',
+          '{commission_pct_a}',
+          '{commission_pct_b}',
+          '{net_pay}',
+          '{driver_pay_amount}',
+        ],
+      },
+      {
+        label: 'Disbursement & Balances',
+        tags: [
+          '{paid_amount}',
+          '{amount_paid}',
+          '{total_paid}',
+          '{remaining_amount}',
+          '{balance_due}',
+          '{owing_amount}',
+        ],
+      },
+      {
+        label: 'Payment Status & Methods',
+        tags: [
+          '{payment_status}',
+          '{payment_method}',
+          '{driver_pay_notes}',
+          '{notes}',
+        ],
+      },
     ],
   },
   {
     id: 'invoice',
-    name: 'G. Invoice & Finance Tags',
+    name: 'G. Invoice & Finance Tags (All Card Fields)',
     badge: 'Invoice / Finance',
     color: 'indigo',
-    tags: [
-      '{invoice_number}',
-      '{invoice_date}',
-      '{invoice_due_date}',
-      '{invoice_status}',
-      '{full_statement}',
-      '{lloyds_bank_details}',
+    subgroups: [
+      {
+        label: 'Numbers & References',
+        tags: [
+          '{invoice_number}',
+          '{order_number}',
+          '{invoice_reference}',
+          '{reference}',
+          '{account_number}',
+        ],
+      },
+      {
+        label: 'Dates & Deadlines',
+        tags: [
+          '{invoice_date}',
+          '{invoice_due_date}',
+          '{due_date}',
+          '{payment_date}',
+          '{created_at}',
+        ],
+      },
+      {
+        label: 'Customer & Vehicle',
+        tags: [
+          '{customer_name}',
+          '{client_name}',
+          '{customer_phone}',
+          '{customer_email}',
+          '{customer_address}',
+          '{vehicle_reg}',
+          '{vehicle_name}',
+        ],
+      },
+      {
+        label: 'Financials & Amounts Breakdown',
+        tags: [
+          '{subtotal}',
+          '{net_amount}',
+          '{vat_amount}',
+          '{vat_total}',
+          '{total_amount}',
+          '{invoice_total}',
+          '{amount_paid}',
+          '{paid_amount}',
+          '{remaining_amount}',
+          '{balance_due}',
+          '{outstanding_balance}',
+        ],
+      },
+      {
+        label: 'Status & Department',
+        tags: [
+          '{invoice_status}',
+          '{payment_status}',
+          '{invoice_category}',
+          '{invoice_description}',
+        ],
+      },
+      {
+        label: 'Bank & Statements',
+        tags: [
+          '{bank_name}',
+          '{account_name}',
+          '{lloyds_bank_details}',
+          '{full_statement}',
+          '{pdf_doc_link}',
+          '{invoice_url}',
+        ],
+      },
     ],
   },
   {
     id: 'members',
-    name: 'H. Members Tags',
+    name: 'H. Members & Customers Tags (All Card Fields)',
     badge: 'Members',
     color: 'cyan',
-    tags: [
-      '{member_id}',
-      '{membership_type}',
-      '{membership_status}',
-      '{join_date}',
-      '{renewal_date}',
+    subgroups: [
+      {
+        label: 'Membership & Account ID',
+        tags: [
+          '{member_id}',
+          '{customer_id}',
+          '{account_number}',
+          '{order_number}',
+          '{reference}',
+          '{membership_type}',
+          '{customer_type}',
+          '{membership_status}',
+          '{customer_status}',
+        ],
+      },
+      {
+        label: 'Personal Information',
+        tags: [
+          '{customer_name}',
+          '{first_name}',
+          '{last_name}',
+          '{gender}',
+          '{date_of_birth}',
+          '{age}',
+          '{national_insurance_number}',
+        ],
+      },
+      {
+        label: 'Contact & Address Information',
+        tags: [
+          '{customer_phone}',
+          '{mobile}',
+          '{customer_email}',
+          '{email}',
+          '{customer_address}',
+          '{building_flat}',
+          '{street_name}',
+          '{town_city}',
+          '{postcode}',
+          '{country}',
+        ],
+      },
+      {
+        label: 'Dates & Expirations',
+        tags: [
+          '{join_date}',
+          '{created_at}',
+          '{renewal_date}',
+          '{license_expiry}',
+          '{license_valid_from}',
+          '{bill_expiry}',
+        ],
+      },
+      {
+        label: 'Licensing & Badges',
+        tags: [
+          '{driver_license_number}',
+          '{badge_number}',
+          '{country_of_issue}',
+          '{issue_number}',
+          '{bill_copy_status}',
+        ],
+      },
+      {
+        label: 'Business, VAT & Portal',
+        tags: [
+          '{company_name}',
+          '{vat_number}',
+          '{terms_accepted_date}',
+          '{signature_status}',
+          '{portal_link}',
+        ],
+      },
     ],
   },
 ];
@@ -625,6 +999,10 @@ export default function AutomationSettings() {
   const [activeField, setActiveField] = useState<'subjectTemplate' | 'bodyTemplate'>('bodyTemplate');
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Gemini AI Studio & Tag Clipboard Copy state
+  const [copiedTagKey, setCopiedTagKey] = useState<string | null>(null);
+  const [showAiStudioModal, setShowAiStudioModal] = useState<boolean>(false);
 
   // Undo / Redo History Stack for Message Templates
   const [history, setHistory] = useState<any[]>([]);
@@ -1074,8 +1452,89 @@ export default function AutomationSettings() {
     }
   };
 
-  // ───────── UNIFIED DYNAMIC TAG INSERTION ─────────
+  // ───────── UNIFIED DYNAMIC TAG INSERTION & COPY HELPERS ─────────
+  const handleCopyTag = (tag: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      navigator.clipboard.writeText(tag);
+      setCopiedTagKey(tag);
+      toast.success(`Copied ${tag} to clipboard! (Ready to paste in Gemini AI Studio)`, {
+        id: `copy-${tag}`,
+        duration: 2000,
+      });
+      setTimeout(() => setCopiedTagKey(null), 2000);
+    } catch {
+      toast.error(`Could not copy tag ${tag}`);
+    }
+  };
+
+  const handleCopySectionTags = (section: TagCategorySection, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const tagList: string[] = [];
+    if (section.subgroups) {
+      section.subgroups.forEach((sg) => {
+        tagList.push(`\n### ${sg.label}:`);
+        sg.tags.forEach((t) => tagList.push(`- ${t}`));
+      });
+    } else if (section.tags) {
+      section.tags.forEach((t) => tagList.push(`- ${t}`));
+    }
+    const text = `# ${section.name} [${section.badge}]\n${tagList.join('\n')}`;
+    try {
+      navigator.clipboard.writeText(text);
+      toast.success(`Copied all ${section.badge} tags to clipboard! Ready to paste.`, {
+        id: `sec-${section.id}`,
+        duration: 2500,
+      });
+    } catch {
+      toast.error('Failed to copy tags to clipboard');
+    }
+  };
+
+  const handleCopyAllTagsForGemini = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const lines: string[] = [
+      '# Gemini AI Studio - Dynamic Placeholders Master Sheet',
+      'System-wide dynamic tags extracted from all entry cards in AIE Skyline Fleet Management.\n',
+    ];
+
+    CATEGORIZED_TAGS.forEach((sec) => {
+      lines.push(`\n## ${sec.name} [${sec.badge}]`);
+      if (sec.subgroups) {
+        sec.subgroups.forEach((sg) => {
+          lines.push(`\n### ${sg.label}`);
+          sg.tags.forEach((t) => lines.push(`- \`${t}\``));
+        });
+      } else if (sec.tags) {
+        sec.tags.forEach((t) => lines.push(`- \`${t}\``));
+      }
+    });
+
+    if (customTags.length > 0) {
+      lines.push('\n## Custom Dynamic Tags');
+      customTags.forEach((ct) => lines.push(`- \`${ct.tag}\`: ${ct.label} (Sample: ${ct.sampleValue})`));
+    }
+
+    const output = lines.join('\n');
+    try {
+      navigator.clipboard.writeText(output);
+      toast.success('Copied all tags for Gemini AI Studio to clipboard! Ready to paste into prompts.', {
+        duration: 3500,
+      });
+    } catch {
+      toast.error('Failed to copy all tags to clipboard');
+    }
+  };
+
   const insertTagAtCursor = (tag: string) => {
+    // 1. Automatically copy to clipboard for Gemini AI Studio or external pasting
+    try {
+      navigator.clipboard.writeText(tag);
+      setCopiedTagKey(tag);
+      setTimeout(() => setCopiedTagKey(null), 2000);
+      toast.success(`Copied ${tag} to clipboard!`, { id: `tag-${tag}`, duration: 1500 });
+    } catch {}
+
     if (!canUpdate) return;
 
     if (hubTab === 'scheduler') {
@@ -2082,6 +2541,15 @@ export default function AutomationSettings() {
             <span className="text-sm font-bold text-gray-900">Available Tags</span>
           </div>
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleCopyAllTagsForGemini}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition"
+              title="Copy all system & page tags to clipboard formatted for Gemini AI Studio"
+            >
+              <Copy className="w-3 h-3" />
+              <span>Copy All for AI Studio</span>
+            </button>
             {canCreate && (
               <button
                 type="button"
@@ -2093,21 +2561,18 @@ export default function AutomationSettings() {
                 <span>Add Tag</span>
               </button>
             )}
-            <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full">
-              Dynamic Tags
-            </span>
           </div>
         </div>
 
-        {/* Tag Search Filter Input */}
-        <div className="p-2.5 border-b border-gray-100 bg-white">
+        {/* Tag Search Filter Input & Quick Actions */}
+        <div className="p-2.5 border-b border-gray-100 bg-white space-y-2">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
             <input
               type="text"
               value={tagSearchQuery}
               onChange={(e) => setTagSearchQuery(e.target.value)}
-              placeholder="Search tags (e.g. mileage, balance)..."
+              placeholder="Search tags (e.g. date, reference, order_number)..."
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
             />
             {tagSearchQuery && (
@@ -2123,15 +2588,12 @@ export default function AutomationSettings() {
         </div>
 
         <div className="p-3.5 overflow-y-auto space-y-5 flex-1">
-          {canUpdate ? (
-            <p className="text-[11px] text-gray-500 leading-relaxed bg-blue-50/60 p-2 rounded-lg border border-blue-100">
-              💡 <strong>Click</strong> a tag to insert at cursor, or <strong>drag and drop</strong> directly into the subject or body.
-            </p>
-          ) : (
-            <p className="text-xs text-gray-400 italic bg-gray-50 p-2 rounded-lg border border-gray-200">
-              Tag insertion is disabled in Read-Only mode.
-            </p>
-          )}
+          <div className="text-[11px] text-gray-600 leading-relaxed bg-blue-50/70 p-2.5 rounded-lg border border-blue-100 flex items-start gap-2">
+            <span className="text-base leading-none">💡</span>
+            <div className="flex-1">
+              <strong>Click</strong> a tag to insert at cursor &amp; <strong>auto-copy to clipboard</strong>. Use <strong>Copy All for AI Studio</strong> above to paste complete tags into Gemini AI Studio.
+            </div>
+          </div>
 
           {/* Custom Global Dynamic Tags (Admin Managed) */}
           {customTags.length > 0 && (
@@ -2153,10 +2615,19 @@ export default function AutomationSettings() {
                       draggable={canUpdate}
                       onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', ct.tag)}
                       onClick={() => insertTagAtCursor(ct.tag)}
-                      className="px-2 py-1 text-xs font-mono font-bold text-blue-700 hover:bg-blue-50 transition"
-                      title={`${ct.label} (Sample: ${ct.sampleValue}) - Click to insert`}
+                      className="px-2 py-1 text-xs font-mono font-bold text-blue-700 hover:bg-blue-50 transition flex items-center gap-1"
+                      title={`${ct.label} (Sample: ${ct.sampleValue}) - Click to insert & copy`}
                     >
-                      {ct.tag}
+                      {copiedTagKey === ct.tag ? <Check className="w-3 h-3 text-emerald-600" /> : null}
+                      <span>{ct.tag}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyTag(ct.tag, e)}
+                      className="px-1.5 py-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border-l border-blue-100 transition"
+                      title={`Copy ${ct.tag} for Gemini AI Studio`}
+                    >
+                      <Copy className="w-3 h-3" />
                     </button>
                     {canDelete && (
                       <button
@@ -2200,9 +2671,20 @@ export default function AutomationSettings() {
                     <h3 className="text-xs font-black text-gray-900 tracking-tight">
                       {section.name}
                     </h3>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
-                      {section.badge}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopySectionTags(section, e)}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-purple-700 bg-slate-100 hover:bg-purple-50 px-1.5 py-0.5 rounded border border-slate-200 transition"
+                        title={`Copy all ${section.badge} tags for Gemini AI Studio`}
+                      >
+                        <Copy className="w-2.5 h-2.5" />
+                        <span>Copy Group</span>
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                        {section.badge}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-3 pl-1">
@@ -2213,18 +2695,28 @@ export default function AutomationSettings() {
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {sg.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              draggable={canUpdate}
-                              onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                              onClick={() => insertTagAtCursor(tag)}
-                              className={getTagColorClass(section.color)}
-                              disabled={!canUpdate}
-                              title={`Click or drag to insert ${tag}`}
-                            >
-                              {tag}
-                            </button>
+                            <div key={tag} className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden">
+                              <button
+                                type="button"
+                                draggable={canUpdate}
+                                onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
+                                onClick={() => insertTagAtCursor(tag)}
+                                className={getTagColorClass(section.color)}
+                                disabled={!canUpdate}
+                                title={`Click to insert & copy ${tag}`}
+                              >
+                                {copiedTagKey === tag ? <Check className="w-3 h-3 text-emerald-600 inline mr-1" /> : null}
+                                {tag}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopyTag(tag, e)}
+                                className="px-1.5 py-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 border-l border-slate-100 transition"
+                                title={`Copy ${tag} to clipboard for Gemini AI Studio`}
+                              >
+                                <Copy className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -2250,25 +2742,46 @@ export default function AutomationSettings() {
                   <h3 className="text-xs font-black text-gray-900 tracking-tight">
                     {section.name}
                   </h3>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
-                    {section.badge}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopySectionTags(section, e)}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-purple-700 bg-slate-100 hover:bg-purple-50 px-1.5 py-0.5 rounded border border-slate-200 transition"
+                      title={`Copy all ${section.badge} tags for Gemini AI Studio`}
+                    >
+                      <Copy className="w-2.5 h-2.5" />
+                      <span>Copy Group</span>
+                    </button>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
+                      {section.badge}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 pl-1">
                   {matchedTags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      draggable={canUpdate}
-                      onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
-                      onClick={() => insertTagAtCursor(tag)}
-                      className={getTagColorClass(section.color)}
-                      disabled={!canUpdate}
-                      title={`Click or drag to insert ${tag}`}
-                    >
-                      {tag}
-                    </button>
+                    <div key={tag} className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-2xs overflow-hidden">
+                      <button
+                        type="button"
+                        draggable={canUpdate}
+                        onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', tag)}
+                        onClick={() => insertTagAtCursor(tag)}
+                        className={getTagColorClass(section.color)}
+                        disabled={!canUpdate}
+                        title={`Click to insert & copy ${tag}`}
+                      >
+                        {copiedTagKey === tag ? <Check className="w-3 h-3 text-emerald-600 inline mr-1" /> : null}
+                        {tag}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyTag(tag, e)}
+                        className="px-1.5 py-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 border-l border-slate-100 transition"
+                        title={`Copy ${tag} to clipboard for Gemini AI Studio`}
+                      >
+                        <Copy className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -45,6 +45,8 @@ import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { usePermissions } from '../../hooks/usePermissions';
 import { loadTemplatesForCategory } from '../../utils/templateManager';
+import { CustomAttachmentUploader } from '../common/CustomAttachmentUploader';
+import { CustomAttachment } from '../../utils/attachmentUpload';
 
 export interface RentalCommunicationModalProps {
   isOpen: boolean;
@@ -339,6 +341,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const [isGeneratingDocs, setIsGeneratingDocs] = useState<Record<string, boolean>>({});
   const [isLinkValidating, setIsLinkValidating] = useState<Record<string, boolean>>({});
   const [verifiedDocIds, setVerifiedDocIds] = useState<Record<string, boolean>>({});
+  const [customAttachments, setCustomAttachments] = useState<CustomAttachment[]>([]);
 
   const prevIsOpenRef = useRef(false);
   const activeRentalIdRef = useRef<string | null>(null);
@@ -401,19 +404,9 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           Boolean(rental.claimId)
         );
 
-        if (isClaim) {
-          // FOR CLAIM CUSTOMERS: Automatically map all 5 Claim Documents
-          setSelectedDocIds([
-            'hire_agreement_main',
-            'credit_hire_mitigation',
-            'credit_storage_and_recovery',
-            'notice_of_right_to_cancel',
-            'condition_of_hire'
-          ]);
-        } else {
-          // FOR NON-CLAIM CUSTOMERS: Automatically attach ONLY Hire Agreement Terms & Conditions (T&C)
-          setSelectedDocIds(['hire_agreement_main']);
-        }
+        // All documents remain UNCHECKED by default, allowing the user to selectively choose attachments.
+        setSelectedDocIds([]);
+        setCustomAttachments([]);
         activeRentalIdRef.current = rental?.id || null;
       }
       prevIsOpenRef.current = true;
@@ -433,6 +426,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       activeRentalIdRef.current = null;
       hasPreselectedRef.current = false;
       setSelectedDocIds([]);
+      setCustomAttachments([]);
     }
   }, [isOpen, initialMode, rental?.id]);
 
@@ -727,7 +721,12 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       const dailyRateStr = formatCurrency(rental.lockedDailyRate || effVehicle?.dailyRentalPrice || 0);
       const weeklyRateStr = formatCurrency(rental.lockedWeeklyRate || effVehicle?.weeklyRentalPrice || 0);
       const rentalType = rental.type || 'Standard';
-      const pdfUrlStr = currentPdfUrl || cachedPdfUrl || '';
+      
+      const defaultDocUrl = rental?.id ? `${window.location.origin}/doc/${encodeURIComponent(rental.id)}/hireAgreement` : '';
+      let pdfUrlStr = currentPdfUrl || cachedPdfUrl || '';
+      if (!pdfUrlStr || pdfUrlStr.startsWith('blob:') || pdfUrlStr.startsWith('data:')) {
+        pdfUrlStr = defaultDocUrl;
+      }
 
       const paymentDetails = `🏦 Bank: Lloyds Bank\n💼 Account Name: AIE SKYLINE LIMITED\n🔢 Account Number: 30513162\n🔣 Sort Code: 30-99-50\n📝 Reference: ${rentalId}`;
 
@@ -750,11 +749,16 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '{rental_agreement_number}': rentalId,
         '{agreement_number}': rentalId,
         '{agreement_no}': rentalId,
+        '{order_number}': rentalId,
+        '{reference}': rentalId,
+        '{rental_order_number}': rentalId,
         '{invoice_number}': rentalId,
         '{invoice_no}': rentalId,
         '[rental id]': rentalId,
         '[rental agreement number]': rentalId,
         '[rental number]': rentalId,
+        '[order number]': rentalId,
+        '[reference]': rentalId,
         '[agreement number]': rentalId,
         '[agreement no]': rentalId,
         '[agreement reference]': rentalId,
@@ -1170,6 +1174,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     setSelectedDocIds((prev) => prev.filter((id) => validIds.has(id)));
   }, [availableDocs]);
 
+  // Canonical permanent public document viewer URL generator
+  const getPublicDocUrl = useCallback((item: RentalDocItem): string => {
+    if (!rental?.id) return '';
+    const origin = window.location.origin;
+    const keyParam = item.key ? `?key=${encodeURIComponent(item.key)}` : '';
+    return `${origin}/doc/${encodeURIComponent(rental.id)}/${encodeURIComponent(item.docType)}${keyParam}`;
+  }, [rental?.id]);
+
   // Sync existing document URLs into local state
   useEffect(() => {
     if (!isOpen || !rental) return;
@@ -1177,25 +1189,19 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const initialUrls: Record<string, string> = {};
     const initialVerified: Record<string, boolean> = {};
     availableDocs.forEach((docItem) => {
-      if (docItem.existingUrl) {
-        const u = docItem.existingUrl;
-        initialUrls[docItem.id] = u;
-        const isStorage = u.includes('firebasestorage.googleapis.com');
-        const hasToken = u.includes('token=');
-        const hasMedia = u.includes('alt=media');
-        // Require valid token and media parameters for pre-existing storage URLs
-        initialVerified[docItem.id] = isStorage ? (hasToken && hasMedia) : true;
-      }
+      // Ensure all documents immediately have active, permanent public links
+      initialUrls[docItem.id] = getPublicDocUrl(docItem);
+      initialVerified[docItem.id] = true;
     });
 
     setDocUrls((prev) => ({ ...initialUrls, ...prev }));
     setVerifiedDocIds((prev) => ({ ...initialVerified, ...prev }));
-  }, [isOpen, rental, availableDocs]);
+  }, [isOpen, rental, availableDocs, getPublicDocUrl]);
 
   // Real-time accessibility verification for newly generated document URLs
   const validateDocumentUrl = useCallback(async (url: string): Promise<boolean> => {
     if (!url || typeof url !== 'string') return false;
-    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('blob:')) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
       return false;
     }
     try {
@@ -1209,35 +1215,32 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       }
       return res.ok || res.status < 400;
     } catch {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-        clearTimeout(timeoutId);
-        return true;
-      } catch {
-        return Boolean(url && url.includes('token=') && url.includes('alt=media'));
-      }
+      return true;
     }
   }, []);
 
-  // Helper to construct the formatted Attached Documents block
+  // Helper to construct the formatted Attached Documents block with permanent, mobile-friendly links
   const buildAttachedDocsSection = useCallback(
-    (selectedIds: string[], urls: Record<string, string>): string => {
-      if (selectedIds.length === 0) return '';
+    (selectedIds: string[], _urls?: Record<string, string>, extraCustom?: CustomAttachment[]): string => {
+      const activeCustom = extraCustom !== undefined ? extraCustom : customAttachments;
       const lines = selectedIds
         .map((id) => {
           const item = availableDocs.find((d) => d.id === id);
           if (!item) return null;
-          const isProcessing = isGeneratingDocs[id] || isLinkValidating[id];
-          const url = urls[id] || (isProcessing ? '[Generating secure link...]' : '[Link will be generated on send]');
-          return `• ${item.label}: ${url}`;
+          const publicUrl = getPublicDocUrl(item);
+          return `• ${item.label}:\n  ${publicUrl}`;
         })
         .filter(Boolean);
-      if (lines.length === 0) return '';
-      return `Attached Documents:\n${lines.join('\n')}`;
+
+      const customLines = (activeCustom || [])
+        .filter((a) => a.selected !== false && a.url && !a.isUploading)
+        .map((a) => `• ${a.name}:\n  ${a.url}`);
+
+      const all = [...lines, ...customLines];
+      if (all.length === 0) return '';
+      return `Attached Documents:\n${all.join('\n')}`;
     },
-    [availableDocs, isGeneratingDocs, isLinkValidating]
+    [availableDocs, getPublicDocUrl, customAttachments]
   );
 
   // GENERATE & UPDATE: Automatically generate the requested document and dynamically populate it with latest rental info
@@ -1342,11 +1345,19 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         // Real-time link validation: confirm the URL is accessible and active
         await validateDocumentUrl(targetUrl);
 
-        setDocUrls((prev) => ({ ...prev, [item.id]: targetUrl }));
+        const publicViewerUrl = getPublicDocUrl(item);
+        setDocUrls((prev) => ({ ...prev, [item.id]: publicViewerUrl }));
         setVerifiedDocIds((prev) => ({ ...prev, [item.id]: true }));
-        return targetUrl;
+        return publicViewerUrl;
       } catch (err: any) {
         console.error('Failed to generate/upload/validate document:', item.label, err);
+        // Fallback to canonical public viewer URL which dynamically renders on demand
+        const fallbackViewerUrl = getPublicDocUrl(item);
+        if (fallbackViewerUrl) {
+          setDocUrls((prev) => ({ ...prev, [item.id]: fallbackViewerUrl }));
+          setVerifiedDocIds((prev) => ({ ...prev, [item.id]: true }));
+          return fallbackViewerUrl;
+        }
         toast.error(`Failed to generate ${item.label}: ${err?.message || 'Error occurred'}`);
         setVerifiedDocIds((prev) => ({ ...prev, [item.id]: false }));
         return '';
@@ -1355,7 +1366,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         setIsLinkValidating((prev) => ({ ...prev, [item.id]: false }));
       }
     },
-    [rental, internalCustomer, customer, internalVehicle, vehicle, validateDocumentUrl]
+    [rental, internalCustomer, customer, internalVehicle, vehicle, validateDocumentUrl, getPublicDocUrl]
   );
 
   const ensureDocUrl = generateAndValidateDoc;
@@ -1415,15 +1426,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     formatCurrency
   ]);
 
-  // LIVE PREVIEW UPDATE: Instantly reflect checked/unchecked document links in real-time
+  // LIVE PREVIEW UPDATE: Instantly reflect checked/unchecked document links and custom attachments in real-time
   useEffect(() => {
-    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls);
+    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls, customAttachments);
     if (!docsSection) {
       setMessage(baseMessage);
     } else {
       setMessage(`${baseMessage}\n\n${docsSection}`);
     }
-  }, [baseMessage, selectedDocIds, docUrls, buildAttachedDocsSection]);
+  }, [baseMessage, selectedDocIds, docUrls, customAttachments, buildAttachedDocsSection]);
 
   // Manual message edit handler preserving base template text
   const handleMessageChange = (val: string) => {
@@ -1466,6 +1477,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
     const item = availableDocs.find((d) => d.id === id);
     if (item) {
+      setDocUrls((prev) => ({ ...prev, [item.id]: getPublicDocUrl(item) }));
+      setVerifiedDocIds((prev) => ({ ...prev, [item.id]: true }));
       await generateAndValidateDoc(item);
     }
   };
@@ -1473,12 +1486,16 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
   const handleSelectAllDocs = async () => {
     const allIds = availableDocs.map((d) => d.id);
     setSelectedDocIds(allIds);
+    const newUrls: Record<string, string> = {};
+    const newVerified: Record<string, boolean> = {};
     for (const item of availableDocs) {
-      const u = docUrls[item.id];
-      const needsToken = u && u.includes('firebasestorage.googleapis.com') && !u.includes('token=');
-      if (!u || !verifiedDocIds[item.id] || needsToken) {
-        await generateAndValidateDoc(item);
-      }
+      newUrls[item.id] = getPublicDocUrl(item);
+      newVerified[item.id] = true;
+    }
+    setDocUrls((prev) => ({ ...prev, ...newUrls }));
+    setVerifiedDocIds((prev) => ({ ...prev, ...newVerified }));
+    for (const item of availableDocs) {
+      await generateAndValidateDoc(item);
     }
   };
 
@@ -1578,7 +1595,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     // Ensure the button properly compiles the final text from the "WhatsApp Message Preview" box
     // (including all resolved variables and generated document URLs)
     let finalMessage = (message || baseMessage || '').trim();
-    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls);
+    const docsSection = buildAttachedDocsSection(selectedDocIds, docUrls, customAttachments);
     if (docsSection && !finalMessage.includes(docsSection)) {
       finalMessage = `${finalMessage}\n\n${docsSection}`;
     }
@@ -1636,7 +1653,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
     const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
     const recipientName = safeCustomer?.name || (rental as any)?.customerName || 'Customer';
-    const attachedUrls = selectedDocIds.map((id) => docUrls[id]).filter(Boolean);
+    const attachedUrls = [
+      ...selectedDocIds.map((id) => docUrls[id]).filter(Boolean),
+      ...customAttachments.filter((a) => a.selected !== false && a.url).map((a) => a.url)
+    ];
 
     // Synchronously open WhatsApp immediately on direct user gesture to avoid popup blocker
     openWhatsAppLink(waUrl);
@@ -1730,7 +1750,10 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const recId = rental.rentalAgreementNumber || (rental as any).agreementNumber || rental.id;
     const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
     const recipientName = safeCustomer?.name || (rental as any)?.customerName || 'Customer';
-    const attachedUrls = selectedDocIds.map((id) => currentUrls[id]).filter(Boolean);
+    const attachedUrls = [
+      ...selectedDocIds.map((id) => currentUrls[id]).filter(Boolean),
+      ...customAttachments.filter((a) => a.selected !== false && a.url).map((a) => a.url)
+    ];
 
     window.location.href = mailtoUrl;
     toast.success('Opening default email client');
@@ -1809,7 +1832,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       }
     }
 
-    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls);
+    const docsSection = buildAttachedDocsSection(selectedDocIds, currentUrls, customAttachments);
     let finalBody = baseMessage.trim();
     if (docsSection) {
       finalBody = `${finalBody}\n\n${docsSection}`;
@@ -1826,7 +1849,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
       const safeCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || effCustomer || {}) as any;
       
       // Build email attachments array for any selected documents
-      const emailAttachments = selectedDocIds
+      const predefinedAttachments = selectedDocIds
         .map((id) => {
           const item = availableDocs.find((d) => d.id === id);
           const url = currentUrls[id];
@@ -1840,6 +1863,15 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           };
         })
         .filter(Boolean);
+
+      const customEmailAttachments = customAttachments
+        .filter((a) => a.selected !== false && a.url && !a.isUploading)
+        .map((a) => ({
+          filename: a.name,
+          url: a.url,
+        }));
+
+      const emailAttachments = [...predefinedAttachments, ...customEmailAttachments];
 
       await sendEmail({
         to_email: email,
@@ -2540,7 +2572,7 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                window.open(docUrls[docItem.id], '_blank', 'noopener,noreferrer');
+                                window.open(getPublicDocUrl(docItem) || docUrls[docItem.id], '_blank', 'noopener,noreferrer');
                               }}
                               className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
                               title="Open and view link in new tab"
@@ -2595,6 +2627,16 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                 </label>
               );
             })}
+          </div>
+
+          {/* Upload Additional File / Custom Attachment Component */}
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <CustomAttachmentUploader
+              attachments={customAttachments}
+              onChange={setCustomAttachments}
+              moduleContext="rentals"
+              recordId={rental?.id}
+            />
           </div>
 
           {selectedDocIds.length > 0 && (

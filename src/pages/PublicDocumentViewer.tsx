@@ -13,48 +13,39 @@ export const PublicDocumentViewer: React.FC = () => {
   const navigate = useNavigate();
 
   const rentalId = params.rentalId || searchParams.get('rentalId') || searchParams.get('id') || '';
-  const docType = params.docType || searchParams.get('docType') || searchParams.get('type') || 'invoice';
+  const rawDocType = params.docType || searchParams.get('docType') || searchParams.get('type') || 'hireAgreement';
+  const docType = rawDocType.trim();
   const directUrl = searchParams.get('url') || '';
 
-  const [pdfUrl, setPdfUrl] = useState<string>(directUrl);
+  const [pdfUrl, setPdfUrl] = useState<string>(directUrl && !directUrl.startsWith('blob:') ? directUrl : '');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [rental, setRental] = useState<Rental | null>(null);
   const [docTitle, setDocTitle] = useState<string>('Document');
 
-  // Friendly title mapping
+  // Friendly title mapping with comprehensive fuzzy keyword matching
   useEffect(() => {
-    switch (docType) {
-      case 'invoice':
-        setDocTitle('Rental Invoice');
-        break;
-      case 'claimHireAgreement':
-        setDocTitle('Claim Hire Agreement');
-        break;
-      case 'hireAgreement':
-      case 'agreement':
-        setDocTitle('Hire Agreement');
-        break;
-      case 'permit':
-        setDocTitle('Parking Permit');
-        break;
-      case 'conditionOfHire':
-        setDocTitle('Condition Of Hire');
-        break;
-      case 'noticeOfRightToCancel':
-        setDocTitle('Notice Of Right To Cancel');
-        break;
-      case 'creditStorageAndRecovery':
-        setDocTitle('Credit Storage & Recovery');
-        break;
-      case 'creditHireMitigation':
-        setDocTitle('Credit Hire Mitigation');
-        break;
-      case 'satisfactionNotice':
-        setDocTitle('Satisfaction Notice');
-        break;
-      default:
-        setDocTitle('Rental Document');
+    const lower = docType.toLowerCase();
+    if (lower.includes('invoice')) {
+      setDocTitle('Rental Invoice');
+    } else if (lower.includes('claimhire') || lower.includes('claim_hire')) {
+      setDocTitle('Claim Hire Agreement');
+    } else if (lower.includes('hire') || lower.includes('agreement')) {
+      setDocTitle('Hire Agreement Terms & Conditions (T&C)');
+    } else if (lower.includes('permit')) {
+      setDocTitle('Parking Permit');
+    } else if (lower.includes('condition')) {
+      setDocTitle('Condition of Hire');
+    } else if (lower.includes('cancel') || lower.includes('right')) {
+      setDocTitle('Notice of Right to Cancel');
+    } else if (lower.includes('storage') || lower.includes('recovery')) {
+      setDocTitle('Credit Storage & Recovery');
+    } else if (lower.includes('mitigation')) {
+      setDocTitle('Credit Hire Mitigation');
+    } else if (lower.includes('satisfaction')) {
+      setDocTitle('Satisfaction Notice');
+    } else {
+      setDocTitle('Rental Document');
     }
   }, [docType]);
 
@@ -65,31 +56,37 @@ export const PublicDocumentViewer: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // If direct URL is provided and valid, verify reachability
-      if (directUrl) {
-        try {
-          const res = await fetch(directUrl, { method: 'HEAD' });
-          if (res.ok || res.type === 'opaque') {
+      // If direct URL is provided, verify it is not a stale client blob
+      if (directUrl && !directUrl.startsWith('blob:')) {
+        if (directUrl.startsWith('data:')) {
+          try {
+            const base64Data = directUrl.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/pdf' });
+            const localBlobUrl = URL.createObjectURL(blob);
             if (isMounted) {
-              setPdfUrl(directUrl);
+              setPdfUrl(localBlobUrl);
               setLoading(false);
             }
             return;
+          } catch (e) {
+            console.warn('Failed parsing direct data URL:', e);
           }
-        } catch {
-          // If direct URL HEAD check fails, continue to Firestore fallback
-          console.warn('Direct URL verification failed, attempting Firestore retrieval');
-        }
-      }
-
-      if (!rentalId) {
-        if (directUrl) {
+        } else {
           if (isMounted) {
             setPdfUrl(directUrl);
             setLoading(false);
           }
           return;
         }
+      }
+
+      if (!rentalId) {
         if (isMounted) {
           setError('No rental ID or document URL provided.');
           setLoading(false);
@@ -106,29 +103,77 @@ export const PublicDocumentViewer: React.FC = () => {
         const rentalData = { id: rentalSnap.id, ...rentalSnap.data() } as Rental;
         if (isMounted) setRental(rentalData);
 
-        const docs = rentalData.documents || {};
+        const docs = (rentalData.documents as any) || {};
         let targetUrl = '';
+        const keyParam = searchParams.get('key');
+        const lowerDoc = docType.toLowerCase();
 
-        if (docType === 'invoice') {
+        if (lowerDoc.includes('invoice')) {
           targetUrl = docs.invoice || '';
-        } else if (docType === 'claimHireAgreement') {
-          targetUrl = docs.claimHireAgreement || docs.hireAgreement || '';
-        } else if (docType === 'hireAgreement' || docType === 'agreement') {
-          if (docs.agreements) {
+        } else if (lowerDoc.includes('permit')) {
+          targetUrl = docs.permit || '';
+        } else if (lowerDoc.includes('claimhire') || lowerDoc.includes('claim_hire')) {
+          targetUrl = docs.claimHireAgreement || docs.claimDocumentUrls?.claimHireAgreement || docs.hireAgreement || '';
+        } else if (lowerDoc.includes('condition')) {
+          targetUrl = docs.conditionOfHire || docs.claimDocumentUrls?.conditionOfHire || docs.claimDocuments?.conditionOfHire || '';
+        } else if (lowerDoc.includes('cancel') || lowerDoc.includes('right')) {
+          targetUrl = docs.noticeOfRightToCancel || docs.claimDocumentUrls?.noticeOfRightToCancel || docs.claimDocuments?.noticeOfRightToCancel || '';
+        } else if (lowerDoc.includes('storage') || lowerDoc.includes('recovery')) {
+          targetUrl = docs.creditStorageAndRecovery || docs.claimDocumentUrls?.creditStorageAndRecovery || docs.claimDocuments?.creditStorageAndRecovery || '';
+        } else if (lowerDoc.includes('mitigation')) {
+          targetUrl = docs.creditHireMitigation || docs.claimDocumentUrls?.creditHireMitigation || docs.claimDocuments?.creditHireMitigation || '';
+        } else if (lowerDoc.includes('satisfaction')) {
+          targetUrl = docs.satisfactionNotice || docs.claimDocumentUrls?.satisfactionNotice || docs.claimDocuments?.satisfactionNotice || '';
+        } else {
+          // Hire Agreement
+          if (keyParam && docs.agreements?.[keyParam]) {
+            targetUrl = docs.agreements[keyParam];
+          } else if (docs.agreements) {
             const keys = Object.keys(docs.agreements);
             if (keys.length > 0) {
               const latestKey = keys.sort().reverse()[0];
               targetUrl = docs.agreements[latestKey];
             }
           }
-        } else if (docType === 'permit') {
-          targetUrl = docs.permit || '';
-        } else if (docs[docType]) {
-          targetUrl = docs[docType];
+          if (!targetUrl) {
+            targetUrl = docs.hireAgreement || docs.claimHireAgreement || docs.claimDocumentUrls?.hireAgreement || '';
+          }
         }
 
-        // If targetUrl exists in Firestore, check if reachable
-        if (targetUrl) {
+        // Never attempt to use a dead client-side blob URL from another session
+        if (targetUrl && targetUrl.startsWith('blob:')) {
+          targetUrl = '';
+        }
+
+        // If targetUrl is a data URI, safely convert to a fresh local blob URL
+        if (targetUrl && targetUrl.startsWith('data:')) {
+          try {
+            const base64Data = targetUrl.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/pdf' });
+            const localBlobUrl = URL.createObjectURL(blob);
+            if (isMounted) {
+              setPdfUrl(localBlobUrl);
+              setLoading(false);
+            }
+            return;
+          } catch (convErr) {
+            console.warn('Failed parsing stored data URL:', convErr);
+            targetUrl = '';
+          }
+        }
+
+        // If targetUrl is a valid http/https URL, use it directly
+        if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+          if (targetUrl.includes('firebasestorage.googleapis.com') && !targetUrl.includes('alt=media')) {
+            const sep = targetUrl.includes('?') ? '&' : '?';
+            targetUrl = `${targetUrl}${sep}alt=media`;
+          }
           if (isMounted) {
             setPdfUrl(targetUrl);
             setLoading(false);
@@ -136,41 +181,93 @@ export const PublicDocumentViewer: React.FC = () => {
           return;
         }
 
-        // Fallback: Generate the document dynamically on-the-fly
+        // Fallback: Generate the document dynamically on-the-fly with resilient customer/vehicle fallback
         let customerData: Customer | null = null;
         let vehicleData: Vehicle | null = null;
 
         if (rentalData.customerId) {
-          const cSnap = await getDoc(doc(db, 'customers', rentalData.customerId));
-          if (cSnap.exists()) {
-            customerData = { id: cSnap.id, ...cSnap.data() } as Customer;
+          try {
+            const cSnap = await getDoc(doc(db, 'customers', rentalData.customerId));
+            if (cSnap.exists()) {
+              customerData = { id: cSnap.id, ...cSnap.data() } as Customer;
+            }
+          } catch (e) {
+            console.warn('Could not fetch customer by ID:', e);
           }
+        }
+
+        if (!customerData) {
+          customerData = (
+            rentalData.customer ||
+            (rentalData as any).driver ||
+            (rentalData as any).customerDetails || {
+              id: rentalData.customerId || 'c_default',
+              name: (rentalData as any).customerName || 'Customer',
+              phone: (rentalData as any).customerPhone || '',
+              mobile: (rentalData as any).customerMobile || (rentalData as any).customerPhone || '',
+              email: (rentalData as any).customerEmail || '',
+              address: (rentalData as any).customerAddress || '',
+            }
+          ) as Customer;
         }
 
         if (rentalData.vehicleId) {
-          const vSnap = await getDoc(doc(db, 'vehicles', rentalData.vehicleId));
-          if (vSnap.exists()) {
-            vehicleData = { id: vSnap.id, ...vSnap.data() } as Vehicle;
+          try {
+            const vSnap = await getDoc(doc(db, 'vehicles', rentalData.vehicleId));
+            if (vSnap.exists()) {
+              vehicleData = { id: vSnap.id, ...vSnap.data() } as Vehicle;
+            }
+          } catch (e) {
+            console.warn('Could not fetch vehicle by ID:', e);
           }
         }
 
-        if (customerData && vehicleData) {
-          const gen = await generateRentalDocuments(rentalData, vehicleData, customerData);
-          let blob: Blob | null = null;
-          if (docType === 'invoice') blob = gen.invoice;
-          else if (docType === 'permit') blob = gen.permit;
-          else if (docType === 'hireAgreement' || docType === 'agreement') blob = gen.agreement;
-          else if (docType === 'claimHireAgreement') blob = gen.claimDocuments?.claimHireAgreement || gen.claimDocuments?.hireAgreement || null;
-          else if (gen.claimDocuments && gen.claimDocuments[docType]) blob = gen.claimDocuments[docType];
-
-          if (blob) {
-            const blobUrl = URL.createObjectURL(blob);
-            if (isMounted) {
-              setPdfUrl(blobUrl);
-              setLoading(false);
+        if (!vehicleData) {
+          vehicleData = (
+            rentalData.vehicle ||
+            (rentalData as any).vehicleDetails || {
+              id: rentalData.vehicleId || 'v_default',
+              registrationNumber: (rentalData as any).vehicleReg || (rentalData as any).registrationNumber || 'N/A',
+              make: (rentalData as any).vehicleMake || (rentalData as any).make || '',
+              model: (rentalData as any).vehicleModel || (rentalData as any).model || '',
             }
-            return;
+          ) as Vehicle;
+        }
+
+        const gen = await generateRentalDocuments(rentalData, vehicleData, customerData);
+        let blob: Blob | null = null;
+
+        if (lowerDoc.includes('invoice')) {
+          blob = gen.invoice;
+        } else if (lowerDoc.includes('permit')) {
+          blob = gen.permit;
+        } else if (lowerDoc.includes('condition')) {
+          blob = gen.claimDocuments?.conditionOfHire || null;
+        } else if (lowerDoc.includes('cancel') || lowerDoc.includes('right')) {
+          blob = gen.claimDocuments?.noticeOfRightToCancel || null;
+        } else if (lowerDoc.includes('storage') || lowerDoc.includes('recovery')) {
+          blob = gen.claimDocuments?.creditStorageAndRecovery || null;
+        } else if (lowerDoc.includes('mitigation')) {
+          blob = gen.claimDocuments?.creditHireMitigation || null;
+        } else if (lowerDoc.includes('satisfaction')) {
+          blob = gen.claimDocuments?.satisfactionNotice || null;
+        } else if (lowerDoc.includes('claimhire') || lowerDoc.includes('claim_hire')) {
+          blob = gen.claimDocuments?.claimHireAgreement || gen.claimDocuments?.hireAgreement || gen.agreement;
+        } else {
+          blob = gen.agreement;
+        }
+
+        if (!blob) {
+          blob = gen.agreement || gen.invoice || null;
+        }
+
+        if (blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          if (isMounted) {
+            setPdfUrl(blobUrl);
+            setLoading(false);
           }
+          return;
         }
 
         throw new Error('Document link is not available. Please contact support.');
@@ -190,15 +287,31 @@ export const PublicDocumentViewer: React.FC = () => {
     };
   }, [rentalId, docType, directUrl]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!pdfUrl) return;
-    const a = document.createElement('a');
-    a.href = pdfUrl;
-    a.download = `${docTitle.replace(/\s+/g, '_')}_${rental?.rentalAgreementNumber || rentalId || 'Doc'}.pdf`;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      if (pdfUrl.startsWith('blob:') || pdfUrl.startsWith('data:')) {
+        const a = document.createElement('a');
+        a.href = pdfUrl;
+        a.download = `${docTitle.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_')}_${rental?.rentalAgreementNumber || rentalId || 'Doc'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+      const response = await fetch(pdfUrl);
+      const blob = await response.blob();
+      const localBlobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = localBlobUrl;
+      a.download = `${docTitle.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_')}_${rental?.rentalAgreementNumber || rentalId || 'Doc'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(localBlobUrl), 5000);
+    } catch {
+      window.open(pdfUrl, '_blank');
+    }
   };
 
   const handlePrint = () => {

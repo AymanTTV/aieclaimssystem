@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceCommunicationModal.tsx
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import { MaintenanceLog } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -36,8 +36,11 @@ import {
   Search,
   ChevronDown,
   RotateCcw,
+  Paperclip,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CustomAttachmentUploader } from '../common/CustomAttachmentUploader';
+import { CustomAttachment } from '../../utils/attachmentUpload';
 
 interface MaintenanceCommunicationModalProps {
   isOpen: boolean;
@@ -140,10 +143,18 @@ export const MaintenanceCommunicationModal: React.FC<
   const [isEmailCustom, setIsEmailCustom] = useState<boolean>(false);
 
   const [subject, setSubject] = useState<string>('');
+  const [baseMessage, setBaseMessage] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
+
+  // Document attachment selection states
+  const [includeWorkOrder, setIncludeWorkOrder] = useState<boolean>(false);
+  const [includeInvoice, setIncludeInvoice] = useState<boolean>(false);
+  const [includeHireAgreement, setIncludeHireAgreement] = useState<boolean>(false);
+  const [includePermit, setIncludePermit] = useState<boolean>(false);
+  const [customAttachments, setCustomAttachments] = useState<CustomAttachment[]>([]);
 
   // Default contact info computed from active context and recipient type
   const targetLog = effLog;
@@ -173,6 +184,13 @@ export const MaintenanceCommunicationModal: React.FC<
       setRecipientDropdownOpen(false);
       setOrderSearchQuery('');
       setRecipientSearchQuery('');
+      setIncludeWorkOrder(false);
+      setIncludeInvoice(false);
+      setIncludeHireAgreement(false);
+      setIncludePermit(false);
+      setCustomAttachments([]);
+    } else {
+      setCustomAttachments([]);
     }
   }, [isOpen, initialMode, initialRecipient]);
 
@@ -279,6 +297,42 @@ export const MaintenanceCommunicationModal: React.FC<
     setOrderDropdownOpen(false);
   };
 
+  // Helper to construct formatted Attached Documents section for Maintenance
+  const buildMaintenanceAttachedDocs = useCallback(() => {
+    const lines: string[] = [];
+    const origin = window.location.origin;
+
+    if (includeWorkOrder && targetLog) {
+      const logRef = targetLog.orderNumber || targetLog.id;
+      const url = targetLog.invoiceUrl || `${origin}/view-document?maintenanceId=${encodeURIComponent(targetLog.id)}&docType=workOrder`;
+      lines.push(`• Work Order #${logRef}:\n  ${url}`);
+    }
+
+    if (includeInvoice && targetLog) {
+      const invUrl = (targetLog as any).invoiceDocumentUrl || targetLog.invoiceUrl || `${origin}/view-document?maintenanceId=${encodeURIComponent(targetLog.id)}&docType=invoice`;
+      lines.push(`• Maintenance Invoice:\n  ${invUrl}`);
+    }
+
+    if (includeHireAgreement && (targetContext?.rentalAgreementNumber || (targetLog as any)?.rentalId)) {
+      const rId = targetContext?.rentalAgreementNumber || (targetLog as any)?.rentalId;
+      lines.push(`• Hire Agreement T&C:\n  ${origin}/doc/${encodeURIComponent(rId)}/hireAgreement`);
+    }
+
+    if (includePermit && (targetContext?.vehicleReg || targetLog?.vehicleReg)) {
+      const vReg = targetContext?.vehicleReg || targetLog?.vehicleReg;
+      lines.push(`• Vehicle Permit:\n  ${origin}/doc/${encodeURIComponent(vReg)}/permit`);
+    }
+
+    customAttachments
+      .filter((a) => a.selected !== false && a.url && !a.isUploading)
+      .forEach((a) => {
+        lines.push(`• ${a.name}:\n  ${a.url}`);
+      });
+
+    if (lines.length === 0) return '';
+    return `Attached Documents:\n${lines.join('\n')}`;
+  }, [includeWorkOrder, includeInvoice, includeHireAgreement, includePermit, targetLog, targetContext, customAttachments]);
+
   // Update message body and subject whenever template or context changes (does NOT wipe out typed contact)
   useEffect(() => {
     if (!targetContext || !isOpen) return;
@@ -296,9 +350,19 @@ export const MaintenanceCommunicationModal: React.FC<
         recipientType
       );
       setSubject(replacedSubject);
-      setMessage(replacedBody);
+      setBaseMessage(replacedBody);
     }
   }, [selectedTemplateId, targetContext, recipientType, isOpen, templates]);
+
+  // LIVE PREVIEW: Reflect document attachments and custom uploaded files in real-time
+  useEffect(() => {
+    const docs = buildMaintenanceAttachedDocs();
+    if (!docs) {
+      setMessage(baseMessage);
+    } else {
+      setMessage(`${baseMessage}\n\n${docs}`);
+    }
+  }, [baseMessage, buildMaintenanceAttachedDocs]);
 
   // Handle WhatsApp dispatch
   const handleOpenWhatsApp = async () => {
@@ -313,14 +377,25 @@ export const MaintenanceCommunicationModal: React.FC<
       return;
     }
 
+    let finalMessage = (message || baseMessage || '').trim();
+    const docs = buildMaintenanceAttachedDocs();
+    if (docs && !finalMessage.includes(docs)) {
+      finalMessage = `${finalMessage}\n\n${docs}`;
+    }
+
+    const allAttachments = customAttachments
+      .filter((a) => a.selected !== false && a.url && !a.isUploading)
+      .map((a) => a.url);
+
     try {
       await executeMaintenanceWhatsApp({
         phone: digits,
-        message,
+        message: finalMessage,
         recipientName: recipientType === 'driver' ? targetContext.driverName : targetContext.garageName,
         recipientType,
         log: targetLog,
         userName: user?.name || user?.email || 'Fleet Coordinator',
+        attachments: allAttachments,
       });
       toast.success('Opened WhatsApp chat with pre-filled maintenance template!');
     } catch (err: any) {
@@ -343,10 +418,21 @@ export const MaintenanceCommunicationModal: React.FC<
       toast.error('Subject line is required.');
       return;
     }
-    if (!message.trim()) {
+
+    let finalMessage = (message || baseMessage || '').trim();
+    const docs = buildMaintenanceAttachedDocs();
+    if (docs && !finalMessage.includes(docs)) {
+      finalMessage = `${finalMessage}\n\n${docs}`;
+    }
+
+    if (!finalMessage.trim()) {
       toast.error('Message body cannot be empty.');
       return;
     }
+
+    const emailAttachments = customAttachments
+      .filter((a) => a.selected !== false && a.url && !a.isUploading)
+      .map((a) => ({ filename: a.name, url: a.url }));
 
     setIsSending(true);
     const toastId = toast.loading(`Sending email to ${recipientEmail}...`);
@@ -355,10 +441,11 @@ export const MaintenanceCommunicationModal: React.FC<
         toEmail: recipientEmail.trim(),
         toName: recipientType === 'driver' ? targetContext.driverName : targetContext.garageName,
         subject: subject.trim(),
-        message: message.trim(),
+        message: finalMessage,
         recipientType,
         log: targetLog,
         userName: user?.name || user?.email || 'Fleet Coordinator',
+        attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
       });
       toast.success('Maintenance email dispatched successfully!', { id: toastId });
       onClose();
@@ -859,6 +946,182 @@ export const MaintenanceCommunicationModal: React.FC<
               </p>
             </div>
           )}
+        </div>
+
+        {/* Document Attachment Selection (Instant Links & Custom Uploads) */}
+        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 shadow-2xs attachment-container" data-attachment-box="true">
+          <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+            <div className="flex items-center space-x-2">
+              <Paperclip className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider attachment-title">
+                Attach Documents (Instant Links)
+              </span>
+              {(includeWorkOrder || includeInvoice || includeHireAgreement || includePermit || customAttachments.some((a) => a.selected)) && (
+                <span className="px-2 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-full">
+                  {[includeWorkOrder, includeInvoice, includeHireAgreement, includePermit].filter(Boolean).length +
+                    customAttachments.filter((a) => a.selected).length}{' '}
+                  selected
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {/* Predefined Work Order Card */}
+            <label
+              className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                includeWorkOrder
+                  ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={includeWorkOrder}
+                onChange={() => setIncludeWorkOrder((p) => !p)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                    Work Order #{targetLog.orderNumber || targetLog.id}
+                  </span>
+                  {includeWorkOrder && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                      <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                      Ready
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    Work Order
+                  </span>
+                  {includeWorkOrder && (
+                    <span className="text-[11px] text-emerald-700 font-semibold truncate">
+                      Instant link attached
+                    </span>
+                  )}
+                </div>
+              </div>
+            </label>
+
+            {/* Predefined Invoice Card */}
+            <label
+              className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                includeInvoice
+                  ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={includeInvoice}
+                onChange={() => setIncludeInvoice((p) => !p)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                    Maintenance Invoice
+                  </span>
+                  {includeInvoice && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                      <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                      Ready
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    Invoice
+                  </span>
+                </div>
+              </div>
+            </label>
+
+            {/* Optional Rental Agreement Card if linked */}
+            {(targetContext?.rentalAgreementNumber || (targetLog as any)?.rentalId) && (
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                  includeHireAgreement
+                    ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeHireAgreement}
+                  onChange={() => setIncludeHireAgreement((p) => !p)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                      Hire Agreement T&C
+                    </span>
+                    {includeHireAgreement && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        Ready
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      Rental Agreement
+                    </span>
+                  </div>
+                </div>
+              </label>
+            )}
+
+            {/* Optional Vehicle Permit Card if linked */}
+            {(targetContext?.vehicleReg || targetLog?.vehicleReg) && (
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                  includePermit
+                    ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={includePermit}
+                  onChange={() => setIncludePermit((p) => !p)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                      Parking Permit
+                    </span>
+                    {includePermit && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        Ready
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      Permit
+                    </span>
+                  </div>
+                </div>
+              </label>
+            )}
+          </div>
+
+          {/* Upload Additional File / Custom Attachment Input */}
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <CustomAttachmentUploader
+              attachments={customAttachments}
+              onChange={setCustomAttachments}
+              moduleContext="maintenance"
+              recordId={targetLog?.id}
+            />
+          </div>
         </div>
 
         {/* MESSAGE BODY (EDITABLE & PREVIEW) */}

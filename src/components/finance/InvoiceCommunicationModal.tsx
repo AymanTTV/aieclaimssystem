@@ -23,7 +23,8 @@ import {
   Search,
   ChevronDown,
   CheckCircle2,
-  FileText
+  FileText,
+  Paperclip
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatWhatsAppNumber, buildWaMeLink } from '../../utils/whatsapp';
@@ -34,6 +35,8 @@ import { logCommunication } from '../../services/communicationLogService';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { loadTemplatesForCategory } from '../../utils/templateManager';
+import { CustomAttachmentUploader } from '../common/CustomAttachmentUploader';
+import { CustomAttachment } from '../../utils/attachmentUpload';
 
 interface InvoiceCommunicationModalProps {
   isOpen: boolean;
@@ -109,11 +112,18 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   // Editable form fields
   const [recipientContact, setRecipientContact] = useState('');
   const [subject, setSubject] = useState('');
+  const [baseMessage, setBaseMessage] = useState('');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [isPrintingPdf, setIsPrintingPdf] = useState(false);
   const [cachedPdfUrl, setCachedPdfUrl] = useState<string>('');
+
+  // Document attachment selection states
+  const [includeInvoicePdf, setIncludeInvoicePdf] = useState(false);
+  const [includeHireAgreement, setIncludeHireAgreement] = useState(false);
+  const [includePermit, setIncludePermit] = useState(false);
+  const [customAttachments, setCustomAttachments] = useState<CustomAttachment[]>([]);
 
   // Sync mode whenever initialMode changes upon modal opening
   useEffect(() => {
@@ -121,11 +131,16 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       setMode(initialMode);
       setIsTemplateDropdownOpen(false);
       setTemplateSearchQuery('');
+      setIncludeInvoicePdf(false);
+      setIncludeHireAgreement(false);
+      setIncludePermit(false);
+      setCustomAttachments([]);
       if (invoice?.documentUrl) {
         setCachedPdfUrl(invoice.documentUrl);
       }
     } else {
       hasPreselectedRef.current = false;
+      setCustomAttachments([]);
     }
   }, [isOpen, initialMode, invoice?.documentUrl]);
 
@@ -365,12 +380,17 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         "['driver name]": clientName,
         "[driver's name]": clientName,
 
-        // Invoice Number
+        // Invoice Number & Order References
         '{invoice_number}': invoiceNo,
         '{invoice_no}': invoiceNo,
+        '{order_number}': invoiceNo,
+        '{reference}': invoiceNo,
+        '{invoice_reference}': invoiceNo,
         '[invoice number]': invoiceNo,
         '[invoice no.]': invoiceNo,
         '[invoice no]': invoiceNo,
+        '[order number]': invoiceNo,
+        '[reference]': invoiceNo,
 
         // Category
         '{category}': category,
@@ -468,6 +488,40 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
     [invoice, customer, vehicle, cachedPdfUrl, formatCurrency]
   );
 
+  // Helper to construct formatted Attached Documents section for Invoice
+  const buildInvoiceAttachedDocs = useCallback(() => {
+    const lines: string[] = [];
+    const origin = window.location.origin;
+
+    if (includeInvoicePdf && invoice) {
+      const invUrl = invoice.documentUrl && !invoice.documentUrl.startsWith('blob:')
+        ? invoice.documentUrl
+        : (invoice.rentalId 
+            ? `${origin}/doc/${encodeURIComponent(invoice.rentalId)}/invoice`
+            : `${origin}/view-document?rentalId=${encodeURIComponent(invoice.id)}&docType=invoice`);
+      lines.push(`• Invoice #${invoice.invoiceNumber || invoice.id}:\n  ${invUrl}`);
+    }
+
+    if (includeHireAgreement && (invoice?.rentalId || (invoice as any)?.rentalAgreementNumber)) {
+      const rId = invoice.rentalId || (invoice as any).rentalAgreementNumber || '';
+      lines.push(`• Hire Agreement T&C:\n  ${origin}/doc/${encodeURIComponent(rId)}/hireAgreement`);
+    }
+
+    if (includePermit && (invoice?.rentalId || invoice?.vehicleId)) {
+      const rId = invoice.rentalId || invoice.vehicleId || '';
+      lines.push(`• Parking Permit:\n  ${origin}/doc/${encodeURIComponent(rId)}/permit`);
+    }
+
+    customAttachments
+      .filter((a) => a.selected !== false && a.url && !a.isUploading)
+      .forEach((a) => {
+        lines.push(`• ${a.name}:\n  ${a.url}`);
+      });
+
+    if (lines.length === 0) return '';
+    return `Attached Documents:\n${lines.join('\n')}`;
+  }, [includeInvoicePdf, includeHireAgreement, includePermit, invoice, customAttachments]);
+
   // Live preview update whenever selected template, mode, or invoice changes
   useEffect(() => {
     if (!invoice) return;
@@ -488,15 +542,25 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       );
       const popBody = populateTemplate(currentTpl.bodyTemplate);
       setSubject(popSubject);
-      setMessage(popBody);
+      setBaseMessage(popBody);
     } else if (templates.length === 0 && !loadingTemplates) {
       // Empty state
       setSubject(`Invoice ${invoice.invoiceNumber || ''}`);
-      setMessage(
+      setBaseMessage(
         `Hi ${invoice.customerName || customer?.name || 'Customer'},\n\nHere are your invoice details for ${invoice.invoiceNumber || 'Invoice'}:\nTotal: ${formatCurrency(invoice.total || 0)}\nOwing: ${formatCurrency(invoice.remainingAmount || 0)}\nDue Date: ${formatDateValue(invoice.dueDate)}.`
       );
     }
   }, [selectedTemplateId, mode, invoice, customer, templates, loadingTemplates, populateTemplate, formatCurrency]);
+
+  // LIVE PREVIEW: Reflect document attachments and custom uploaded files in real-time
+  useEffect(() => {
+    const docs = buildInvoiceAttachedDocs();
+    if (!docs) {
+      setMessage(baseMessage);
+    } else {
+      setMessage(`${baseMessage}\n\n${docs}`);
+    }
+  }, [baseMessage, buildInvoiceAttachedDocs]);
 
   // Re-populate from template (Reset edits)
   const handleResetToTemplate = () => {
@@ -504,7 +568,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
     if (!currentTpl || !invoice) return;
 
     setSubject(populateTemplate(currentTpl.subjectTemplate));
-    setMessage(populateTemplate(currentTpl.bodyTemplate));
+    setBaseMessage(populateTemplate(currentTpl.bodyTemplate));
     toast.success('Reset to original template text');
   };
 
@@ -595,11 +659,11 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       return;
     }
 
-    // Ensure PDF URL is included if available
-    let finalMessage = message;
-    const pdfUrl = cachedPdfUrl || invoice.documentUrl;
-    if (pdfUrl && !finalMessage.includes(pdfUrl)) {
-      finalMessage = `${finalMessage}\n\n📄 View Invoice PDF: ${pdfUrl}`;
+    // Ensure all attached documents and custom uploads are included
+    let finalMessage = (message || baseMessage || '').trim();
+    const docs = buildInvoiceAttachedDocs();
+    if (docs && !finalMessage.includes(docs)) {
+      finalMessage = `${finalMessage}\n\n${docs}`;
     }
 
     const waUrl = buildWaMeLink(digits, finalMessage);
@@ -618,6 +682,11 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         skipCommunicationLogs: true,
       });
 
+      const allAttachments = [
+        ...((cachedPdfUrl || invoice.documentUrl) ? [cachedPdfUrl || invoice.documentUrl!] : []),
+        ...customAttachments.filter((a) => a.selected !== false && a.url).map((a) => a.url),
+      ];
+
       await logCommunication({
         communication_channel: 'WhatsApp',
         recipient_role: 'Customer',
@@ -627,7 +696,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         record_id: invoice.invoiceNumber || invoice.id,
         template_name: selectedTemplate?.name || 'Custom Invoice',
         message_body: finalMessage,
-        attachments: cachedPdfUrl || invoice.documentUrl ? [cachedPdfUrl || invoice.documentUrl!] : [],
+        attachments: allAttachments,
         delivery_status: 'Sent',
         subject: subject || 'Invoice Details',
         customerId: invoice.customerId || customer?.id || '',
@@ -655,15 +724,21 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
       return;
     }
 
-    let finalBody = message;
-    const pdfUrl = cachedPdfUrl || invoice.documentUrl;
-    if (pdfUrl && !finalBody.includes(pdfUrl)) {
-      finalBody = `${finalBody}\n\n📄 View / Download Invoice PDF:\n${pdfUrl}`;
+    let finalBody = (message || baseMessage || '').trim();
+    const docs = buildInvoiceAttachedDocs();
+    if (docs && !finalBody.includes(docs)) {
+      finalBody = `${finalBody}\n\n${docs}`;
     }
 
     const encodedSubject = encodeURIComponent(subject || `Invoice ${invoice.invoiceNumber || ''}`);
     const encodedBody = encodeURIComponent(finalBody);
     const mailtoUrl = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
+
+    const pdfUrl = cachedPdfUrl || invoice.documentUrl;
+    const allAttachments = [
+      ...(pdfUrl ? [pdfUrl] : []),
+      ...customAttachments.filter((a) => a.selected !== false && a.url).map((a) => a.url),
+    ];
 
     window.location.href = mailtoUrl;
 
@@ -687,7 +762,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         record_id: invoice.invoiceNumber || invoice.id,
         template_name: selectedTemplate?.name || 'Custom Invoice',
         message_body: finalBody,
-        attachments: pdfUrl ? [pdfUrl] : [],
+        attachments: allAttachments,
         delivery_status: 'Sent',
         subject: subject || `Invoice ${invoice.invoiceNumber || ''}`,
         customerId: invoice.customerId || customer?.id || '',
@@ -719,10 +794,10 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-    let finalBody = message;
-    const pdfUrl = cachedPdfUrl || invoice.documentUrl;
-    if (pdfUrl && !finalBody.includes(pdfUrl)) {
-      finalBody = `${finalBody}\n\n📄 View / Download Invoice PDF:\n${pdfUrl}`;
+    let finalBody = (message || baseMessage || '').trim();
+    const docs = buildInvoiceAttachedDocs();
+    if (docs && !finalBody.includes(docs)) {
+      finalBody = `${finalBody}\n\n${docs}`;
     }
 
     if (!serviceId || !templateId || !publicKey) {
@@ -732,12 +807,21 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
 
     setSendingEmail(true);
     try {
+      const pdfUrl = cachedPdfUrl || invoice.documentUrl;
+      const emailAttachments = [
+        ...(pdfUrl ? [{ filename: `Invoice_${invoice.invoiceNumber || invoice.id}.pdf`, url: pdfUrl }] : []),
+        ...customAttachments
+          .filter((a) => a.selected !== false && a.url && !a.isUploading)
+          .map((a) => ({ filename: a.name, url: a.url })),
+      ];
+
       await sendEmail({
         to_email: email,
         to_name: invoice.customerName || customer?.name || 'Client',
         subject: subject,
         message: finalBody,
         reference: invoice.invoiceNumber || invoice.id,
+        attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
       });
 
       await logEmailHistory({
@@ -759,7 +843,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         record_id: invoice.invoiceNumber || invoice.id,
         template_name: selectedTemplate?.name || 'Custom Invoice',
         message_body: finalBody,
-        attachments: pdfUrl ? [pdfUrl] : [],
+        attachments: emailAttachments.map((a) => ({ name: a.filename, url: a.url })),
         delivery_status: 'Sent',
         subject: subject || `Invoice ${invoice.invoiceNumber || ''}`,
         customerId: invoice.customerId || customer?.id || '',
@@ -1071,6 +1155,148 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
             />
           </div>
         )}
+
+        {/* Document Attachment Selection (Instant Links & Custom Uploads) */}
+        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 shadow-2xs attachment-container" data-attachment-box="true">
+          <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+            <div className="flex items-center space-x-2">
+              <Paperclip className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider attachment-title">
+                Attach Documents (Instant Links)
+              </span>
+              {(includeInvoicePdf || includeHireAgreement || includePermit || customAttachments.some((a) => a.selected)) && (
+                <span className="px-2 py-0.5 text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-full">
+                  {[includeInvoicePdf, includeHireAgreement, includePermit].filter(Boolean).length +
+                    customAttachments.filter((a) => a.selected).length}{' '}
+                  selected
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {/* Predefined Invoice PDF Card */}
+            <label
+              className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                includeInvoicePdf
+                  ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={includeInvoicePdf}
+                onChange={() => setIncludeInvoicePdf((p) => !p)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                    Invoice #{invoice.invoiceNumber || invoice.id}
+                  </span>
+                  {includeInvoicePdf && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                      <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                      Ready
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    Invoice PDF
+                  </span>
+                  {includeInvoicePdf && (
+                    <span className="text-[11px] text-emerald-700 font-semibold truncate">
+                      Instant invoice link attached
+                    </span>
+                  )}
+                </div>
+              </div>
+            </label>
+
+            {/* Optional Rental Agreement Card if linked */}
+            {(invoice.rentalId || (invoice as any).rentalAgreementNumber) && (
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                  includeHireAgreement
+                    ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeHireAgreement}
+                  onChange={() => setIncludeHireAgreement((p) => !p)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                      Hire Agreement T&C
+                    </span>
+                    {includeHireAgreement && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        Ready
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      Rental Agreement
+                    </span>
+                  </div>
+                </div>
+              </label>
+            )}
+
+            {/* Optional Vehicle Permit Card if linked */}
+            {(invoice.rentalId || invoice.vehicleId) && (
+              <label
+                className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                  includePermit
+                    ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-400/20 shadow-2xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={includePermit}
+                  onChange={() => setIncludePermit((p) => !p)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-900 leading-snug block truncate">
+                      Parking Permit
+                    </span>
+                    {includePermit && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 shrink-0">
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        Ready
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      Permit
+                    </span>
+                  </div>
+                </div>
+              </label>
+            )}
+          </div>
+
+          {/* Upload Additional File / Custom Attachment Input */}
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <CustomAttachmentUploader
+              attachments={customAttachments}
+              onChange={setCustomAttachments}
+              moduleContext="invoices"
+              recordId={invoice?.id}
+            />
+          </div>
+        </div>
 
         {/* Populated Message Body Preview */}
         <div>

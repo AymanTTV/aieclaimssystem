@@ -15,6 +15,7 @@ import {
   setDoc,
   addDoc,
   serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -161,16 +162,25 @@ export function replaceGroupPlaceholders(
     recipient.firstName ||
     (recipient.name ? recipient.name.split(' ')[0] : 'Valued Customer');
   const companyOrName = recipient.companyName || recipient.name || 'Account';
+  const memberId = recipient.id || '';
 
   let resolved = text
     .replace(/\{customer_name\}/gi, recipient.name || 'Valued Customer')
     .replace(/\{name\}/gi, recipient.name || 'Valued Customer')
     .replace(/\{first_name\}/gi, firstName)
+    .replace(/\{recipient_name\}/gi, recipient.name || 'Valued Customer')
     .replace(/\{company_name\}/gi, companyOrName)
+    .replace(/\{customer_id\}/gi, memberId)
+    .replace(/\{member_id\}/gi, memberId)
+    .replace(/\{order_number\}/gi, memberId)
+    .replace(/\{reference\}/gi, memberId)
+    .replace(/\{customer_email\}/gi, recipient.email || '')
     .replace(/\{email\}/gi, recipient.email || '')
+    .replace(/\{customer_phone\}/gi, recipient.phone || '')
     .replace(/\{mobile\}/gi, recipient.phone || '')
     .replace(/\{phone\}/gi, recipient.phone || '')
     .replace(/\{category\}/gi, recipient.category || 'Member')
+    .replace(/\{today_date\}/gi, todayStr)
     .replace(/\{today\}/gi, todayStr)
     .replace(/\{date\}/gi, todayStr);
 

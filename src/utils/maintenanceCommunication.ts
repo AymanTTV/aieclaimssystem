@@ -48,6 +48,13 @@ export interface ResolvedMaintenanceContext {
   garageAddress: string;
   garagePhone: string;
   garageEmail: string;
+
+  // Financials & Status
+  totalCost?: string;
+  paidAmount?: string;
+  remainingAmount?: string;
+  invoiceNumber?: string;
+  maintenanceStatus?: string;
 }
 
 export interface MaintenanceTemplateOption {
@@ -332,6 +339,11 @@ export function resolveMaintenanceContext(
     nextServiceMileage,
     partsRequired,
     rawDate: log.date,
+    totalCost: typeof log.cost === 'number' ? `£${log.cost.toFixed(2)}` : (typeof (log as any).totalCost === 'number' ? `£${(log as any).totalCost.toFixed(2)}` : '£0.00'),
+    paidAmount: typeof (log as any).paidAmount === 'number' ? `£${(log as any).paidAmount.toFixed(2)}` : '£0.00',
+    remainingAmount: typeof (log as any).remainingAmount === 'number' ? `£${(log as any).remainingAmount.toFixed(2)}` : '£0.00',
+    invoiceNumber: (log as any).invoiceNumber || (log as any).invoiceRef || orderNumber,
+    maintenanceStatus: log.status || 'Scheduled',
     vehicleId,
     vehicleReg,
     vehicleMakeModel,
@@ -461,15 +473,32 @@ export function replaceMaintenancePlaceholders(
     '[Type]': ctx.serviceType,
 
     // 7. REFERENCE & ORDER NUMBERS (PRESERVED)
+    '{order_number}': ctx.orderNumber,
+    '{orderNumber}': ctx.orderNumber,
+    '{reference}': ctx.orderNumber,
+    '{work_order_number}': ctx.orderNumber,
+    '{work_order}': ctx.orderNumber,
     '{maintenance_id}': ctx.orderNumber,
     '{maintenance_Id}': ctx.orderNumber,
     '{maintenanceId}': ctx.orderNumber,
+    '{maintenance_order_id}': ctx.orderNumber,
     '[Maintenance ID]': ctx.orderNumber,
     '[Order Number]': ctx.orderNumber,
     '[Order #]': ctx.orderNumber,
     '[Reference Number]': ctx.orderNumber,
     '[Reference]': ctx.orderNumber,
     '[Work Order]': ctx.orderNumber,
+
+    // 7b. COSTS, PAYMENTS & STATUS
+    '{total_cost}': ctx.totalCost || '£0.00',
+    '{cost}': ctx.totalCost || '£0.00',
+    '{paid_amount}': ctx.paidAmount || '£0.00',
+    '{amount_paid}': ctx.paidAmount || '£0.00',
+    '{remaining_amount}': ctx.remainingAmount || '£0.00',
+    '{balance_due}': ctx.remainingAmount || '£0.00',
+    '{invoice_number}': ctx.invoiceNumber || ctx.orderNumber,
+    '{maintenance_status}': ctx.maintenanceStatus || 'Scheduled',
+    '{status}': ctx.maintenanceStatus || 'Scheduled',
 
     // 8. DRIVER DETAILS (PRESERVED)
     '{driver_name}': driverNameVal,
@@ -901,6 +930,7 @@ export async function executeMaintenanceWhatsApp(params: {
   log: MaintenanceLog;
   userName?: string;
   templateName?: string;
+  attachments?: any[];
 }): Promise<{ url: string }> {
   const digits = formatWhatsAppNumber(params.phone);
   if (!digits) {
@@ -932,7 +962,7 @@ export async function executeMaintenanceWhatsApp(params: {
       record_id: params.log.orderNumber || params.log.id,
       template_name: params.templateName || 'Maintenance Notification',
       message_body: params.message,
-      attachments: [],
+      attachments: params.attachments || [],
       delivery_status: 'Sent',
       subject: `Maintenance ${params.log.orderNumber || params.log.id}`,
       vehicleId: params.log.vehicleId || '',
@@ -957,6 +987,7 @@ export async function executeMaintenanceEmail(params: {
   log: MaintenanceLog;
   userName?: string;
   templateName?: string;
+  attachments?: any[];
 }): Promise<void> {
   if (!params.toEmail || !params.toEmail.includes('@')) {
     throw new Error('A valid email address is required to send this email.');
@@ -968,6 +999,7 @@ export async function executeMaintenanceEmail(params: {
     subject: params.subject,
     message: params.message,
     reference: params.log.orderNumber || params.log.id,
+    attachments: params.attachments && params.attachments.length > 0 ? params.attachments : undefined,
   });
 
   // Log to email history
@@ -991,7 +1023,7 @@ export async function executeMaintenanceEmail(params: {
       record_id: params.log.orderNumber || params.log.id,
       template_name: params.templateName || 'Maintenance Notification',
       message_body: params.message,
-      attachments: [],
+      attachments: params.attachments || [],
       delivery_status: 'Sent',
       subject: params.subject,
       vehicleId: params.log.vehicleId || '',

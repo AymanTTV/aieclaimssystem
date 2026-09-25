@@ -48,6 +48,8 @@ import {
   Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CustomAttachmentUploader } from '../common/CustomAttachmentUploader';
+import { CustomAttachment } from '../../utils/attachmentUpload';
 
 interface ClaimCommunicationModalProps {
   isOpen: boolean;
@@ -136,6 +138,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>(
     initialRecipient === 'legalHandler' ? ['claim_card_pdf'] : []
   );
+  const [customAttachments, setCustomAttachments] = useState<CustomAttachment[]>([]);
 
   // Extract all available files from the claim (Claim Card PDF, evidence files, photos)
   const availableFiles = useMemo(() => {
@@ -229,6 +232,7 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
 
     // Reset attachment state
     setClaimCardAttachment(null);
+    setCustomAttachments([]);
 
     // Initialize channel-specific behavior
     if (initialChannel === 'whatsapp') {
@@ -519,6 +523,16 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             url: found.url,
           });
         }
+      }
+    }
+
+    // Include any custom uploaded attachments
+    for (const customAtt of customAttachments) {
+      if (customAtt.selected !== false && customAtt.url && !customAtt.isUploading) {
+        selectedAttachments.push({
+          filename: customAtt.name,
+          url: customAtt.url,
+        });
       }
     }
 
@@ -1402,12 +1416,25 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
             </div>
           )}
 
+          {/* Upload Additional File / Custom Attachment */}
+          <div className="pt-2 border-t border-slate-200">
+            <CustomAttachmentUploader
+              attachments={customAttachments}
+              onChange={setCustomAttachments}
+              moduleContext="claims"
+              recordId={claim?.id}
+            />
+          </div>
+
           {/* Selection Live Status Footer */}
           <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-            {selectedFileIds.length > 0 ? (
+            {(selectedFileIds.length > 0 || customAttachments.filter((a) => a.selected !== false).length > 0) ? (
               <span className="text-indigo-700 font-medium flex items-center gap-1.5">
                 <Paperclip className="h-3.5 w-3.5 text-indigo-600" />
-                <strong className="text-slate-900">{selectedFileIds.length} attachment{selectedFileIds.length > 1 ? 's' : ''}</strong> will be included ({channel === 'whatsapp' ? 'appended as secure download links' : 'directly attached to email'}).
+                <strong className="text-slate-900">
+                  {selectedFileIds.length + customAttachments.filter((a) => a.selected !== false).length} attachment
+                  {selectedFileIds.length + customAttachments.filter((a) => a.selected !== false).length > 1 ? 's' : ''}
+                </strong> will be included ({channel === 'whatsapp' ? 'appended as secure download links' : 'directly attached to email'}).
               </span>
             ) : (
               <span className="text-slate-500 italic">
@@ -1415,10 +1442,13 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
               </span>
             )}
 
-            {selectedFileIds.length > 0 && (
+            {(selectedFileIds.length > 0 || customAttachments.length > 0) && (
               <button
                 type="button"
-                onClick={handleClearAll}
+                onClick={() => {
+                  handleClearAll();
+                  setCustomAttachments([]);
+                }}
                 className="text-[11px] text-slate-500 hover:text-slate-800 underline self-end sm:self-auto cursor-pointer"
               >
                 Clear all attachments

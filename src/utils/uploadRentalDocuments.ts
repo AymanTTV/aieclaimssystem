@@ -80,8 +80,8 @@ export const uploadRentalDocuments = async (
         console.warn(`Firebase Storage uploadBytes failed for ${name} (${uploadErr?.message || uploadErr}), applying resilient fallback`);
       }
 
-      // If Firebase storage was unreachable or returned an error, fallback to data URL
-      // so generated agreements, invoices, and permits are never lost
+      // If Firebase storage was unreachable or returned an error, only use data URL for immediate local fallback
+      // but NEVER use a transient blob URL that fails in other browser sessions
       if (!downloadUrl) {
         try {
           downloadUrl = await new Promise<string>((resolve, reject) => {
@@ -90,11 +90,9 @@ export const uploadRentalDocuments = async (
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
-          console.log(`Document "${name}" preserved with resilient data URL fallback`);
+          console.log(`Document "${name}" preserved with resilient fallback`);
         } catch (fallbackErr) {
-          if (typeof URL !== 'undefined' && URL.createObjectURL) {
-            downloadUrl = URL.createObjectURL(blob);
-          }
+          console.warn(`Could not preserve document "${name}":`, fallbackErr);
         }
       }
 
