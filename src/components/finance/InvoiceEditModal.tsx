@@ -845,12 +845,14 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
          </div>
       </Modal>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-medium text-gray-900">
-            Edit Invoice {invoice.invoiceNumber && <span className="text-primary font-bold">{invoice.invoiceNumber}</span>}
-          </h2>
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-white text-[#0F172A]">
+        {/* Scrollable Form Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold text-gray-900">
+              Edit Invoice {invoice.invoiceNumber && <span className="text-primary font-black ml-1">#{invoice.invoiceNumber}</span>}
+            </h2>
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Invoice Number" value={formData.invoiceNumber} onChange={e => setFormData(fd => ({ ...fd, invoiceNumber: e.target.value }))} required />
@@ -1071,10 +1073,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="pt-4 border-t border-gray-200 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Pinned Action Footer */}
+      <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-b-2xl">
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
               Quick Actions:
             </span>
             <button
@@ -1083,7 +1087,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                 setShareInitialMode('whatsapp');
                 setShowShareModal(true);
               }}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
               title="Share Invoice via WhatsApp"
             >
               <MessageCircle className="w-3.5 h-3.5 mr-1 text-emerald-600" />
@@ -1095,7 +1099,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                 setShareInitialMode('email');
                 setShowShareModal(true);
               }}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors shadow-sm"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors shadow-2xs cursor-pointer"
               title="Send Invoice via Email"
             >
               <Mail className="w-3.5 h-3.5 mr-1 text-sky-600" />
@@ -1105,7 +1109,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
               type="button"
               onClick={handlePrintOrDownloadPDF}
               disabled={isPrintingPdf}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
               title="Print or Download Invoice PDF"
             >
               <Printer className="w-3.5 h-3.5 mr-1 text-purple-600" />
@@ -1113,9 +1117,19 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             </button>
           </div>
 
-          <div className="flex space-x-3 w-full sm:w-auto justify-end">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary-600 shadow-sm">
+          <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-600 rounded-xl shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+            >
               Review Details
             </button>
           </div>

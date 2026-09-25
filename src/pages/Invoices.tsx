@@ -727,7 +727,7 @@ const Invoices: React.FC = () => {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         title="Create Invoice"
-        size="lg"
+        size="xl"
         className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
         contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0 text-[#0F172A]"
       >
@@ -745,7 +745,7 @@ const Invoices: React.FC = () => {
         isOpen={!!selectedInvoice} 
         onClose={() => setSelectedInvoice(null)} 
         title="Invoice Details" 
-        size="lg"
+        size="xl"
         className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
         contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0 text-[#0F172A]"
       >
@@ -766,7 +766,7 @@ const Invoices: React.FC = () => {
         isOpen={!!editingInvoice} 
         onClose={() => setEditingInvoice(null)} 
         title="Edit Invoice" 
-        size="lg"
+        size="xl"
         className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
         contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0 text-[#0F172A]"
       >
@@ -849,7 +849,7 @@ const Invoices: React.FC = () => {
 
       <ManageGroupsModal open={showManageGroups} onClose={() => setShowManageGroups(false)} />
 
-      <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="sm">
+      <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="xl">
        <div className="p-1">
          <div className="flex items-start">
            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
