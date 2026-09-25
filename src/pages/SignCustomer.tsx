@@ -83,16 +83,15 @@ const SignCustomer = () => {
       const stampedSignature = await stampSignatureImage(signature, timestampText, customer?.name);
 
       await updateDoc(docRef, {
-        signature: stampedSignature,
-        signatureTimestamp: timestampText,
-        signedAt: signedDate,
-        termsAccepted: true,
-        termsAcceptedAt: signedDate,
-        updatedAt: signedDate,
-        // IMPORTANT: Delete both the token and the expiration time
-        signatureRequestToken: deleteField(),
-        signatureRequestExpiresAt: deleteField()
-      });
+  signature: stampedSignature,
+  signatureTimestamp: timestampText,
+  signedAt: signedDate,
+  termsAccepted: true,
+  termsAcceptedAt: signedDate,
+  updatedAt: signedDate,
+  signatureRequestToken: deleteField(),
+  signatureRequestExpiresAt: deleteField()
+});
       setSignedTimestamp(timestampText);
       setSuccess(true);
     } catch (err) {
