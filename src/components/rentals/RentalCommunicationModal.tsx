@@ -607,6 +607,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const finalTemplate = matched || templates[0];
     if (finalTemplate) {
       setSelectedTemplateId(finalTemplate.id);
+      // All documents remain unselected by default
+      setSelectedDocIds([]);
     }
   }, [isOpen, templates, rental, rentalState]);
 
@@ -2430,6 +2432,8 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                           type="button"
                           onClick={() => {
                             setSelectedTemplateId(t.id);
+                            // Ensure attachments remain strictly unselected when switching communication templates
+                            setSelectedDocIds([]);
                             setIsTemplateDropdownOpen(false);
                             setTemplateSearchQuery('');
                           }}

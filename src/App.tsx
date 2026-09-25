@@ -9,6 +9,7 @@ import { ToDoIcon } from './components/todo/ToDoIcon';
 import { ToDoModal } from './components/todo/ToDoModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useMondayAutoEmailScheduler } from './hooks/useMondayAutoEmailScheduler';
+import { MetaUpdater } from './components/seo/MetaUpdater';
 
 function AppInner() {
   const [todoOpen, setTodoOpen] = useState(false);
@@ -20,6 +21,9 @@ function AppInner() {
 
   return (
     <ErrorBoundary>
+      {/* Dynamic route-specific SEO, title & social cards */}
+      <MetaUpdater />
+
       {/* Global toast notifications */}
       <Toaster
         position="top-right"

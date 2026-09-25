@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import MobileMenu from './navigation/MobileMenu';
+import { ShareSystemModal } from './common/ShareSystemModal';
 import { ROUTES, ROUTE_METADATA, ROUTE_PERMISSIONS } from '../routes';
 import {
   collection,
@@ -66,6 +67,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [lastReadTimestamp, setLastReadTimestamp] = useState<Timestamp | null>(null);
   
@@ -482,7 +484,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               })}
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
+              {/* Share System Link Button */}
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#212049] bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 hover:border-[#423fbd] hover:text-[#423fbd] transition shadow-2xs cursor-pointer"
+                title="Share AIE Skyline System link with social preview card"
+              >
+                <Share2 className="w-3.5 h-3.5 text-[#423fbd]" />
+                <span>Share System</span>
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -548,6 +561,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           navigation={navigation}
           currentPath={location.pathname}
           unreadChatCount={unreadChatCount}
+          onOpenShare={() => setShowShareModal(true)}
         />
       )}
 
@@ -580,6 +594,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
         </nav>
       )}
+
+      {/* Share System Link Modal */}
+      <ShareSystemModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        defaultPath={location.pathname}
+      />
     </div>
   );
 };
