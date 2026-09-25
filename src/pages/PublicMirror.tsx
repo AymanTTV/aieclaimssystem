@@ -34,8 +34,10 @@ import {
   ChevronRight,
   User,
   Hash,
-  Activity
+  Activity,
+  Tv
 } from 'lucide-react';
+import WorkshopTVBoard from '../components/workshop/WorkshopTVBoard';
 import {
   startOfDay,
   endOfDay,
@@ -186,7 +188,21 @@ const PublicMirror: React.FC = () => {
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'in-progress' | 'scheduled' | 'today' | '7days'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isKioskMode, setIsKioskMode] = useState(false);
-  const [viewMode, setViewMode] = useState<'dual' | 'table' | 'grid'>('dual');
+  const [viewMode, setViewMode] = useState<'dual' | 'table' | 'grid' | 'tv'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      if (
+        path === '/schedule-mirror' ||
+        path.includes('/tv') ||
+        params.get('mode') === 'tv' ||
+        params.get('view') === 'tv'
+      ) {
+        return 'tv';
+      }
+    }
+    return 'dual';
+  });
 
   // Staff Login Modal state
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -707,6 +723,17 @@ const PublicMirror: React.FC = () => {
     );
   };
 
+  // If TV Auto-Rotation Board mode is active, render dedicated TV view
+  if (viewMode === 'tv') {
+    return (
+      <WorkshopTVBoard
+        jobs={unifiedJobs}
+        lastSyncTime={lastSyncTime}
+        onClose={() => setViewMode('dual')}
+      />
+    );
+  }
+
   return (
     <div
       className={`min-h-screen bg-[#0A0C14] text-white flex flex-col font-sans transition-all duration-300 w-full max-w-full overflow-x-hidden box-border public-mirror-root ${
@@ -793,6 +820,16 @@ const PublicMirror: React.FC = () => {
                 <span>Staff Login</span>
               </button>
             )}
+
+            {/* Workshop TV Auto-Rotation Button */}
+            <button
+              onClick={() => setViewMode('tv')}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer border border-emerald-500/30"
+              title="Switch to Fullscreen Auto-Rotation TV Board"
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span>TV Board</span>
+            </button>
 
             {/* Display Mode / Fullscreen Toggle */}
             <button
@@ -1119,6 +1156,18 @@ const PublicMirror: React.FC = () => {
             >
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Grid</span>
+            </button>
+            <button
+              onClick={() => setViewMode('tv')}
+              title="Workshop TV Display Mirror (Auto-Rotation Board)"
+              className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'tv'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-400 hover:text-white hover:bg-emerald-500/10'
+              }`}
+            >
+              <Tv className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">TV Auto-Rotation</span>
             </button>
           </div>
         </div>
@@ -1526,7 +1575,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-l-4 !border-l-red-500 border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-l-4 !border-l-red-500 border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-l-4 !border-l-amber-500 border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1551,7 +1600,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1576,7 +1625,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1598,7 +1647,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1628,7 +1677,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
+                                ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
@@ -1654,7 +1703,7 @@ const PublicMirror: React.FC = () => {
                           <td
                             className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${
                               isUrgent
-                                ? 'border-y-[#991b1b] border-r-[#991b1b] bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
+                                ? 'border-r border-y-red-700/80 border-r-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
                                 : isInProgress
                                 ? 'border-r border-y-amber-500/30 border-r-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50 group-hover:border-r-amber-400/50'
                                 : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'

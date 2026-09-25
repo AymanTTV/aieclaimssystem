@@ -1,6 +1,6 @@
 // src/components/rentals/RentalFilters.tsx
 import React, { useMemo } from 'react';
-import { Vehicle, Rental } from '../../types';
+import { Vehicle, Rental, Customer } from '../../types';
 import SearchableSelect from '../ui/SearchableSelect';
 
 interface RentalFiltersProps {
@@ -10,6 +10,8 @@ interface RentalFiltersProps {
   onTypeFilterChange: (type: string[]) => void;
   vehicleFilter: string[];
   onVehicleFilterChange: (vehicleIds: string[]) => void;
+  customerFilter: string[];
+  onCustomerFilterChange: (customerIds: string[]) => void;
   reasonFilter: string[];
   onReasonFilterChange: (reasons: string[]) => void;
   paymentStatusFilter: string[];
@@ -19,6 +21,7 @@ interface RentalFiltersProps {
   endDateFilter: string;
   onEndDateChange: (date: string) => void;
   vehicles: Vehicle[];
+  customers?: Customer[];
   rentals?: Rental[]; // ✅ Added rentals to extract substitution vehicles
   isDisabled: boolean;
 }
@@ -63,6 +66,8 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
   onTypeFilterChange,
   vehicleFilter,
   onVehicleFilterChange,
+  customerFilter = ['all'],
+  onCustomerFilterChange,
   reasonFilter,
   onReasonFilterChange,
   paymentStatusFilter,
@@ -72,6 +77,7 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
   endDateFilter,
   onEndDateChange,
   vehicles,
+  customers = [],
   rentals = [],
   isDisabled,
 }) => {
@@ -110,6 +116,18 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
     return [...options, ...Array.from(subsMap.values())];
   }, [vehicles, rentals]);
 
+  // ✅ Dynamically build customer options with searchable details
+  const customerOptions = useMemo(() => {
+    return [
+      { id: 'all', label: 'All Customers' },
+      ...customers.map((c) => ({
+        id: c.id,
+        label: c.name || 'Unnamed Customer',
+        subLabel: [c.companyName, c.mobile, c.email].filter(Boolean).join(' • ') || undefined,
+      })),
+    ];
+  }, [customers]);
+
   return (
     <div className="w-full">
       <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -135,6 +153,28 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
         />
 
         <SearchableSelect
+          label="Customer"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
+          options={customerOptions}
+          value={customerFilter}
+          onChange={(val) => onCustomerFilterChange?.(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+          placeholder="Search Customers..."
+        />
+
+        <SearchableSelect
+          label="Vehicle"
+          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
+          options={vehicleOptions}
+          value={vehicleFilter}
+          onChange={(val) => onVehicleFilterChange(val as string[])}
+          isMulti={true}
+          disabled={isDisabled}
+          placeholder="Search Vehicles..."
+        />
+
+        <SearchableSelect
           label="Reason"
           labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
           options={reasonOptions}
@@ -152,17 +192,6 @@ const RentalFilters: React.FC<RentalFiltersProps> = ({
           onChange={(val) => onPaymentStatusFilterChange(val as string[])}
           isMulti={true}
           disabled={isDisabled}
-        />
-
-        <SearchableSelect
-          label="Vehicle"
-          labelClassName="searchable-select-label block text-sm font-bold text-slate-700 mb-1.5"
-          options={vehicleOptions}
-          value={vehicleFilter}
-          onChange={(val) => onVehicleFilterChange(val as string[])}
-          isMulti={true}
-          disabled={isDisabled}
-          placeholder="Search Vehicles..."
         />
 
         <div className="space-y-1">

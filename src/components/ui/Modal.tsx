@@ -1,5 +1,6 @@
 // Modal.tsx
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -13,6 +14,8 @@ interface ModalProps {
   subtitle?: string;
   className?: string;
   theme?: 'default' | 'navy';
+  footer?: React.ReactNode;
+  zIndex?: string;
 }
 
 export function Modal({
@@ -25,6 +28,8 @@ export function Modal({
   subtitle,
   className,
   theme = 'default',
+  footer,
+  zIndex,
 }: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isNavy = theme === 'navy';
@@ -41,9 +46,12 @@ export function Modal({
         contentRef.current.scrollTop = 0;
       }
       return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-        document.body.classList.remove('modal-open');
+        const remainingModals = document.querySelectorAll('[role="dialog"]');
+        if (remainingModals.length <= 1) {
+          document.body.style.overflow = originalBodyOverflow;
+          document.documentElement.style.overflow = originalHtmlOverflow;
+          document.body.classList.remove('modal-open');
+        }
       };
     }
   }, [isOpen]);
@@ -64,6 +72,7 @@ export function Modal({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const sizes = {
     sm: 'max-w-md',
@@ -74,8 +83,13 @@ export function Modal({
     '3xl': 'max-w-7xl',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex min-h-screen items-center justify-center p-3 sm:p-5 md:p-6 text-center">
+  const modalNode = (
+    <div
+      className={clsx(
+        'fixed inset-0 overflow-y-auto overflow-x-hidden flex items-center justify-center p-3 sm:p-4 md:p-6 text-center',
+        zIndex || 'z-50'
+      )}
+    >
       {/* Dark overlay backdrop with blur */}
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity cursor-pointer"
@@ -90,8 +104,9 @@ export function Modal({
         aria-labelledby="modal-title"
         className={clsx(
           'relative z-10 w-full my-auto text-left transition-all',
-          'flex flex-col max-h-[90vh] rounded-2xl border border-slate-200',
+          'flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] rounded-2xl border border-slate-200',
           'bg-white text-slate-900 shadow-2xl modal-content overflow-hidden',
+          isNavy && 'modal-navy',
           sizes[size],
           className
         )}
@@ -100,23 +115,30 @@ export function Modal({
         {/* Header - anchored and pinned at top */}
         <div
           className={clsx(
-            'modal-header flex items-center justify-between px-6 py-4.5 border-b border-slate-200 shrink-0 rounded-t-2xl bg-slate-50'
+            'modal-header flex items-center justify-between px-6 py-4.5 border-b border-slate-200 shrink-0 rounded-t-2xl bg-slate-50',
+            isNavy && 'bg-[#16192B] border-[#2B314E] text-white'
           )}
         >
           <div>
             <h3
               id="modal-title"
-              className="text-lg font-bold tracking-wide text-slate-900"
+              className={clsx(
+                'text-lg font-bold tracking-wide text-slate-900',
+                isNavy && 'text-white'
+              )}
             >
               {title}
             </h3>
             {subtitle && (
-              <p className="text-xs mt-0.5 text-slate-500 font-medium">{subtitle}</p>
+              <p className={clsx('text-xs mt-0.5 text-slate-500 font-medium', isNavy && 'text-slate-400')}>{subtitle}</p>
             )}
           </div>
           <button
             type="button"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer ml-4"
+            className={clsx(
+              'p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer ml-4',
+              isNavy && 'text-slate-400 hover:text-white hover:bg-white/10'
+            )}
             onClick={onClose}
             title="Close modal"
             aria-label="Close modal"
@@ -130,6 +152,7 @@ export function Modal({
           ref={contentRef}
           className={clsx(
             'flex-1 focus:outline-none min-h-0 bg-white text-slate-800',
+            isNavy && 'bg-[#16192B] text-slate-100',
             contentClassName?.includes('overflow-') ? '' : 'overflow-y-auto custom-scrollbar',
             contentClassName?.includes('p-') ? '' : 'p-6',
             contentClassName
@@ -137,9 +160,23 @@ export function Modal({
         >
           {children}
         </div>
+
+        {/* Optional Sticky / Pinned Footer - Always visible at bottom */}
+        {footer && (
+          <div
+            className={clsx(
+              'shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl',
+              isNavy && 'bg-[#16192B] border-[#2B314E] text-white'
+            )}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
+
+  return createPortal(modalNode, document.body);
 }
 
 export default Modal;

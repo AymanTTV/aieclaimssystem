@@ -29,50 +29,29 @@ const VehicleHeader: React.FC<VehicleHeaderProps> = ({
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Fleet Management</h1>
       </div>
 
-      {/* Actions: grid on mobile (2-up), flex-wrap on >= sm */}
-      <div
-        className="
-          w-full
-          grid grid-cols-1 min-[380px]:grid-cols-2 gap-2
-          sm:flex sm:flex-wrap sm:items-center
-        "
-      >
-        {/* If you re-enable Import later, keep it w-full on mobile */}
-        {/*
-        <label className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto cursor-pointer">
-          <Upload className="h-5 w-5 mr-2" />
-          Import
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept=".csv,.xlsx"
-            onChange={handleImport}
-          />
-        </label>
-        */}
-
+      {/* Actions: single line flex */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto w-full sm:w-auto scrollbar-none py-1">
         <button
           onClick={onExport}
-          className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+          className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2 border border-indigo-200 rounded-xl shadow-xs text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 transition-colors"
         >
-          <Download className="h-5 w-5 mr-2" />
+          <Download className="h-4.5 w-4.5 mr-2 text-indigo-600" />
           Export
         </button>
 
         <button
           onClick={onGeneratePDF}
-          className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+          className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 transition-colors"
         >
-          <Download className="h-5 w-5 mr-2" />
+          <Download className="h-4.5 w-4.5 mr-2 text-rose-600" />
           Generate PDF
         </button>
 
         <button
           onClick={onAdd}
-          className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 w-full sm:w-auto"
+          className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2 border border-emerald-600 rounded-xl shadow-xs text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
         >
-          <Plus className="h-5 w-5 mr-2" />
+          <Plus className="h-4.5 w-4.5 mr-1.5" />
           Add Vehicle
         </button>
       </div>

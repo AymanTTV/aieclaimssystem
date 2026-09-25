@@ -553,14 +553,14 @@ const Vehicles: React.FC = () => {
             </div>
           </div>
 
-          <div className="w-full grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:w-auto">
+          <div className="flex items-center gap-2 flex-nowrap overflow-x-auto w-full sm:w-auto scrollbar-none py-1">
             
             {/* ✅ Added Departments Header Button */}
             {!isCompany && can('vehicles', 'departments') && (
                <button
                  type="button"
                  onClick={() => setShowManageDepartments(true)}
-                 className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                 className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-teal-200 rounded-xl shadow-xs text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer"
                >
                  <Briefcase className="h-4 w-4 mr-2 text-teal-600 pointer-events-none" />
                  Depts
@@ -571,9 +571,9 @@ const Vehicles: React.FC = () => {
             <button
               type="button"
               onClick={handleGeneratePDF}
-              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
             >
-              <FileText className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
+              <FileText className="h-4 w-4 mr-2 text-rose-600 pointer-events-none" />
               Generate PDF
             </button>
             )}
@@ -581,9 +581,9 @@ const Vehicles: React.FC = () => {
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-indigo-200 rounded-xl shadow-xs text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Download className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
+              <Download className="h-4 w-4 mr-2 text-indigo-600 pointer-events-none" />
               Export
             </button>
             )}
@@ -592,9 +592,9 @@ const Vehicles: React.FC = () => {
                 <button
                   type="button"
                   onClick={syncVehicleStatuses}
-                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                  className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-amber-200 rounded-xl shadow-xs text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 active:scale-95 transition-all cursor-pointer"
                 >
-                  <RefreshCw className="h-4.5 w-4.5 mr-2 text-[#64748B] pointer-events-none" />
+                  <RefreshCw className="h-4 w-4 mr-2 text-amber-600 pointer-events-none" />
                   Sync Statuses
                 </button>
             )}
@@ -602,7 +602,7 @@ const Vehicles: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowForm(true)}
-                  className="inline-flex items-center justify-center px-4 py-2.5 border border-[#2563EB] rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] active:scale-95 transition-all w-full sm:w-auto cursor-pointer"
+                  className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-emerald-600 rounded-xl shadow-xs text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
                 >
                   <Plus className="h-4.5 w-4.5 mr-1.5 pointer-events-none" />
                   Add Vehicle

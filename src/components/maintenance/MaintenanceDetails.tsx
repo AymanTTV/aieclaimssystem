@@ -571,7 +571,7 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 text-sm font-semibold text-slate-900 bg-slate-100 border border-[#E2E8F0] rounded-xl hover:bg-[#2B314E] transition-colors"
+            className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-[#CBD5E1] rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
           >
             Close
           </button>

@@ -1216,7 +1216,33 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
       </form>
 
       {/* CONFIRMATION & BREAKDOWN MODAL */}
-      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details & Save" size="lg">
+      <Modal 
+        isOpen={isConfirmModalOpen} 
+        onClose={() => setIsConfirmModalOpen(false)} 
+        title="Confirm Rental Details & Save" 
+        size="lg"
+        zIndex="z-[60]"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <button 
+              type="button" 
+              onClick={() => setIsConfirmModalOpen(false)} 
+              className="px-5 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors cursor-pointer text-sm"
+            >
+              Back to Edit
+            </button>
+            <button 
+              type="button"
+              onClick={executeUpdateRental} 
+              disabled={loading} 
+              className="px-6 py-2 bg-primary text-white hover:bg-primary-600 rounded-xl font-black flex items-center gap-2 transition-colors shadow-md disabled:opacity-50 cursor-pointer text-sm"
+            >
+              {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
+              Save Rental Updates
+            </button>
+          </div>
+        }
+      >
         <div className="space-y-6">
           <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner">
             <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
@@ -1323,16 +1349,6 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                 <span>Print / Download PDF</span>
               </label>
             </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => setIsConfirmModalOpen(false)} className="px-5 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">
-              Back to Edit
-            </button>
-            <button onClick={executeUpdateRental} disabled={loading} className="px-6 py-2 bg-primary text-white hover:bg-primary-600 rounded-xl font-black flex items-center gap-2 transition-colors shadow-md disabled:opacity-50">
-              {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
-              Save Rental Updates
-            </button>
           </div>
         </div>
       </Modal>

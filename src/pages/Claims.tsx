@@ -782,9 +782,9 @@ const Claims: React.FC = () => {
           {can('claims', 'recordsPermission') && (
             <button
               onClick={() => setShowPermissionModal(true)}
-              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2.5 border border-indigo-200 rounded-xl shadow-xs text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Shield className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
+              <Shield className="h-4 w-4 mr-1.5 sm:mr-2 text-indigo-600 pointer-events-none" />
               <span className="truncate">Records</span>
               <span className="hidden sm:inline">&nbsp;Permission</span>
             </button>
@@ -793,9 +793,9 @@ const Claims: React.FC = () => {
           {can('claims', 'groups') && (
             <button
               onClick={() => setManageGroupsOpen(true)}
-              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Layers className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
+              <Layers className="h-4 w-4 mr-1.5 sm:mr-2 text-purple-600 pointer-events-none" />
               <span className="truncate">Groups</span>
             </button>
           )}
@@ -803,9 +803,9 @@ const Claims: React.FC = () => {
           {can('claims', 'departments') && (
             <button
               onClick={() => setManageDepartmentsOpen(true)}
-              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2.5 border border-teal-200 rounded-xl shadow-xs text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Briefcase className="h-5 w-5 mr-1 sm:mr-2 text-teal-600" />
+              <Briefcase className="h-4 w-4 mr-1.5 sm:mr-2 text-teal-600 pointer-events-none" />
               <span className="truncate">Depts</span>
             </button>
           )}
@@ -813,9 +813,9 @@ const Claims: React.FC = () => {
           {can('claims', 'export') && (
             <button
               onClick={handleGenerateBulkPDF}
-              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2.5 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
             >
-              <FileText className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
+              <FileText className="h-4 w-4 mr-1.5 sm:mr-2 text-rose-600 pointer-events-none" />
               <span className="truncate">PDF</span>
               <span className="hidden sm:inline">&nbsp;Bulk</span>
             </button>
@@ -824,9 +824,9 @@ const Claims: React.FC = () => {
           {can('claims', 'export') && (
             <button
               onClick={handleExport}
-              className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2.5 border border-blue-200 rounded-xl shadow-xs text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Download className="h-5 w-5 mr-1 sm:mr-2 text-[#64748B]" />
+              <Download className="h-4 w-4 mr-1.5 sm:mr-2 text-blue-600 pointer-events-none" />
               <span className="truncate">Export</span>
             </button>
           )}
@@ -834,9 +834,9 @@ const Claims: React.FC = () => {
           {can('claims', 'create') && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-emerald-600 rounded-xl shadow-xs text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
             >
-              <Plus className="h-5 w-5 mr-1 sm:mr-2" />
+              <Plus className="h-4.5 w-4.5 mr-1.5 pointer-events-none" />
               <span className="truncate">Add</span>
               <span className="hidden sm:inline">&nbsp;Claim</span>
             </button>

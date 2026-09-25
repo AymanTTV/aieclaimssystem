@@ -427,7 +427,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     
     {
       id: 'status',
-      header: <div className="w-28">Status</div>,
+      header: <div className="w-36 min-w-[140px]">Status</div>,
       cell: ({ row }: any) => {
         const log = row.original;
         const isScheduledUrgent =
@@ -445,12 +445,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         };
 
         return (
-          <div className="space-y-1.5 w-28" onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-1.5 w-36 min-w-[140px]" onClick={(e) => e.stopPropagation()}>
             {canEditStatusFromTable ? (
               <select
                 value={log.status}
                 onChange={handleChange}
-                className={`block w-full text-xs font-bold rounded-md border py-1 pl-2 pr-6 ring-1 ring-inset shadow-2xs sm:text-xs sm:leading-6 ${getStatusColor(
+                className={`block w-full min-w-[136px] text-xs font-bold rounded-lg border py-1.5 pl-2.5 pr-7 cursor-pointer ring-1 ring-inset shadow-2xs sm:text-xs sm:leading-tight transition-all ${getStatusColor(
                   log.status,
                   isScheduledUrgent
                 )}`}

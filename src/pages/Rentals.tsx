@@ -79,7 +79,7 @@ const Rentals = () => {
 
   const {
     searchQuery, setSearchQuery, statusFilter, setStatusFilter, typeFilter, setTypeFilter,
-    vehicleFilter, setVehicleFilter, reasonFilter, setReasonFilter, paymentStatusFilter, setPaymentStatusFilter,
+    vehicleFilter, setVehicleFilter, customerFilter, setCustomerFilter, reasonFilter, setReasonFilter, paymentStatusFilter, setPaymentStatusFilter,
     startDateFilter, setStartDateFilter, endDateFilter, setEndDateFilter,
   } = useRentalFilters(rentals, vehicles, customers);
 
@@ -490,65 +490,62 @@ const Rentals = () => {
         </div>
 
         {/* Single-Line Action Bar (Bottom) */}
-        <div className="w-full overflow-x-auto pb-1">
-          <div className="min-w-[1020px] flex items-center justify-between gap-3">
-            {/* Left side: Utility & Export buttons */}
-            <div className="flex items-center gap-2 shrink-0">
-              {can('rentals', 'export') && (
-                <>
-                  <button 
-                    onClick={handleGenerateBulkDocument} 
-                    className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                    title="Export PDF Report"
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                    <span>PDF Report</span>
-                  </button>
-                  <button 
-                    onClick={handleExport} 
-                    className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                    title="Export CSV"
-                  >
-                    <Download className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                    <span>Export CSV</span>
-                  </button>
-                </>
-              )}
-              {can('rentals', 'syncStatus') && (
+        <div className="w-full pb-1">
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            {can('rentals', 'export') && (
+              <>
                 <button 
-                  onClick={syncVehicleStatuses} 
-                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                  title="Sync Vehicle Statuses"
+                  onClick={handleExport} 
+                  className="inline-flex whitespace-nowrap items-center px-3.5 py-2 border border-indigo-200 rounded-xl shadow-2xs text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 transition-all cursor-pointer shrink-0"
+                  title="Export CSV"
                 >
-                  <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                  <span>Sync Statuses</span>
+                  <Download className="h-3.5 w-3.5 mr-1.5 text-indigo-600" />
+                  <span>Export CSV</span>
                 </button>
-              )}
-            </div>
 
-            {/* Right side: Management & Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              {can('rentals', 'availableVehicles') && (
                 <button 
-                  onClick={() => setShowAvailableVehicles(true)} 
-                  className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer whitespace-nowrap"
-                  title="View Available Vehicles"
+                  onClick={handleGenerateBulkDocument} 
+                  className="inline-flex whitespace-nowrap items-center px-3.5 py-2 border border-rose-200 rounded-xl shadow-2xs text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 transition-all cursor-pointer shrink-0"
+                  title="Export PDF Report"
                 >
-                  <Car className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                  <span>Available Vehicles</span>
+                  <FileText className="h-3.5 w-3.5 mr-1.5 text-rose-600" />
+                  <span>PDF Report</span>
                 </button>
-              )}
-              {can('rentals', 'create') && (
-                <button 
-                  onClick={() => setShowForm(true)} 
-                  className="inline-flex items-center px-4 py-2 rounded-xl shadow-sm text-xs sm:text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-all cursor-pointer active:scale-95 whitespace-nowrap"
-                  title="Schedule New Rental"
-                >
-                  <Plus className="h-4 w-4 mr-1.5 text-white" />
-                  <span>+ Schedule Rental</span>
-                </button>
-              )}
-            </div>
+              </>
+            )}
+
+            {can('rentals', 'availableVehicles') && (
+              <button 
+                onClick={() => setShowAvailableVehicles(true)} 
+                className="inline-flex whitespace-nowrap items-center px-3.5 py-2 border border-teal-200 rounded-xl shadow-2xs text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 transition-all cursor-pointer shrink-0"
+                title="View Available Vehicles"
+              >
+                <Car className="h-3.5 w-3.5 mr-1.5 text-teal-600" />
+                <span>Available Vehicles</span>
+              </button>
+            )}
+
+            {can('rentals', 'syncStatus') && (
+              <button 
+                onClick={syncVehicleStatuses} 
+                className="inline-flex whitespace-nowrap items-center px-3.5 py-2 border border-amber-200 rounded-xl shadow-2xs text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 transition-all cursor-pointer shrink-0"
+                title="Sync Vehicle Statuses"
+              >
+                <RefreshCwIcon className="h-3.5 w-3.5 mr-1.5 text-amber-600" />
+                <span>Sync Statuses</span>
+              </button>
+            )}
+
+            {can('rentals', 'create') && (
+              <button 
+                onClick={() => setShowForm(true)} 
+                className="inline-flex whitespace-nowrap items-center px-4 py-2 rounded-xl shadow-sm text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Schedule New Rental"
+              >
+                <Plus className="h-4 w-4 mr-1.5 text-white" />
+                <span>+ Schedule Rental</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -584,7 +581,15 @@ const Rentals = () => {
 
         <div className="pt-4 border-t border-[#E2E8F0]">
           <RentalFilters
-            statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} typeFilter={typeFilter} onTypeFilterChange={setTypeFilter} vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} reasonFilter={reasonFilter} onReasonFilterChange={setReasonFilter} paymentStatusFilter={paymentStatusFilter} onPaymentStatusFilterChange={setPaymentStatusFilter} startDateFilter={startDateFilter} onStartDateChange={setStartDateFilter} endDateFilter={endDateFilter} onEndDateChange={setEndDateFilter} vehicles={vehicles} rentals={rentals} isDisabled={false}
+            statusFilter={statusFilter} onStatusFilterChange={setStatusFilter}
+            typeFilter={typeFilter} onTypeFilterChange={setTypeFilter}
+            vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter}
+            customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter}
+            reasonFilter={reasonFilter} onReasonFilterChange={setReasonFilter}
+            paymentStatusFilter={paymentStatusFilter} onPaymentStatusFilterChange={setPaymentStatusFilter}
+            startDateFilter={startDateFilter} onStartDateChange={setStartDateFilter}
+            endDateFilter={endDateFilter} onEndDateChange={setEndDateFilter}
+            vehicles={vehicles} customers={customers} rentals={rentals} isDisabled={false}
           />
         </div>
       </div>

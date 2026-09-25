@@ -13,7 +13,7 @@ import MaintenanceHeader from '../components/maintenance/MaintenanceHeader';
 import MaintenanceDetails from '../components/maintenance/MaintenanceDetails';
 import MaintenanceDeleteModal from '../components/maintenance/MaintenanceDeleteModal';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
-import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock, ExternalLink, Radio, Copy, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react'; 
+import { Plus, Download, FileText, Edit2, Trash2, CheckCircle, CalendarClock, ExternalLink, Radio, Copy, MessageCircle, Mail, Settings2, MessageSquare, Tv } from 'lucide-react'; 
 import MaintenanceCommunicationModal from '../components/maintenance/MaintenanceCommunicationModal'; 
 import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal'; 
 import { startOfDay, differenceInCalendarDays, format, parseISO } from 'date-fns'; 
@@ -440,81 +440,109 @@ const Maintenance: React.FC = () => {
         onSelectStatusFilter={setStatusFilter}
       />
 
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {user?.role === 'manager' && (
-            <button
-              onClick={handleGenerateBulkPDF}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <FileText className="h-5 w-5 mr-1 sm:mr-2" />
-              <span className="truncate">PDF</span>
-              <span className="hidden sm:inline">&nbsp;Report</span>
-            </button>
-          )}
-
-          {/* Dual-View Real-Time Public Mirror Button */}
-          <div className="flex items-center gap-1.5">
-            <a
-              href="/maintenance/live"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center px-3 sm:px-4 py-2 border border-emerald-500/50 rounded-md shadow-sm text-sm font-bold text-emerald-400 bg-emerald-950/60 hover:bg-emerald-900/60 transition-colors gap-2"
-              title="Open Real-Time Public Mirror in new tab"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <ExternalLink className="h-4 w-4" />
-              <span className="truncate">Live Public Mirror</span>
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                const mirrorUrl = `${window.location.origin}/maintenance/live`;
-                navigator.clipboard.writeText(mirrorUrl);
-                toast.success('Public Mirror URL copied to clipboard!');
-              }}
-              className="p-2 border border-emerald-500/40 rounded-md text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/60 transition-colors"
-              title="Copy Public Mirror URL"
-            >
-              <Copy className="h-4 w-4" />
-            </button>
+      {/* Header & Actions */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 shadow-xs text-[#0F172A]">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 sm:gap-4">
+          <div className="flex items-center space-x-3 shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shadow-xs">
+              🔧
+            </div>
+            <div>
+              <h1 className="text-[22px] sm:text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">
+                Maintenance
+              </h1>
+              <p className="text-xs text-[#64748B]">Service tracking, scheduled repairs, MOTs, parts, and workshop dispatch</p>
+            </div>
           </div>
 
-          {can('maintenance', 'export') && (
-            <button
-              onClick={handleExport}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-5 w-5 mr-1 sm:mr-2" />
-              <span className="truncate">Export</span>
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap xl:justify-end no-scrollbar scrollbar-none py-0.5">
+            {can('maintenance', 'categories') && (
+              <button
+                type="button"
+                onClick={() => setShowCatModal(true)}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-purple-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
+              >
+                <Settings2 className="h-4 w-4 mr-1.5 text-purple-600 pointer-events-none" />
+                Categories Manage
+              </button>
+            )}
 
-          {can('maintenance', 'create') && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
-            >
-              <Plus className="h-5 w-5 mr-1 sm:mr-2" />
-              <span className="truncate">Schedule</span>
-              <span className="hidden sm:inline">&nbsp;Maintenance</span>
-            </button>
-          )}
-          {can('maintenance', 'categories') && (
-            <button
-              onClick={() => setShowCatModal(true)}
-              className="flex items-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Edit2 className="h-5 w-5 mr-1 sm:mr-2" />
-              <span className="truncate">Categories</span>
-              <span className="hidden sm:inline">&nbsp;Manage</span>
-            </button>
-          )}
+            {(user?.role === 'manager' || can('maintenance', 'export')) && (
+              <button
+                type="button"
+                onClick={handleGenerateBulkPDF}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-rose-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
+              >
+                <FileText className="h-4 w-4 mr-1.5 text-rose-600 pointer-events-none" />
+                PDF Report
+              </button>
+            )}
+
+            {can('maintenance', 'export') && (
+              <button
+                type="button"
+                onClick={handleExport}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-indigo-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
+              >
+                <Download className="h-4 w-4 mr-1.5 text-indigo-600 pointer-events-none" />
+                Export
+              </button>
+            )}
+
+            {/* Dual-View Real-Time Public Mirror Button */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <a
+                href="/workshop-tv"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer gap-1.5"
+                title="Open Workshop TV Display Mirror (Auto-Rotation Board) in new tab"
+              >
+                <Tv className="h-4 w-4 text-teal-600 pointer-events-none" />
+                <span>Workshop TV</span>
+              </a>
+
+              <div className="inline-flex items-center rounded-xl border border-emerald-200 shadow-xs bg-emerald-50 overflow-hidden flex-shrink-0">
+                <a
+                  href="/maintenance/live"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex whitespace-nowrap items-center justify-center px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer gap-1.5"
+                  title="Open Real-Time Public Mirror in new tab"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 text-emerald-600 pointer-events-none" />
+                  <span>Live Public Mirror</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mirrorUrl = `${window.location.origin}/maintenance/live`;
+                    navigator.clipboard.writeText(mirrorUrl);
+                    toast.success('Public Mirror URL copied to clipboard!');
+                  }}
+                  className="p-2 border-l border-emerald-200 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-colors cursor-pointer"
+                  title="Copy Public Mirror URL"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {can('maintenance', 'create') && (
+              <button
+                type="button"
+                onClick={() => setShowForm(true)}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-emerald-600 rounded-xl shadow-xs text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+              >
+                <Plus className="h-4 w-4 mr-1.5 pointer-events-none" />
+                Schedule Maintenance
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -560,8 +588,8 @@ const Maintenance: React.FC = () => {
           setEditingLog(null);
         }}
         title={editingLog ? 'Edit Maintenance' : 'Schedule Maintenance'}
-        size="xl"
-        className="h-[85vh] max-h-[90vh] min-h-[500px]"
+        size="2xl"
+        className="h-[88vh] max-h-[92vh] max-w-5xl"
         contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         <MaintenanceForm
@@ -592,7 +620,8 @@ const Maintenance: React.FC = () => {
         isOpen={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         title="Maintenance Details"
-        size="xl"
+        size="2xl"
+        className="h-[88vh] max-h-[92vh] max-w-5xl"
         contentClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       >
         {selectedLog && (
@@ -607,6 +636,7 @@ const Maintenance: React.FC = () => {
                 registrationNumber: `ID: ${selectedLog.vehicleId || 'Unknown'}` 
               } as Vehicle
             }
+            onClose={() => setSelectedLog(null)}
           />
         )}
       </Modal>

@@ -9,7 +9,7 @@ import VDFinanceDetails from '../components/vdFinance/VDFinanceDetails';
 import VDFinanceFilters, { ProfitStatusFilter } from '../components/vdFinance/VDFinanceFilters';
 import Modal from '../components/ui/Modal';
 import SearchableSelect from '../components/ui/SearchableSelect'; 
-import { Plus, Download, FileText, Settings, LayoutGrid, Upload, DownloadCloud, Shield, Briefcase, Edit2, Trash2 } from 'lucide-react'; 
+import { Plus, Download, FileText, Settings, LayoutGrid, Upload, DownloadCloud, Shield, Briefcase, Edit2, Trash2, Layers } from 'lucide-react'; 
 import { VDFinanceRecord } from '../types/vdFinance';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -734,56 +734,77 @@ const VDFinance: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Manage financial claims, track expenses, and oversee profit statuses.</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-start xl:justify-end gap-3 w-full xl:w-auto">
+        <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2 sm:gap-3 w-full xl:w-auto">
           
           {can('vdFinance', 'recordsPermission') && (
             <button 
               onClick={() => setShowPermissionModal(true)} 
-              className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors shadow-sm"
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-indigo-200 rounded-xl shadow-xs text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
             >
-              <Shield className="h-4 w-4 mr-2" /> Records Permission
+              <Shield className="h-4 w-4 mr-1.5 sm:mr-2 text-indigo-600 pointer-events-none" /> Records Permission
             </button>
           )}
 
           {can('vdFinance', 'import') && (
-            <button onClick={() => fileInputRef.current?.click()} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <Upload className="h-4 w-4 mr-2 text-indigo-500" /> Import CSV
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-amber-200 rounded-xl shadow-xs text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 active:scale-95 transition-all cursor-pointer"
+            >
+              <Upload className="h-4 w-4 mr-1.5 sm:mr-2 text-amber-600 pointer-events-none" /> Import CSV
             </button>
           )}
 
           {can('vdFinance', 'export') && (
-            <button onClick={handleExportCSV} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <DownloadCloud className="h-4 w-4 mr-2 text-indigo-500" /> Export CSV
+            <button 
+              onClick={handleExportCSV} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-blue-200 rounded-xl shadow-xs text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <DownloadCloud className="h-4 w-4 mr-1.5 sm:mr-2 text-blue-600 pointer-events-none" /> Export CSV
             </button>
           )}
 
           {can('vdFinance', 'categories') && (
-            <button onClick={() => setShowManageCategories(true)} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <LayoutGrid className="h-4 w-4 mr-2 text-gray-500" /> Categories
+            <button 
+              onClick={() => setShowManageCategories(true)} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-violet-200 rounded-xl shadow-xs text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <LayoutGrid className="h-4 w-4 mr-1.5 sm:mr-2 text-violet-600 pointer-events-none" /> Categories
             </button>
           )}
           
           {can('vdFinance', 'groups') && (
-            <button onClick={() => setShowManageGroups(true)} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <Settings className="h-4 w-4 mr-2 text-gray-500" /> Groups
+            <button 
+              onClick={() => setShowManageGroups(true)} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <Layers className="h-4 w-4 mr-1.5 sm:mr-2 text-purple-600 pointer-events-none" /> Groups
             </button>
           )}
 
           {can('vdFinance', 'departments') && (
-            <button onClick={() => setShowManageDepartments(true)} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <Briefcase className="h-4 w-4 mr-2 text-gray-500" /> Depts
+            <button 
+              onClick={() => setShowManageDepartments(true)} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-teal-200 rounded-xl shadow-xs text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <Briefcase className="h-4 w-4 mr-1.5 sm:mr-2 text-teal-600 pointer-events-none" /> Depts
             </button>
           )}
 
           {can('vdFinance', 'export') && (
-            <button onClick={handleGeneratePDF} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm">
-              <FileText className="h-4 w-4 mr-2 text-blue-500" /> PDF Summary
+            <button 
+              onClick={handleGeneratePDF} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3.5 sm:px-4 py-2 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <FileText className="h-4 w-4 mr-1.5 sm:mr-2 text-rose-600 pointer-events-none" /> PDF Summary
             </button>
           )}
 
           {can('vdFinance', 'create') && (
-            <button onClick={() => setShowForm(true)} className="inline-flex whitespace-nowrap flex-shrink-0 items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-700 transition-colors">
-              <Plus className="h-4 w-4 mr-2" /> Add Record
+            <button 
+              onClick={() => setShowForm(true)} 
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2 border border-emerald-600 rounded-xl shadow-xs text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-4.5 w-4.5 mr-1.5 pointer-events-none" /> Add Record
             </button>
           )}
         </div>

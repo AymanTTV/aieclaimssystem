@@ -24,7 +24,8 @@ import {
   Sliders,
   RefreshCw,
   Folder,
-  Send
+  Send,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { emailTemplates, EmailType } from '../constants/emailTemplates';
@@ -47,6 +48,12 @@ import {
   isTemplateInCategory 
 } from '../utils/templateManager';
 import { TemplateGuideModal } from '../components/common/TemplateGuideModal';
+import { DynamicTag } from '../types/dynamicTags';
+import {
+  subscribeToDynamicTags,
+  saveDynamicTag,
+  deleteDynamicTag,
+} from '../utils/dynamicTagsService';
 
 // Categorized Dynamic Placeholders for all modules (A through H)
 export interface TagSubgroup {
@@ -535,6 +542,84 @@ export default function AutomationSettings() {
   const [saving, setSaving] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
+
+  // Dynamic Parameter Tags Management State
+  const [customTags, setCustomTags] = useState<DynamicTag[]>([]);
+  const [showAddTagModal, setShowAddTagModal] = useState<boolean>(false);
+  const [newTagForm, setNewTagForm] = useState<{
+    tag: string;
+    label: string;
+    category: string;
+    sampleValue: string;
+    description: string;
+  }>({
+    tag: '',
+    label: '',
+    category: 'global',
+    sampleValue: '',
+    description: '',
+  });
+  const [isSavingTag, setIsSavingTag] = useState<boolean>(false);
+
+  // Subscribe to real-time dynamic tags updates
+  useEffect(() => {
+    const unsub = subscribeToDynamicTags((allTags) => {
+      setCustomTags(allTags.filter((t) => t.isCustom));
+    });
+    return () => unsub();
+  }, []);
+
+  // Handle create/save new dynamic tag
+  const handleSaveDynamicTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTagForm.tag.trim()) {
+      toast.error('Please enter a tag key (e.g. {customer_name})');
+      return;
+    }
+    if (!newTagForm.label.trim()) {
+      toast.error('Please enter a display label');
+      return;
+    }
+
+    setIsSavingTag(true);
+    try {
+      await saveDynamicTag({
+        tag: newTagForm.tag,
+        label: newTagForm.label,
+        category: newTagForm.category || 'global',
+        sampleValue: newTagForm.sampleValue || 'Sample Value',
+        description: newTagForm.description,
+      });
+      toast.success(`Dynamic tag ${newTagForm.tag} created & synced successfully!`);
+      setShowAddTagModal(false);
+      setNewTagForm({
+        tag: '',
+        label: '',
+        category: 'global',
+        sampleValue: '',
+        description: '',
+      });
+    } catch (err: any) {
+      console.error('Failed to save dynamic tag:', err);
+      toast.error(err.message || 'Failed to save dynamic tag');
+    } finally {
+      setIsSavingTag(false);
+    }
+  };
+
+  // Handle delete dynamic tag
+  const handleDeleteDynamicTag = async (tagId: string, tagName: string) => {
+    if (!window.confirm(`Are you sure you want to delete parameter tag ${tagName}?`)) {
+      return;
+    }
+    try {
+      await deleteDynamicTag(tagId);
+      toast.success(`Tag ${tagName} removed.`);
+    } catch (err: any) {
+      console.error('Failed to delete dynamic tag:', err);
+      toast.error('Failed to delete tag');
+    }
+  };
 
   // Field Tracking for Cursor Insertion in Message Templates
   const [activeField, setActiveField] = useState<'subjectTemplate' | 'bodyTemplate'>('bodyTemplate');
@@ -1868,6 +1953,122 @@ export default function AutomationSettings() {
         onClose={() => setShowGuideModal(false)}
         channel="all"
       />
+
+      {/* Add Dynamic Parameter Tag Modal */}
+      {showAddTagModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Tag className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base font-bold text-gray-900">Add Dynamic Parameter Tag</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddTagModal(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDynamicTag} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Tag Identifier (e.g. {'{customer_name}'} or {'{fleet_manager}'})
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTagForm.tag}
+                  onChange={(e) => setNewTagForm({ ...newTagForm, tag: e.target.value })}
+                  placeholder="{fleet_manager}"
+                  className="w-full text-xs font-mono font-bold rounded-lg border-gray-300 text-gray-900 py-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Display Label
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTagForm.label}
+                  onChange={(e) => setNewTagForm({ ...newTagForm, label: e.target.value })}
+                  placeholder="e.g. Fleet Duty Manager"
+                  className="w-full text-xs rounded-lg border-gray-300 text-gray-900 py-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Tag Category
+                  </label>
+                  <select
+                    value={newTagForm.category}
+                    onChange={(e) => setNewTagForm({ ...newTagForm, category: e.target.value })}
+                    className="w-full text-xs rounded-lg border-gray-300 text-gray-900 py-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="global">Global / Customer</option>
+                    <option value="vehicle">Vehicle / Fleet</option>
+                    <option value="rental">Rental</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="claim">Claim</option>
+                    <option value="finance">Finance</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Sample Value
+                  </label>
+                  <input
+                    type="text"
+                    value={newTagForm.sampleValue}
+                    onChange={(e) => setNewTagForm({ ...newTagForm, sampleValue: e.target.value })}
+                    placeholder="e.g. Alex Smith"
+                    className="w-full text-xs rounded-lg border-gray-300 text-gray-900 py-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Description (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={newTagForm.description}
+                  onChange={(e) => setNewTagForm({ ...newTagForm, description: e.target.value })}
+                  placeholder="Explains what this placeholder resolves to"
+                  className="w-full text-xs rounded-lg border-gray-300 text-gray-900 py-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTagModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-xs font-semibold rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingTag}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5"
+                >
+                  {isSavingTag ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save Parameter Tag
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1880,9 +2081,22 @@ export default function AutomationSettings() {
             <Tag className="w-4 h-4 text-blue-600" />
             <span className="text-sm font-bold text-gray-900">Available Tags</span>
           </div>
-          <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full">
-            Dynamic Tags
-          </span>
+          <div className="flex items-center gap-1.5">
+            {canCreate && (
+              <button
+                type="button"
+                onClick={() => setShowAddTagModal(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition"
+                title="Create a new global dynamic parameter tag"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add Tag</span>
+              </button>
+            )}
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full">
+              Dynamic Tags
+            </span>
+          </div>
         </div>
 
         {/* Tag Search Filter Input */}
@@ -1917,6 +2131,47 @@ export default function AutomationSettings() {
             <p className="text-xs text-gray-400 italic bg-gray-50 p-2 rounded-lg border border-gray-200">
               Tag insertion is disabled in Read-Only mode.
             </p>
+          )}
+
+          {/* Custom Global Dynamic Tags (Admin Managed) */}
+          {customTags.length > 0 && (
+            <div className="space-y-2 pb-3 border-b border-gray-100 bg-blue-50/40 p-2.5 rounded-xl border border-blue-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-blue-900 tracking-tight flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  Custom Parameter Tags ({customTags.length})
+                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
+                  Custom
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {customTags.map((ct) => (
+                  <div key={ct.id} className="inline-flex items-center rounded-lg border border-blue-200 bg-white shadow-2xs overflow-hidden">
+                    <button
+                      type="button"
+                      draggable={canUpdate}
+                      onDragStart={(e) => canUpdate && e.dataTransfer.setData('text/plain', ct.tag)}
+                      onClick={() => insertTagAtCursor(ct.tag)}
+                      className="px-2 py-1 text-xs font-mono font-bold text-blue-700 hover:bg-blue-50 transition"
+                      title={`${ct.label} (Sample: ${ct.sampleValue}) - Click to insert`}
+                    >
+                      {ct.tag}
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDynamicTag(ct.id, ct.tag)}
+                        className="px-1.5 py-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-l border-blue-100 transition"
+                        title={`Delete parameter tag ${ct.tag}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {CATEGORIZED_TAGS.map((section) => {

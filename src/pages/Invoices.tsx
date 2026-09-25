@@ -23,7 +23,7 @@ import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDe
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare } from 'lucide-react';
+import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare, Layers, Briefcase, LayoutGrid } from 'lucide-react';
 import InvoiceCommunicationModal from '../components/finance/InvoiceCommunicationModal';
 import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal';
 import { doc, collection, getDocs, updateDoc, writeBatch, onSnapshot } from 'firebase/firestore';
@@ -390,18 +390,36 @@ const Invoices: React.FC = () => {
       });
       
       toast.success('Payment deleted and removed from Finance Ledger');
+      const updatedInvoiceObj = { ...invoice, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any };
       setSelectedInvoice(prev => prev ? {...prev, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any} : null);
+
+      // Automatically update the invoice document on payment delete
+      try {
+        const companyDetails = await getCompanyDetails();
+        const vehicle = vehicles.find(v => v.id === invoice.vehicleId);
+        const customer = customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined);
+        await generateAndUploadDocument(
+          InvoiceDocument,
+          { ...updatedInvoiceObj, vehicle, customer },
+          'invoices',
+          invoice.id,
+          'invoices',
+          companyDetails
+        );
+      } catch (docErr) {
+        console.warn('Background invoice document update error:', docErr);
+      }
     } catch (err) {
       toast.error('Failed to delete payment');
     }
   };
 
-  const handleGenerateDocument = async (inv: Invoice) => {
+  const handleOpenLatestInvoicePDF = async (inv: Invoice) => {
     try {
-      toast.loading('Generating invoice PDF…');
+      toast.loading('Generating latest invoice PDF…');
       const companyDetails = await getCompanyDetails();
       const vehicle = vehicles.find(v => v.id === inv.vehicleId);
-      const customer = customers.find(c => c.id === inv.customerId);
+      const customer = customers.find(c => c.id === inv.customerId) || (inv.customerName ? { name: inv.customerName, mobile: inv.customerPhone } : undefined);
 
       const url = await generateAndUploadDocument(
         InvoiceDocument,
@@ -409,16 +427,28 @@ const Invoices: React.FC = () => {
         'invoices',
         inv.id,
         'invoices',
-        companyDetails
+        companyDetails,
+        'documentUrl'
       );
       toast.dismiss();
-      toast.success('Invoice PDF generated');
-      if (url) window.open(url, '_blank');
+      toast.success('Latest invoice PDF opened');
+      if (url) {
+        const finalUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
+        window.open(finalUrl, '_blank');
+      }
     } catch (err) {
       toast.dismiss();
-      toast.error('Failed to generate invoice PDF');
+      console.error('Failed to generate latest invoice PDF:', err);
+      if (inv.documentUrl) {
+        const fallbackUrl = inv.documentUrl.includes('?') ? `${inv.documentUrl}&_t=${Date.now()}` : `${inv.documentUrl}?_t=${Date.now()}`;
+        window.open(fallbackUrl, '_blank');
+      } else {
+        toast.error('Failed to generate latest invoice PDF');
+      }
     }
   };
+
+  const handleGenerateDocument = handleOpenLatestInvoicePDF;
 
   const handleGenerateBulkPDF = async () => {
     try {
@@ -450,6 +480,24 @@ const Invoices: React.FC = () => {
     try {
       await updateDoc(doc(db, 'invoices', invoice.id), { paymentStatus: newStatus, updatedAt: new Date() });
       toast.success(`Invoice status updated to ${newStatus.replace('_', ' ')}`);
+
+      // Update invoice document with new status in background
+      try {
+        const companyDetails = await getCompanyDetails();
+        const vehicle = vehicles.find(v => v.id === invoice.vehicleId);
+        const customer = customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined);
+        await generateAndUploadDocument(
+          InvoiceDocument,
+          { ...invoice, paymentStatus: newStatus as any, vehicle, customer },
+          'invoices',
+          invoice.id,
+          'invoices',
+          companyDetails,
+          'documentUrl'
+        );
+      } catch (e) {
+        console.warn('Background invoice document update error:', e);
+      }
     } catch (err) {
       toast.error('Failed to update status');
     }
@@ -467,114 +515,144 @@ const Invoices: React.FC = () => {
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} hidden accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileImport} />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Invoices & Accounts</h1>
-          <p className="text-sm text-[#64748B] mt-0.5 font-medium">Billing, accounts receivable, and customer statements.</p>
+      {/* ── Summary Cards on Top ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div
+          className="bg-blue-50/80 border-blue-200 hover:border-blue-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+        >
+          <div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-blue-700 uppercase tracking-wider">Gross Billing</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-blue-950 mt-1">{formatCurrency(totalInvoicesAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border border-blue-200 bg-white text-blue-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
         </div>
-        
-        <div className="flex bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
-          <button
-            onClick={() => setActiveTab('invoices')}
-            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-              activeTab === 'invoices' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
-            }`}
-          >
-            <Receipt className="w-4 h-4 mr-2" />
-            Manage Invoices
-          </button>
-          <button
-            onClick={() => setActiveTab('accounts')}
-            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-              activeTab === 'accounts' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
-            }`}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Customer Accounts
-          </button>
+        <div
+          className="bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+        >
+          <div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-emerald-700 uppercase tracking-wider">Total Received</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-950 mt-1">{formatCurrency(totalPaidAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border border-emerald-200 bg-white text-emerald-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
+        </div>
+        <div
+          className="bg-rose-50/80 border-rose-200 hover:border-rose-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+        >
+          <div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-rose-700 uppercase tracking-wider">Total Outstanding</h4>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-rose-950 mt-1">{formatCurrency(totalLookingAmount)}</p>
+          </div>
+          <div className="rounded-xl p-3 border border-rose-200 bg-white text-rose-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Action Bar Below Summary Cards ── */}
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-[#E2E8F0] space-y-4 text-[#0F172A]">
+        {/* Top Header: Title, Subtitle, and Tab Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">Invoices & Accounts</h1>
+            <p className="text-sm text-[#64748B] mt-0.5 font-medium">Billing, accounts receivable, and customer statements.</p>
+          </div>
+          
+          {/* Account Invoices & Customer Accounts Tab Switcher */}
+          <div className="flex bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0] self-start sm:self-auto shrink-0">
+            <button
+              onClick={() => setActiveTab('invoices')}
+              className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === 'invoices' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Receipt className="w-4 h-4 mr-2" />
+              Account Invoices
+            </button>
+            <button
+              onClick={() => setActiveTab('accounts')}
+              className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === 'accounts' ? 'bg-white text-[#2563EB] shadow-xs font-bold' : 'text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Customer Accounts
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {activeTab === 'invoices' && can('invoices', 'export') && (
-            <>
-              <button onClick={handleImportClick} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-                <Upload className="h-4 w-4 mr-2 text-[#64748B]" /> Import
-              </button>
-              <button onClick={handleExport} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-                <Download className="h-4 w-4 mr-2 text-[#64748B]" /> Export
-              </button>
-              <button onClick={handleGenerateBulkPDF} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-                <FileText className="h-4 w-4 mr-2 text-[#64748B]" /> Bulk PDF
-              </button>
-            </>
-          )}
-
+        {/* Action Bars in ONE LINE with + Create Invoice to the Right */}
+        <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar pt-3 border-t border-[#F1F5F9]">
           {can('finance', 'accounts') && (
-            <button onClick={() => setShowManageAccounts(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-              <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Accounts
+            <button
+              onClick={() => setShowManageAccounts(true)}
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-indigo-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <Settings className="h-4 w-4 mr-1.5 text-indigo-600 pointer-events-none" /> Accounts
             </button>
           )}
+
           {can('finance', 'groups') && (
-            <button onClick={() => setShowManageGroups(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-              <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Groups
+            <button
+              onClick={() => setShowManageGroups(true)}
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-purple-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <Layers className="h-4 w-4 mr-1.5 text-purple-600 pointer-events-none" /> Groups
             </button>
           )}
+
           {can('finance', 'departments') && (
-            <button onClick={() => setShowManageDepartments(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-              <Settings className="h-4 w-4 mr-2 text-teal-600" /> Depts
+            <button
+              onClick={() => setShowManageDepartments(true)}
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <Briefcase className="h-4 w-4 mr-1.5 text-teal-600 pointer-events-none" /> Depts
             </button>
           )}
 
           {can('invoices', 'categories') && (
-            <button onClick={() => setShowManageCategories(true)} className="inline-flex items-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] shadow-xs transition-colors">
-              Categories
+            <button
+              onClick={() => setShowManageCategories(true)}
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-violet-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-800 active:scale-95 transition-all cursor-pointer"
+            >
+              <LayoutGrid className="h-4 w-4 mr-1.5 text-violet-600 pointer-events-none" /> Categories
             </button>
+          )}
+
+          {activeTab === 'invoices' && can('invoices', 'export') && (
+            <>
+              <button
+                onClick={handleImportClick}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-amber-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 active:scale-95 transition-all cursor-pointer"
+              >
+                <Upload className="h-4 w-4 mr-1.5 text-amber-600 pointer-events-none" /> Import
+              </button>
+              <button
+                onClick={handleExport}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-blue-200 rounded-xl shadow-xs text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 active:scale-95 transition-all cursor-pointer"
+              >
+                <Download className="h-4 w-4 mr-1.5 text-blue-600 pointer-events-none" /> Export
+              </button>
+              <button
+                onClick={handleGenerateBulkPDF}
+                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
+              >
+                <FileText className="h-4 w-4 mr-1.5 text-rose-600 pointer-events-none" /> Bulk PDF
+              </button>
+            </>
           )}
 
           {can('invoices', 'create') && (
-            <button onClick={() => setShowForm(true)} className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer">
-              <Plus className="h-4 w-4 mr-2" /> Create Invoice
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2 border border-emerald-600 rounded-xl shadow-xs text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-1.5 pointer-events-none" /> Create Invoice
             </button>
           )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div
-          className="bg-[#F0F9FF] border-[#BAE6FD] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
-          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
-        >
-          <div>
-            <h4 className="text-xs sm:text-sm font-bold text-[#0284C7] uppercase tracking-wider">Gross Billing</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-[#0284C7] mt-1">{formatCurrency(totalInvoicesAmount)}</p>
-          </div>
-          <div className="rounded-xl p-3 border border-[#BAE6FD] bg-white text-[#0284C7] shadow-xs">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
-          </div>
-        </div>
-        <div
-          className="bg-[#ECFDF5] border-[#A7F3D0] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
-          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
-        >
-          <div>
-            <h4 className="text-xs sm:text-sm font-bold text-[#059669] uppercase tracking-wider">Total Received</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-[#059669] mt-1">{formatCurrency(totalPaidAmount)}</p>
-          </div>
-          <div className="rounded-xl p-3 border border-[#A7F3D0] bg-white text-[#059669] shadow-xs">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
-          </div>
-        </div>
-        <div
-          className="bg-[#FEF2F2] border-[#FECACA] p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between transition-all"
-          style={{ borderWidth: '1.5px', borderStyle: 'solid' }}
-        >
-          <div>
-            <h4 className="text-xs sm:text-sm font-bold text-[#DC2626] uppercase tracking-wider">Total Outstanding</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-[#DC2626] mt-1">{formatCurrency(totalLookingAmount)}</p>
-          </div>
-          <div className="rounded-xl p-3 border border-[#FECACA] bg-white text-[#DC2626] shadow-xs">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
-          </div>
         </div>
       </div>
 
@@ -627,10 +705,10 @@ const Invoices: React.FC = () => {
           <InvoiceTable
             invoices={finalFilteredInvoices} vehicles={vehicles} customers={customers}
             onView={(inv) => setSelectedInvoice(inv)} onEdit={(inv) => setEditingInvoice(inv)}
-            onDelete={(inv) => setDeletingInvoiceId(inv.id)} onDownload={(inv) => window.open(inv.documentUrl || '', '_blank')}
+            onDelete={(inv) => setDeletingInvoiceId(inv.id)} onDownload={(inv) => handleOpenLatestInvoicePDF(inv)}
             onRecordPayment={(inv) => setPayingInvoice(inv)} onApplyDiscount={() => {}}
-            onDeletePayment={handleDeletePayment} onGenerateDocument={handleGenerateDocument}
-            onViewDocument={(inv) => window.open(inv.documentUrl || '', '_blank')} onStatusChange={handleStatusChange}
+            onDeletePayment={handleDeletePayment} onGenerateDocument={handleOpenLatestInvoicePDF}
+            onViewDocument={(inv) => handleOpenLatestInvoicePDF(inv)} onStatusChange={handleStatusChange}
             onAssignDepartment={(inv) => { setSelectedInvoice(inv); setShowAssignDepartmentModal(true); }}
             isManager={user?.role === 'manager'}
             selectedIds={selectedInvoiceIds}
@@ -645,33 +723,65 @@ const Invoices: React.FC = () => {
       )}
 
       {/* --- Modals --- */}
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Create Invoice" size="xl">
-  <InvoiceForm customers={customers} vehicles={vehicles} accounts={accounts} groups={groups} departments={departments} onClose={() => setShowForm(false)} />
-</Modal>
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title="Create Invoice"
+        size="lg"
+        className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
+        contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0 text-[#0F172A]"
+      >
+        <InvoiceForm
+          customers={customers}
+          vehicles={vehicles}
+          accounts={accounts}
+          groups={groups}
+          departments={departments}
+          onClose={() => setShowForm(false)}
+        />
+      </Modal>
 
       <Modal 
         isOpen={!!selectedInvoice} 
         onClose={() => setSelectedInvoice(null)} 
         title="Invoice Details" 
-        size="3xl"
-        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0"
+        size="lg"
+        className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
+        contentClassName="p-0 flex flex-col flex-1 overflow-hidden min-h-0 text-[#0F172A]"
       >
-  {selectedInvoice && (
-    <InvoiceDetails 
-      invoice={selectedInvoice} 
-      vehicle={vehicles.find((v) => v.id === selectedInvoice.vehicleId)} 
-      customer={customers.find((c) => c.id === selectedInvoice.customerId)} 
-      accounts={accounts} 
-      groups={groups}
-      departments={departments} // <--- Make sure this line is added
-      onDownload={() => window.open(selectedInvoice.documentUrl || '', '_blank')} 
-    />
-  )}
-</Modal>
+        {selectedInvoice && (
+          <InvoiceDetails 
+            invoice={selectedInvoice} 
+            vehicle={vehicles.find((v) => v.id === selectedInvoice.vehicleId)} 
+            customer={customers.find((c) => c.id === selectedInvoice.customerId)} 
+            accounts={accounts} 
+            groups={groups}
+            departments={departments}
+            onDownload={() => handleOpenLatestInvoicePDF(selectedInvoice)} 
+          />
+        )}
+      </Modal>
 
-      <Modal isOpen={!!editingInvoice} onClose={() => setEditingInvoice(null)} title="Edit Invoice" size="xl">
-  {editingInvoice && <InvoiceEditModal invoice={editingInvoice} vehicles={vehicles} customers={customers} accounts={accounts} groups={groups} departments={departments} onClose={() => setEditingInvoice(null)} />}
-</Modal>
+      <Modal 
+        isOpen={!!editingInvoice} 
+        onClose={() => setEditingInvoice(null)} 
+        title="Edit Invoice" 
+        size="lg"
+        className="max-w-[860px] w-full h-[94vh] max-h-[96vh] flex flex-col"
+        contentClassName="p-0 overflow-hidden flex flex-col flex-1 min-h-0 text-[#0F172A]"
+      >
+        {editingInvoice && (
+          <InvoiceEditModal 
+            invoice={editingInvoice} 
+            vehicles={vehicles} 
+            customers={customers} 
+            accounts={accounts} 
+            groups={groups} 
+            departments={departments} 
+            onClose={() => setEditingInvoice(null)} 
+          />
+        )}
+      </Modal>
 
       <Modal isOpen={!!deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} title="Delete Invoice">
         {deletingInvoiceId && <InvoiceDeleteModal invoiceId={deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} />}

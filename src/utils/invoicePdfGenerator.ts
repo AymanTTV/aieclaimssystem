@@ -1,23 +1,19 @@
 import { pdf } from '@react-pdf/renderer';
 import { Invoice, Vehicle } from '../types';
 import { createElement } from 'react';
-import { InvoicePDF } from '../components/pdf/InvoicePDF';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { InvoiceDocument } from '../components/pdf/documents';
+import { getCompanyDetails } from './documentGenerator';
 
 export const generateInvoicePDF = async (invoice: Invoice, vehicle?: Vehicle): Promise<Blob> => {
   try {
-    // Get company details
-    const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
-    if (!companyDoc.exists()) {
-      throw new Error('Company details not found');
-    }
-    const companyDetails = companyDoc.data();
+    const companyDetails = await getCompanyDetails();
 
-    // Generate PDF
-    return pdf(createElement(InvoicePDF, {
-      invoice,
-      vehicle,
+    // Generate modern PDF using official InvoiceDocument
+    return pdf(createElement(InvoiceDocument, {
+      data: {
+        ...invoice,
+        vehicle,
+      },
       companyDetails
     })).toBlob();
   } catch (error) {

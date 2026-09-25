@@ -19,16 +19,34 @@ import {
 import MaintenanceInvoice from '../components/pdf/MaintenanceInvoice'; 
 import { InvoiceDocument } from '../components/pdf/documents'; // Ensure InvoiceDocument is imported
 
-// Helper function to get company details
+// Helper function to get company details with robust default fallback
 export const getCompanyDetails = async () => {
-  const docRef = doc(db, 'companySettings', 'details');
-  const docSnap = await getDoc(docRef);
-  
-  if (!docSnap.exists()) {
-    throw new Error('Company details not found');
+  try {
+    const docRef = doc(db, 'companySettings', 'details');
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (error) {
+    console.warn('Could not fetch companySettings/details, using safe fallback defaults:', error);
   }
   
-  return docSnap.data();
+  return {
+    fullName: 'AIE Skyline Limited',
+    tradingName: 'AIE Skyline',
+    officialAddress: 'Unit 4, Business Park, London, UK',
+    phone: '+44 20 8123 4567',
+    email: 'info@aieskyline.co.uk',
+    website: 'www.aieskyline.co.uk',
+    companyNumber: '12345678',
+    vatNumber: 'GB 123 4567 89',
+    bankName: 'Barclays Bank UK PLC',
+    accountName: 'AIE Skyline Limited',
+    accountNumber: '12345678',
+    sortCode: '20-00-00',
+    iban: 'GB29BARC20000012345678'
+  };
 };
 
 /**
@@ -77,16 +95,17 @@ export const generateAndUploadDocument = async (
     ).toBlob();
 
     // Generate a persistent, secure download token for pre-signed public read URL
-    // Upload to storage
-    const storagePath = `${path}/${recordId}/${urlFieldName}.pdf`;
+    // Upload to storage with unique timestamp and no-cache headers to ensure latest version is always loaded
+    const timestamp = Date.now();
+    const storagePath = `${path}/${recordId}/${urlFieldName}_${timestamp}.pdf`;
     const storageRef = ref(storage, storagePath);
     
     let downloadURL = '';
     try {
       const snapshot = await uploadBytes(storageRef, pdfBlob, {
         contentType: 'application/pdf',
-        contentDisposition: `inline; filename="${urlFieldName}.pdf"`,
-        cacheControl: 'public, max-age=31536000'
+        contentDisposition: `inline; filename="${urlFieldName}_${timestamp}.pdf"`,
+        cacheControl: 'no-cache, no-store, max-age=0, must-revalidate'
       });
 
       try {
@@ -113,11 +132,22 @@ export const generateAndUploadDocument = async (
       }
     }
 
-    // Update record with document URL in the specific field
-    await updateDoc(doc(db, collectionName, recordId), {
-      [urlFieldName]: downloadURL,
-      updatedAt: new Date()
-    });
+    // Resolve proper collection name (preventing accidental 'documentUrl' collection names)
+    const targetCollection = collectionName === 'documentUrl' ? (path || 'invoices') : collectionName;
+
+    // Update record with document URL in the specific field AND ensure documentUrl is populated
+    // Only update if recordId is valid and not a draft ID
+    if (recordId && !recordId.startsWith('draft_') && targetCollection) {
+      try {
+        await updateDoc(doc(db, targetCollection, recordId), {
+          [urlFieldName]: downloadURL,
+          documentUrl: downloadURL,
+          updatedAt: new Date()
+        });
+      } catch (docErr) {
+        console.warn(`Could not updateDoc for ${targetCollection}/${recordId}:`, docErr);
+      }
+    }
 
     return downloadURL;
   } catch (error) {

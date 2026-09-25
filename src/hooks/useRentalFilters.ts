@@ -14,6 +14,7 @@ export const useRentalFilters = (
   const [statusFilter, setStatusFilter] = useState<string[]>(['all']);
   const [typeFilter, setTypeFilter] = useState<string[]>(['all']);
   const [vehicleFilter, setVehicleFilter] = useState<string[]>(['all']);
+  const [customerFilter, setCustomerFilter] = useState<string[]>(['all']);
   const [reasonFilter, setReasonFilter] = useState<string[]>(['all']);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>(['all']);
   
@@ -142,11 +143,15 @@ export const useRentalFilters = (
         }
       }
 
+      // Customer filter matching (multi-select)
+      const matchesCustomerSelect = customerFilter.includes('all') || customerFilter.includes(rental.customerId);
+
       return (
         matchesSearch &&
         matchesStatus &&
         matchesType &&
         matchesVehicleSelect &&
+        matchesCustomerSelect &&
         matchesReason &&
         matchesPaymentStatus &&
         matchesDateRange
@@ -160,6 +165,7 @@ export const useRentalFilters = (
     statusFilter,
     typeFilter,
     vehicleFilter,
+    customerFilter,
     reasonFilter,
     paymentStatusFilter,
     startDateFilter,
@@ -175,6 +181,8 @@ export const useRentalFilters = (
     setTypeFilter,
     vehicleFilter,
     setVehicleFilter,
+    customerFilter,
+    setCustomerFilter,
     reasonFilter,
     setReasonFilter,
     paymentStatusFilter, 

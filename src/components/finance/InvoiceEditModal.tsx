@@ -671,7 +671,38 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         onProductCreated={handleProductCreated}
       />
 
-      <Modal isOpen={showConfirmModal} onClose={() => setShowConfirmModal(false)} title="Confirm Invoice Updates" size="lg">
+      <Modal 
+        isOpen={showConfirmModal} 
+        onClose={() => setShowConfirmModal(false)} 
+        title="Confirm Invoice Updates" 
+        size="lg"
+        zIndex="z-[60]"
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 w-full">
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Review details and confirm to update invoice
+            </span>
+            <div className="flex items-center justify-end space-x-3 w-full sm:w-auto">
+              <button 
+                type="button" 
+                onClick={() => setShowConfirmModal(false)} 
+                className="flex-1 sm:flex-none px-5 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-sm"
+              >
+                Back to Edit
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmAndSave} 
+                disabled={loading} 
+                className="flex-1 sm:flex-none px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-black shadow-md flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer text-sm"
+              >
+                {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
+                Confirm & Update
+              </button>
+            </div>
+          </div>
+        }
+      >
          <div className="space-y-6">
             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner">
                 <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
@@ -742,12 +773,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             </div>
 
             {/* Quick Actions (Selectable Checkboxes) */}
-            <div className="p-4 rounded-xl border border-gray-200/20 bg-gray-50/10 space-y-3">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-gray-400">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Quick Actions:
                   </span>
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-slate-500">
                     Select option(s) to automatically trigger upon saving
                   </span>
                 </div>
@@ -757,8 +788,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.whatsapp 
-                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 ring-1 ring-emerald-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-1 ring-emerald-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -766,9 +797,9 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                       id="postEditWhatsApp"
                       checked={postSaveActions.whatsapp}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
-                      className="h-4 w-4 rounded text-emerald-500 border-white/30 bg-black/40 focus:ring-emerald-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
                     />
-                    <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span className="text-xs font-bold">Send via WhatsApp</span>
                   </label>
 
@@ -776,8 +807,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.email 
-                        ? 'bg-sky-500/15 border-sky-500/50 text-sky-300 ring-1 ring-sky-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-sky-50 border-sky-500 text-sky-800 ring-1 ring-sky-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -785,7 +816,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                       id="postEditEmail"
                       checked={postSaveActions.email}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
-                      className="h-4 w-4 rounded text-sky-500 border-white/30 bg-black/40 focus:ring-sky-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
                     />
                     <Mail className="w-4 h-4 text-sky-400 shrink-0" />
                     <span className="text-xs font-bold">Send via Email</span>
@@ -795,8 +826,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.printPdf 
-                        ? 'bg-purple-500/15 border-purple-500/50 text-purple-300 ring-1 ring-purple-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-purple-50 border-purple-500 text-purple-800 ring-1 ring-purple-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -804,20 +835,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                       id="postEditPrintPdf"
                       checked={postSaveActions.printPdf}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
-                      className="h-4 w-4 rounded text-purple-500 border-white/30 bg-black/40 focus:ring-purple-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
                     />
                     <Printer className="w-4 h-4 text-purple-400 shrink-0" />
                     <span className="text-xs font-bold">Print / Download PDF</span>
                   </label>
                 </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowConfirmModal(false)} className="px-5 py-2.5 border rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition-colors">Back to Edit</button>
-                <button type="button" onClick={confirmAndSave} disabled={loading} className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-black shadow-md flex items-center gap-2 transition-colors disabled:opacity-50">
-                  {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
-                  Confirm & Update
-                </button>
             </div>
          </div>
       </Modal>

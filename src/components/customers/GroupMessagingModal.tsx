@@ -15,15 +15,17 @@ import {
 import {
   extractRecipients,
   filterRecipientsByCategory,
-  fetchGlobalTemplates,
-  saveGlobalTemplate,
+  subscribeGlobalTemplates,
   uploadMessagingAttachment,
   dispatchBulkEmail,
   openWhatsAppChat,
-  replaceGroupPlaceholders,
-  AVAILABLE_PLACEHOLDERS,
   DEFAULT_TEMPLATES,
 } from '../../utils/groupMessaging';
+import {
+  substituteDynamicTags,
+  subscribeToDynamicTags,
+} from '../../utils/dynamicTagsService';
+import { DynamicTag } from '../../types/dynamicTags';
 import { formatWhatsAppNumber } from '../../utils/whatsapp';
 import { usePermissions } from '../../hooks/usePermissions';
 import {
@@ -38,21 +40,15 @@ import {
   Square,
   Paperclip,
   X,
-  FileText,
-  Image as ImageIcon,
-  Save,
-  Plus,
-  Play,
   CheckCircle2,
   AlertTriangle,
-  Copy,
-  ExternalLink,
   Loader2,
   Eye,
-  EyeOff,
-  Sparkles,
   Send,
   ChevronRight,
+  ExternalLink,
+  ShieldCheck,
+  Folder,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -75,12 +71,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
   const canSendWhatsApp = isAdmin || can('customers', 'whatsapp') || can('customers', 'send');
   const canSendEmail = isAdmin || can('customers', 'email') || can('customers', 'send');
-  const canUseTemplates = isAdmin || can('customers', 'template');
-  const canEditTemplates = isAdmin || can('customers', 'templateEdit');
-  const canCreateTemplates = isAdmin || can('customers', 'templateCreate') || can('customers', 'templateEdit');
 
-  // Navigation tabs in modal
-  const [activeTab, setActiveTab] = useState<'compose' | 'recipients' | 'dispatch'>('compose');
+  // Workflow step tabs in modal
+  const [activeTab, setActiveTab] = useState<'template' | 'recipients' | 'dispatch'>('template');
 
   // Channel & Target settings
   const [channel, setChannel] = useState<MessagingChannel>(() => {
@@ -94,14 +87,12 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<Set<string>>(new Set());
   const [recipientSearch, setRecipientSearch] = useState('');
 
-  // Templates
+  // Live Templates state from Automation Control
   const [templates, setTemplates] = useState<GlobalMessageTemplate[]>(DEFAULT_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(DEFAULT_TEMPLATES[0].id);
-  const [templateName, setTemplateName] = useState<string>(DEFAULT_TEMPLATES[0].name);
-  const [subjectTemplate, setSubjectTemplate] = useState<string>(DEFAULT_TEMPLATES[0].subjectTemplate);
-  const [bodyTemplate, setBodyTemplate] = useState<string>(DEFAULT_TEMPLATES[0].bodyTemplate);
-  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+
+  // Live Dynamic Tags from Automation Control
+  const [dynamicTags, setDynamicTags] = useState<DynamicTag[]>([]);
 
   // Attachments
   const [attachment, setAttachment] = useState<MessagingAttachment | null>(null);
@@ -109,7 +100,6 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
   const [manualMediaUrl, setManualMediaUrl] = useState('');
   const [showMediaUrlInput, setShowMediaUrlInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Dispatch progress for Bulk Email
   const [emailProgress, setEmailProgress] = useState<BatchSendProgress>({
@@ -175,109 +165,109 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     }
   }, [isOpen, category, channel]);
 
-  // Load templates from database with channel filter and reactive sync
+  // ─────────────────────────────────────────────────────────────
+  // REAL-TIME SYNC WITH AUTOMATION CONTROL
+  // State changes in Automation Control immediately sync to this dropdown!
+  // ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const load = () => {
-      fetchGlobalTemplates(channel).then((list) => {
-        setTemplates(list);
-      });
-    };
-    load();
 
-    const handleSync = () => load();
-    window.addEventListener('template_saved', handleSync);
-    window.addEventListener('template_deleted', handleSync);
+    // 1. Real-time subscription to Templates from Automation Control
+    const unsubTemplates = subscribeGlobalTemplates(channel, (list) => {
+      setTemplates(list);
+      // If current selection is invalid, fallback to first available
+      if (list.length > 0 && !list.some((t) => t.id === selectedTemplateId)) {
+        setSelectedTemplateId(list[0].id);
+      }
+    });
+
+    // 2. Real-time subscription to Dynamic Tags from Automation Control
+    const unsubTags = subscribeToDynamicTags((tags) => {
+      setDynamicTags(tags);
+    });
+
     return () => {
-      window.removeEventListener('template_saved', handleSync);
-      window.removeEventListener('template_deleted', handleSync);
+      unsubTemplates();
+      unsubTags();
     };
   }, [isOpen, channel]);
 
-  // Handle template selection change
-  const handleSelectTemplate = (tempId: string) => {
-    setSelectedTemplateId(tempId);
-    if (tempId === 'new_custom') {
-      setTemplateName('New Custom News Flash');
-      setSubjectTemplate('📢 Notice from AIE Skyline');
-      setBodyTemplate(`Dear {customer_name},\n\n[Write your announcement here...]\n\nKind regards,\nAIE Skyline Team`);
-      return;
+  // Currently selected template (strictly from Automation Control library)
+  const selectedTemplate = useMemo(() => {
+    return templates.find((t) => t.id === selectedTemplateId) || templates[0] || DEFAULT_TEMPLATES[0];
+  }, [templates, selectedTemplateId]);
+
+  const subjectTemplate = selectedTemplate?.subjectTemplate || '';
+  const bodyTemplate = selectedTemplate?.bodyTemplate || '';
+  const templateName = selectedTemplate?.name || 'Standard Broadcast Notice';
+
+  // Target recipients currently selected
+  const activeSelectedRecipients = useMemo(() => {
+    return allRecipients.filter((r) => selectedRecipientIds.has(r.id));
+  }, [allRecipients, selectedRecipientIds]);
+
+  // Valid recipients for current channel
+  const eligibleRecipients = useMemo(() => {
+    if (channel === 'email') {
+      return activeSelectedRecipients.filter((r) => !!r.email && r.email.includes('@'));
+    } else {
+      return activeSelectedRecipients.filter((r) => !!formatWhatsAppNumber(r.phone));
     }
-    const found = templates.find((t) => t.id === tempId);
-    if (found) {
-      setTemplateName(found.name);
-      setSubjectTemplate(found.subjectTemplate);
-      setBodyTemplate(found.bodyTemplate);
+  }, [activeSelectedRecipients, channel]);
+
+  // Sample recipient for live preview
+  const sampleRecipient = eligibleRecipients[0] ||
+    categoryRecipients[0] || {
+      id: 'sample',
+      name: 'John Doe',
+      firstName: 'John',
+      email: 'john.doe@example.com',
+      phone: '07552 553441',
+      category: 'members',
+      companyName: 'AIE Member Services',
+      source: 'customer',
+    };
+
+  // ─────────────────────────────────────────────────────────────
+  // LIVE RENDERED SAMPLE PREVIEW (DYNAMIC TAG SUBSTITUTION)
+  // ─────────────────────────────────────────────────────────────
+  const previewSubject = useMemo(() => {
+    return substituteDynamicTags(subjectTemplate, sampleRecipient, dynamicTags);
+  }, [subjectTemplate, sampleRecipient, dynamicTags]);
+
+  const previewBody = useMemo(() => {
+    let resolved = substituteDynamicTags(bodyTemplate, sampleRecipient, dynamicTags);
+    if (attachment?.url && !resolved.includes(attachment.url)) {
+      resolved += `\n\n📎 Attached Document / Media:\n${attachment.name} (${attachment.url})`;
     }
+    return resolved;
+  }, [bodyTemplate, sampleRecipient, dynamicTags, attachment]);
+
+  // Toggle single recipient
+  const toggleRecipient = (id: string) => {
+    setSelectedRecipientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  // Insert tag into body textarea at cursor position
-  const insertPlaceholder = (tag: string) => {
-    const el = bodyTextareaRef.current;
-    if (!el) {
-      setBodyTemplate((prev) => prev + ' ' + tag);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const newText = bodyTemplate.substring(0, start) + tag + bodyTemplate.substring(end);
-    setBodyTemplate(newText);
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + tag.length, start + tag.length);
-    }, 50);
+  // Toggle all filtered recipients
+  const toggleSelectAllFiltered = () => {
+    const allFilteredSelected = filteredRecipients.every((r) => selectedRecipientIds.has(r.id));
+    setSelectedRecipientIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredRecipients.forEach((r) => next.delete(r.id));
+      } else {
+        filteredRecipients.forEach((r) => next.add(r.id));
+      }
+      return next;
+    });
   };
 
-  // Save template to database
-  const handleSaveTemplate = async (saveAsNew: boolean = false) => {
-    if (saveAsNew && !canCreateTemplates) {
-      toast.error('You do not have permission to create templates.');
-      return;
-    }
-    if (!saveAsNew && !canEditTemplates && !canCreateTemplates) {
-      toast.error('You do not have permission to edit or save templates.');
-      return;
-    }
-
-    if (!templateName.trim()) {
-      toast.error('Please enter a Template Name');
-      return;
-    }
-    if (!subjectTemplate.trim()) {
-      toast.error('Please enter a Subject Line');
-      return;
-    }
-    if (!bodyTemplate.trim()) {
-      toast.error('Please enter Message Body');
-      return;
-    }
-
-    setIsSavingTemplate(true);
-    const toastId = toast.loading(saveAsNew ? 'Creating new template...' : 'Saving template...');
-    try {
-      const savedId = await saveGlobalTemplate({
-        id: selectedTemplateId,
-        name: templateName,
-        subjectTemplate,
-        bodyTemplate,
-        category: 'Group Messaging',
-        saveAsNew,
-      });
-
-      const updatedList = await fetchGlobalTemplates(channel);
-      setTemplates(updatedList);
-      setSelectedTemplateId(savedId);
-
-      toast.success(`Template "${templateName}" saved to communication database!`, { id: toastId });
-    } catch (err: any) {
-      console.error('Failed to save template:', err);
-      toast.error('Failed to save template', { id: toastId });
-    } finally {
-      setIsSavingTemplate(false);
-    }
-  };
-
-  // File upload handler
+  // File upload handler for attachments
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -299,7 +289,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     try {
       const att = await uploadMessagingAttachment(file);
       setAttachment(att);
-      toast.success('Media attachment uploaded and linked!', { id: toastId });
+      toast.success('Media attachment linked to broadcast!', { id: toastId });
     } catch (err: any) {
       console.error('Upload failed:', err);
       toast.error('Failed to upload file to storage', { id: toastId });
@@ -330,48 +320,12 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     });
     setManualMediaUrl('');
     setShowMediaUrlInput(false);
-    toast.success('Media attachment link attached!');
+    toast.success('Media URL attached to broadcast!');
   };
 
-  // Target recipients currently selected
-  const activeSelectedRecipients = useMemo(() => {
-    return allRecipients.filter((r) => selectedRecipientIds.has(r.id));
-  }, [allRecipients, selectedRecipientIds]);
-
-  // Valid recipients for current channel
-  const eligibleRecipients = useMemo(() => {
-    if (channel === 'email') {
-      return activeSelectedRecipients.filter((r) => !!r.email && r.email.includes('@'));
-    } else {
-      return activeSelectedRecipients.filter((r) => !!formatWhatsAppNumber(r.phone));
-    }
-  }, [activeSelectedRecipients, channel]);
-
-  // Toggle single recipient
-  const toggleRecipient = (id: string) => {
-    setSelectedRecipientIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // Toggle all filtered recipients
-  const toggleSelectAllFiltered = () => {
-    const allFilteredSelected = filteredRecipients.every((r) => selectedRecipientIds.has(r.id));
-    setSelectedRecipientIds((prev) => {
-      const next = new Set(prev);
-      if (allFilteredSelected) {
-        filteredRecipients.forEach((r) => next.delete(r.id));
-      } else {
-        filteredRecipients.forEach((r) => next.add(r.id));
-      }
-      return next;
-    });
-  };
-
-  // Bulk Email Dispatcher
+  // ─────────────────────────────────────────────────────────────
+  // BULK EMAIL BROADCAST DISPATCHER
+  // ─────────────────────────────────────────────────────────────
   const handleStartBulkEmail = async () => {
     if (!canSendEmail) {
       toast.error('You do not have permission to dispatch bulk emails.');
@@ -382,7 +336,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
       return;
     }
     if (!subjectTemplate.trim() || !bodyTemplate.trim()) {
-      toast.error('Subject and message body cannot be empty.');
+      toast.error('Template subject and message body cannot be empty.');
       return;
     }
 
@@ -421,19 +375,21 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
       }));
 
       if (result.successful > 0) {
-        toast.success(`Successfully dispatched ${result.successful} emails!`);
+        toast.success(`Successfully dispatched ${result.successful} broadcast emails!`);
       }
       if (result.failed > 0) {
-        toast.error(`Failed to send to ${result.failed} recipient(s).`);
+        toast.error(`Failed to deliver to ${result.failed} recipient(s).`);
       }
     } catch (err: any) {
       console.error('Batch email error:', err);
-      toast.error('Batch email dispatch encountered an error.');
+      toast.error('Batch broadcast dispatch encountered an error.');
       setEmailProgress((prev) => ({ ...prev, isSending: false }));
     }
   };
 
-  // Open single WhatsApp from queue
+  // ─────────────────────────────────────────────────────────────
+  // WHATSAPP BROADCAST DISPATCHER
+  // ─────────────────────────────────────────────────────────────
   const handleOpenWhatsAppRecipient = (recipient: MessagingRecipient) => {
     if (!canSendWhatsApp) {
       toast.error('You do not have permission to dispatch WhatsApp messages.');
@@ -449,46 +405,52 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
 
     if (ok) {
       setOpenedWhatsAppIds((prev) => ({ ...prev, [recipient.id]: true }));
-      toast.success(`Opened WhatsApp chat for ${recipient.name}`);
+      toast.success(`Launched WhatsApp dispatch for ${recipient.name}`);
     } else {
       toast.error(`Invalid WhatsApp phone number for ${recipient.name}`);
     }
   };
 
-  // Find next pending WhatsApp recipient and open
   const handleOpenNextPendingWhatsApp = () => {
     const nextRecipient = eligibleRecipients.find((r) => !openedWhatsAppIds[r.id]);
     if (!nextRecipient) {
-      toast.success('All WhatsApp recipient chats have been launched!');
+      toast.success('All WhatsApp broadcast chats have been launched!');
       return;
     }
     handleOpenWhatsAppRecipient(nextRecipient);
   };
 
-  // Sample recipient for live preview
-  const sampleRecipient = eligibleRecipients[0] ||
-    categoryRecipients[0] || {
-      id: 'sample',
-      name: 'Michael Scott',
-      firstName: 'Michael',
-      email: 'michael@example.com',
-      phone: '07999123456',
-      category: 'members',
-      companyName: 'Dunder Mifflin',
-      source: 'customer',
-    };
-
-  const previewSubject = replaceGroupPlaceholders(subjectTemplate, sampleRecipient, attachment);
-  const previewBody = replaceGroupPlaceholders(bodyTemplate, sampleRecipient, attachment);
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Group Messaging & Global News Flash"
+      title="Members Broadcast & Group Messaging"
       size="2xl"
     >
       <div className="space-y-5">
+        {/* Architectural Hierarchy Notice */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs text-slate-600 gap-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
+            <span>
+              <strong>Send &amp; Dispatch Console:</strong> Templates and dynamic parameter tags are centrally governed in{' '}
+              <span className="font-semibold text-purple-700">Automation Control</span>. Template editing and tag modification are strictly restricted to the Central Hub.
+            </span>
+          </div>
+          {isAdmin && (
+            <a
+              href="/automation"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-600 hover:text-purple-800 font-bold shrink-0 flex items-center gap-1 hover:underline"
+              title="Open Central Automation Hub"
+            >
+              <span>Automation Control</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+
         {/* Top Header Controls: Channel & Step Tabs */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
           {/* Dual-Channel Dispatch Selector */}
@@ -519,26 +481,26 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             </button>
           </div>
 
-          {/* Workflow View Tabs */}
+          {/* Workflow Step Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <button
               type="button"
-              onClick={() => setActiveTab('compose')}
+              onClick={() => setActiveTab('template')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                activeTab === 'compose'
-                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                activeTab === 'template'
+                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300 font-bold'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Radio className="w-3.5 h-3.5" />
-              1. Compose & Template
+              1. Select Template &amp; Preview
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('recipients')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 activeTab === 'recipients'
-                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                  ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300 font-bold'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -550,178 +512,119 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               onClick={() => setActiveTab('dispatch')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 activeTab === 'dispatch'
-                  ? 'bg-purple-600 text-white shadow-xs'
+                  ? 'bg-purple-600 text-white shadow-xs font-bold'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Send className="w-3.5 h-3.5" />
-              3. Review & Dispatch ({eligibleRecipients.length})
+              3. Dispatch Broadcast ({eligibleRecipients.length})
             </button>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: COMPOSE & TEMPLATE BUILDER */}
+        {/* TAB 1: TEMPLATE SELECTION & LIVE PREVIEW (SEND & DISPATCH ONLY)           */}
+        {/* STATED RULE: No editing or template creation allowed on this page.        */}
+        {/* STATED RULE: No "Active Dynamic Tags" or "Add Tag" controls are visible.  */}
         {/* ========================================================================= */}
-        {activeTab === 'compose' && (
+        {activeTab === 'template' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Left: Editor form */}
-            <div className="lg:col-span-8 space-y-4">
-              {/* Template selector & Save banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Select From Template Library
+            {/* Left Column: Template Selection & Content Readout */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Template Library Dropdown (Synched in real-time from Automation Control) */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
+                    Template Library (Automation Control)
                   </label>
-                  <select
-                    value={selectedTemplateId}
-                    onChange={(e) => handleSelectTemplate(e.target.value)}
-                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500 py-1.5"
-                  >
-                    <optgroup label="✨ Preset Announcements">
+                  <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                    {templates.length} Templates Active
+                  </span>
+                </div>
+
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="w-full text-sm font-semibold rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500 py-2.5 shadow-xs"
+                >
+                  <optgroup label="✨ Preset Announcements">
+                    {templates
+                      .filter((t) => !t.isCustom)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  {templates.some((t) => t.isCustom) && (
+                    <optgroup label="💾 Automation Control Custom Templates">
                       {templates
-                        .filter((t) => !t.isCustom)
+                        .filter((t) => t.isCustom)
                         .map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.name}
+                            {t.name} ({t.category})
                           </option>
                         ))}
                     </optgroup>
-                    {templates.some((t) => t.isCustom) && (
-                      <optgroup label="💾 Saved Custom Templates">
-                        {templates
-                          .filter((t) => t.isCustom)
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.category})
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                    <option value="new_custom">+ Create New Custom Template...</option>
-                  </select>
-                </div>
+                  )}
+                </select>
 
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSaveTemplate(false)}
-                    disabled={isSavingTemplate || (!canEditTemplates && !canCreateTemplates)}
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={!canEditTemplates ? "Permission required to edit templates" : "Save current template back to database"}
-                  >
-                    <Save className="w-3.5 h-3.5 mr-1.5" />
-                    Save Template
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveTemplate(true)}
-                    disabled={isSavingTemplate || !canCreateTemplates}
-                    className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={!canCreateTemplates ? "Permission required to create templates" : "Save as new copy in database"}
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" />
-                    As New Copy
-                  </button>
-                </div>
+                <p className="text-[11px] text-slate-500 italic">
+                  Selecting a template automatically binds its message structure and substituted parameters.
+                </p>
               </div>
 
-              {/* Template Name & Subject */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Template Readout Card (Read-Only) */}
+              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Folder className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs font-bold text-slate-800">
+                      {selectedTemplate?.name || 'Selected Template'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                    Category: {selectedTemplate?.category || 'General'}
+                  </span>
+                </div>
+
+                {channel === 'email' && (
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 block mb-1">
+                      Subject Line:
+                    </span>
+                    <div className="px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 font-mono">
+                      {subjectTemplate}
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Template Name
-                  </label>
-                  <input
-                    type="text"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="e.g. Easter Holiday Operations Update"
-                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
-                  />
+                  <span className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Template Body Content:
+                  </span>
+                  <div className="px-3 py-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-[160px] overflow-y-auto">
+                    {bodyTemplate}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Subject Line / Headline
-                  </label>
-                  <input
-                    type="text"
-                    value={subjectTemplate}
-                    onChange={(e) => setSubjectTemplate(e.target.value)}
-                    placeholder="e.g. Important Service Notice - {customer_name}"
-                    className="w-full text-sm rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-              </div>
-
-              {/* Placeholder insertion chips */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-700 flex items-center">
-                    <Sparkles className="w-3.5 h-3.5 mr-1 text-purple-600" />
-                    Insert Placeholder Tags (Click to add):
-                  </label>
-                  <span className="text-[11px] text-slate-500">Replaced automatically per recipient</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
-                  {AVAILABLE_PLACEHOLDERS.map((ph) => (
-                    <button
-                      key={ph.tag}
-                      type="button"
-                      onClick={() => insertPlaceholder(ph.tag)}
-                      className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
-                      title={ph.desc}
-                    >
-                      {ph.tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Message Body Textarea */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-700">
-                    Message Body Text
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPreview(!showPreview)}
-                    className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                  >
-                    {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    {showPreview ? 'Hide Live Preview' : 'Show Live Preview'}
-                  </button>
-                </div>
-                <textarea
-                  ref={bodyTextareaRef}
-                  value={bodyTemplate}
-                  onChange={(e) => setBodyTemplate(e.target.value)}
-                  rows={8}
-                  className="w-full text-sm font-sans rounded-lg border-slate-300 bg-white text-slate-900 focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="Enter message text here..."
-                />
               </div>
 
               {/* Attachment & Media Section */}
-              <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50">
-                <div className="flex items-center justify-between mb-2">
+              <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50 space-y-2">
+                <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 flex items-center">
                     <Paperclip className="w-4 h-4 mr-1.5 text-purple-600" />
-                    Attach Document or Media (PDF / Image)
+                    Attach Document or Media (Optional)
                   </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowMediaUrlInput(!showMediaUrlInput)}
-                      className="text-xs text-purple-600 hover:underline font-medium"
-                    >
-                      {showMediaUrlInput ? 'Upload File Instead' : 'Use Existing Media URL'}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaUrlInput(!showMediaUrlInput)}
+                    className="text-xs text-purple-600 hover:underline font-semibold"
+                  >
+                    {showMediaUrlInput ? 'Upload File Instead' : 'Use Existing Media URL'}
+                  </button>
                 </div>
 
-                {/* Upload or URL input */}
                 {showMediaUrlInput ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -751,48 +654,28 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     />
                     <label
                       htmlFor="group-msg-file-input"
-                      className="flex items-center justify-center p-3 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 cursor-pointer transition-colors"
+                      className="flex items-center justify-center p-2.5 bg-white border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 text-xs font-medium text-slate-700 gap-2 transition"
                     >
                       {isUploadingAttachment ? (
-                        <div className="flex items-center text-xs text-purple-600">
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Uploading media to cloud storage...
-                        </div>
+                        <>
+                          <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
+                          <span>Uploading attachment...</span>
+                        </>
                       ) : (
-                        <div className="flex items-center text-xs text-slate-600">
-                          <ImageIcon className="w-4 h-4 mr-2 text-purple-600" />
-                          Click to select a JPG, PNG, or PDF file to attach
-                        </div>
+                        <>
+                          <Paperclip className="w-4 h-4 text-purple-600" />
+                          <span>Choose PDF or Image from Computer (Max 15MB)</span>
+                        </>
                       )}
                     </label>
                   </div>
                 )}
 
-                {/* Attached file badge */}
                 {attachment && (
-                  <div className="mt-2.5 flex items-center justify-between p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
-                    <div className="flex items-center space-x-2.5 overflow-hidden">
-                      {attachment.type.startsWith('image/') ? (
-                        <img
-                          src={attachment.url}
-                          alt="preview"
-                          className="w-9 h-9 object-cover rounded-md border border-purple-200"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 bg-purple-100 text-purple-600 rounded-md flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                      )}
-                      <div className="truncate">
-                        <p className="text-xs font-bold text-slate-900 truncate">
-                          {attachment.name}
-                        </p>
-                        <p className="text-[11px] text-purple-700">
-                          {attachment.type.includes('pdf') ? 'PDF Document' : 'Image File'} •{' '}
-                          {attachment.size > 0 ? `${(attachment.size / 1024).toFixed(1)} KB` : 'Attached URL'}
-                        </p>
-                      </div>
+                  <div className="flex items-center justify-between p-2 bg-purple-50 border border-purple-200 rounded-lg text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold text-purple-900 truncate">{attachment.name}</span>
                     </div>
                     <button
                       type="button"
@@ -807,13 +690,18 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               </div>
             </div>
 
-            {/* Right: Quick Target Summary & Live Preview */}
-            <div className="lg:col-span-4 space-y-4">
-              {/* Audience Target Summary Card */}
+            {/* Right Column: Audience Target Selector & Live Sample Preview */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Audience Target Recipient Group */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Target Recipient Group
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                    Target Recipient Group
+                  </h4>
+                  <span className="text-[11px] font-bold text-purple-700">
+                    {eligibleRecipients.length} Selected
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -822,14 +710,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'members'
                         ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
-                        : 'border-slate-200 bg-white'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">Members</span>
+                      <span className="text-xs font-bold text-slate-900">Members - {categoryCounts.members}</span>
                       <Users className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-slate-500">{categoryCounts.members} drivers</span>
+                    <span className="text-[11px] text-slate-500">Drivers &amp; individuals</span>
                   </button>
 
                   <button
@@ -838,14 +726,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'companies'
                         ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
-                        : 'border-slate-200 bg-white'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">Companies</span>
+                      <span className="text-xs font-bold text-slate-900">Companies - {categoryCounts.companies}</span>
                       <Building2 className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-slate-500">{categoryCounts.companies} accounts</span>
+                    <span className="text-[11px] text-slate-500">Corporate accounts</span>
                   </button>
 
                   <button
@@ -854,14 +742,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'claims'
                         ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
-                        : 'border-slate-200 bg-white'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">Claims</span>
+                      <span className="text-xs font-bold text-slate-900">Claims - {categoryCounts.claims}</span>
                       <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-slate-500">{categoryCounts.claims} contacts</span>
+                    <span className="text-[11px] text-slate-500">Incident contacts</span>
                   </button>
 
                   <button
@@ -870,14 +758,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                     className={`p-2.5 rounded-lg text-left border transition-all ${
                       category === 'all'
                         ? 'border-purple-600 bg-purple-50/80 ring-1 ring-purple-600'
-                        : 'border-slate-200 bg-white'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">All</span>
+                      <span className="text-xs font-bold text-slate-900">All - {categoryCounts.all}</span>
                       <Radio className="w-3.5 h-3.5 text-purple-600" />
                     </div>
-                    <span className="text-[11px] text-slate-500">{categoryCounts.all} total</span>
+                    <span className="text-[11px] text-slate-500">Total database</span>
                   </button>
                 </div>
 
@@ -893,28 +781,28 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   onClick={() => setActiveTab('recipients')}
                   className="w-full py-1.5 text-xs text-center font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors flex items-center justify-center gap-1"
                 >
-                  Manage Individual Recipients
+                  Manage Individual Recipients ({selectedRecipientIds.size})
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Live Preview Card */}
-              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2.5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center">
-                    <Eye className="w-3.5 h-3.5 mr-1 text-purple-600" />
+              {/* LIVE RENDERED SAMPLE PREVIEW CARD (DYNAMIC TAG SUBSTITUTION) */}
+              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-purple-600" />
                     Live Rendered Preview
                   </span>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    Sample: {sampleRecipient.name}
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                    Simulated: {sampleRecipient.name}
                   </span>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2 overflow-y-auto max-h-[300px]">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2 overflow-y-auto max-h-[220px]">
                   {channel === 'email' && (
                     <div className="border-b border-slate-200 pb-1.5 mb-1.5">
-                      <span className="font-semibold text-slate-500">Subject: </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-bold text-slate-500">Subject: </span>
+                      <span className="font-extrabold text-slate-900">
                         {previewSubject || '(Empty subject)'}
                       </span>
                     </div>
@@ -925,13 +813,14 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                   </div>
                 </div>
 
+                {/* Dispatch Trigger Button */}
                 <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => setActiveTab('dispatch')}
-                    className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                    className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
                   >
-                    Proceed to Dispatch ({eligibleRecipients.length})
+                    <span>Proceed to Dispatch Broadcast ({eligibleRecipients.length})</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -941,7 +830,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: TARGET RECIPIENTS SELECTION */}
+        {/* TAB 2: TARGET RECIPIENTS SELECTION                                        */}
         {/* ========================================================================= */}
         {activeTab === 'recipients' && (
           <div className="space-y-4">
@@ -949,10 +838,10 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'members' as const, label: 'Members', count: categoryCounts.members, icon: Users },
-                  { id: 'companies' as const, label: 'Companies', count: categoryCounts.companies, icon: Building2 },
-                  { id: 'claims' as const, label: 'Claims Members', count: categoryCounts.claims, icon: ShieldAlert },
-                  { id: 'all' as const, label: 'All Contacts', count: categoryCounts.all, icon: Radio },
+                  { id: 'members' as const, label: `Members - ${categoryCounts.members}`, count: categoryCounts.members, icon: Users },
+                  { id: 'companies' as const, label: `Companies - ${categoryCounts.companies}`, count: categoryCounts.companies, icon: Building2 },
+                  { id: 'claims' as const, label: `Claims - ${categoryCounts.claims}`, count: categoryCounts.claims, icon: ShieldAlert },
+                  { id: 'all' as const, label: `All - ${categoryCounts.all}`, count: categoryCounts.all, icon: Radio },
                 ].map((item) => {
                   const Icon = item.icon;
                   const active = category === item.id;
@@ -968,7 +857,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
-                      {item.label} ({item.count})
+                      {item.label}
                     </button>
                   );
                 })}
@@ -1112,17 +1001,17 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
             <div className="flex justify-between items-center pt-2">
               <button
                 type="button"
-                onClick={() => setActiveTab('compose')}
+                onClick={() => setActiveTab('template')}
                 className="px-4 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50"
               >
-                Back to Compose
+                Back to Template
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('dispatch')}
                 className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5"
               >
-                Proceed to Review & Dispatch ({eligibleRecipients.length})
+                Proceed to Review &amp; Dispatch ({eligibleRecipients.length})
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -1130,7 +1019,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: REVIEW & DISPATCH */}
+        {/* TAB 3: REVIEW & DISPATCH BROADCAST                                        */}
         {/* ========================================================================= */}
         {activeTab === 'dispatch' && (
           <div className="space-y-4">
@@ -1153,19 +1042,18 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                 <button
                   type="button"
                   onClick={handleStartBulkEmail}
-                  disabled={emailProgress.isSending || eligibleRecipients.length === 0 || !canSendEmail}
-                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!canSendEmail ? "Permission required to dispatch emails" : undefined}
+                  disabled={emailProgress.isSending || eligibleRecipients.length === 0}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   {emailProgress.isSending ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Dispatching Batch...
+                      <span>Dispatching ({emailProgress.completed}/{emailProgress.total})...</span>
                     </>
                   ) : (
                     <>
-                      <Mail className="w-4 h-4" />
-                      Send Bulk Email Now ({eligibleRecipients.length})
+                      <Send className="w-4 h-4" />
+                      <span>Dispatch Broadcast Email Now</span>
                     </>
                   )}
                 </button>
@@ -1173,142 +1061,107 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenNextPendingWhatsApp}
-                  disabled={eligibleRecipients.length === 0 || !canSendWhatsApp}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp messages" : undefined}
+                  disabled={eligibleRecipients.length === 0}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Launch Next WhatsApp Chat
+                  <span>Launch WhatsApp Queue ({eligibleRecipients.filter((r) => !openedWhatsAppIds[r.id]).length} pending)</span>
                 </button>
               )}
             </div>
 
-            {/* EMAIL PROGRESS BAR */}
+            {/* Email Dispatch Progress Tracking */}
             {channel === 'email' && emailProgress.total > 0 && (
-              <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between text-xs font-semibold text-slate-700">
-                  <span>
-                    Progress: {emailProgress.completed} / {emailProgress.total} completed
-                  </span>
-                  <span>
-                    Success: <strong className="text-emerald-600">{emailProgress.successful}</strong> | Failed:{' '}
-                    <strong className="text-red-600">{emailProgress.failed}</strong>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-700">Dispatch Progress:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {emailProgress.completed} of {emailProgress.total} completed ({emailProgress.successful} sent, {emailProgress.failed} failed)
                   </span>
                 </div>
-                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+
+                <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-purple-600 h-full transition-all duration-300"
+                    className="bg-purple-600 h-2 transition-all duration-300 rounded-full"
                     style={{
-                      width: `${(emailProgress.completed / emailProgress.total) * 100}%`,
+                      width: `${Math.round((emailProgress.completed / (emailProgress.total || 1)) * 100)}%`,
                     }}
                   />
                 </div>
+
                 {emailProgress.errors.length > 0 && (
-                  <div className="mt-2 text-xs text-red-600 space-y-0.5">
-                    {emailProgress.errors.map((err, i) => (
-                      <div key={i}>
-                        ⚠️ {err.recipientName}: {err.error}
-                      </div>
-                    ))}
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs space-y-1">
+                    <span className="font-bold text-red-800">Errors encountered:</span>
+                    <ul className="list-disc pl-4 text-red-700 space-y-0.5 max-h-24 overflow-y-auto">
+                      {emailProgress.errors.map((err, i) => (
+                        <li key={i}>
+                          <strong>{err.recipientName}:</strong> {err.error}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
             )}
 
-            {/* WHATSAPP RECIPIENT QUEUE */}
+            {/* WhatsApp Queue Table */}
             {channel === 'whatsapp' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>
-                    Click each recipient below to launch their customized WhatsApp message with attachment payload:
-                  </span>
-                  <span className="font-semibold text-emerald-600">
-                    {Object.keys(openedWhatsAppIds).length} / {eligibleRecipients.length} chats launched
-                  </span>
-                </div>
-
-                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[380px] overflow-y-auto divide-y divide-slate-100">
-                  {eligibleRecipients.map((rec) => {
-                    const isOpened = !!openedWhatsAppIds[rec.id];
-                    return (
-                      <div
-                        key={rec.id}
-                        className={`p-3 flex items-center justify-between gap-3 transition-colors ${
-                          isOpened
-                            ? 'bg-emerald-50/40'
-                            : 'bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <div
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                              isOpened
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {isOpened ? <CheckCircle2 className="w-4 h-4" /> : rec.name[0]}
-                          </div>
-                          <div className="truncate">
-                            <p className="text-xs font-bold text-slate-900 truncate">
-                              {rec.name}
-                            </p>
-                            <p className="text-[11px] text-slate-500 font-mono">
-                              {rec.phone} • <span className="capitalize">{rec.category}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const previewMsg = replaceGroupPlaceholders(bodyTemplate, rec, attachment);
-                              navigator.clipboard.writeText(previewMsg);
-                              toast.success('Personalized message copied!');
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md border border-slate-200"
-                            title="Copy message text"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenWhatsAppRecipient(rec)}
-                            disabled={!canSendWhatsApp}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed ${
-                              isOpened
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            }`}
-                            title={!canSendWhatsApp ? "Permission required to dispatch WhatsApp" : undefined}
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            {isOpened ? 'Re-open Chat' : 'Open WhatsApp'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-[350px] overflow-y-auto">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
+                    <tr>
+                      <th className="px-3.5 py-2 text-left">Recipient</th>
+                      <th className="px-3.5 py-2 text-left">Mobile</th>
+                      <th className="px-3.5 py-2 text-center">Status</th>
+                      <th className="px-3.5 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {eligibleRecipients.map((r) => {
+                      const isLaunched = openedWhatsAppIds[r.id];
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50">
+                          <td className="px-3.5 py-2 font-medium text-slate-900">{r.name}</td>
+                          <td className="px-3.5 py-2 text-slate-600 font-mono">{r.phone}</td>
+                          <td className="px-3.5 py-2 text-center">
+                            {isLaunched ? (
+                              <span className="inline-flex items-center text-emerald-600 font-semibold text-[11px]">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                Launched
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">Pending</span>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenWhatsAppRecipient(r)}
+                              className={`px-2.5 py-1 rounded text-[11px] font-semibold transition ${
+                                isLaunched
+                                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              }`}
+                            >
+                              {isLaunched ? 'Reopen' : 'Open Chat'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
 
-            {/* Final Navigation Actions */}
-            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+            {/* Back Button */}
+            <div className="flex justify-between items-center pt-2">
               <button
                 type="button"
-                onClick={() => setActiveTab('compose')}
+                onClick={() => setActiveTab('template')}
                 className="px-4 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50"
               >
-                Back to Compose
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg"
-              >
-                Done / Close
+                Back to Template &amp; Preview
               </button>
             </div>
           </div>
@@ -1317,3 +1170,5 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     </Modal>
   );
 };
+
+export default GroupMessagingModal;

@@ -306,6 +306,55 @@ export async function fetchGlobalTemplates(channel?: 'whatsapp' | 'email' | 'all
 }
 
 /**
+ * Real-time listener for global templates.
+ * Invokes callback whenever Firestore updates or local events fire.
+ */
+export function subscribeGlobalTemplates(
+  channel: 'whatsapp' | 'email' | 'all' | undefined,
+  onUpdate: (templates: GlobalMessageTemplate[]) => void
+): () => void {
+  let isMounted = true;
+
+  const triggerUpdate = async () => {
+    try {
+      const list = await fetchGlobalTemplates(channel);
+      if (isMounted) onUpdate(list);
+    } catch (e) {
+      console.warn('[groupMessaging] Error refreshing templates in listener:', e);
+    }
+  };
+
+  // Initial load
+  triggerUpdate();
+
+  // Firestore real-time listener on messageTemplates collection
+  const unsubscribeFirestore = onSnapshot(
+    collection(db, 'messageTemplates'),
+    () => {
+      triggerUpdate();
+    },
+    (err) => {
+      console.warn('[groupMessaging] Template snapshot notice:', err);
+    }
+  );
+
+  // Local window event listeners for instantaneous cross-component updates
+  const handleLocalEvent = () => {
+    triggerUpdate();
+  };
+
+  window.addEventListener('template_saved', handleLocalEvent);
+  window.addEventListener('template_deleted', handleLocalEvent);
+
+  return () => {
+    isMounted = false;
+    unsubscribeFirestore();
+    window.removeEventListener('template_saved', handleLocalEvent);
+    window.removeEventListener('template_deleted', handleLocalEvent);
+  };
+}
+
+/**
  * Save or update a template into Firestore 'messageTemplates'
  */
 export async function saveGlobalTemplate(params: {

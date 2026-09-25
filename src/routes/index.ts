@@ -13,6 +13,7 @@ export const ROUTES = {
   ADMIN_SETUP: '/admin-setup',
   MAINTENANCE_LIVE: '/maintenance/live',
   SCHEDULE_MIRROR: '/schedule-mirror',
+  WORKSHOP_TV: '/workshop-tv',
   TRASH: '/trash',
   PRODUCTS: '/products',
   TODO: '/todo',

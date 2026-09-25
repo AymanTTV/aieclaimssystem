@@ -10,6 +10,8 @@ import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { generateAndUploadDocument, getCompanyDetails } from '../../utils/documentGenerator';
+import { InvoiceDocument } from '../pdf/documents';
 
 interface InvoicePaymentModalProps {
   invoice: Invoice;
@@ -191,6 +193,31 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         date: selectedPaymentDate,
         accountsTo: mergedAccountsTo 
       });
+
+      // Automatically update the invoice document with the new payment
+      try {
+        const companyDetails = await getCompanyDetails();
+        const updatedInvoice = {
+          ...invoice,
+          paidAmount: newPaidAmount,
+          remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+          paymentStatus: newStatus as any,
+          payments: [...(invoice.payments || []), newPayment],
+          vehicle: targetVehicle || vehicle,
+          customer: customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined)
+        };
+        await generateAndUploadDocument(
+          InvoiceDocument,
+          updatedInvoice,
+          'invoices',
+          invoice.id,
+          'invoices',
+          companyDetails,
+          'documentUrl'
+        );
+      } catch (docErr) {
+        console.warn('Background invoice document update error:', docErr);
+      }
 
       toast.success('Payment recorded');
       onClose();

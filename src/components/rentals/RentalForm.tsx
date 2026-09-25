@@ -1091,7 +1091,32 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       </form>
 
       {/* Confirmation Modal */}
-      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Rental Details" size="lg" theme="default">
+      <Modal 
+        isOpen={isConfirmModalOpen} 
+        onClose={() => setIsConfirmModalOpen(false)} 
+        title="Confirm Rental Details" 
+        size="lg" 
+        theme="default"
+        footer={
+          <div className="flex justify-between items-center w-full">
+            <button
+              type="button"
+              onClick={() => setIsConfirmModalOpen(false)}
+              className="px-4 py-2 text-sm font-bold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+            >
+              Back to Edit
+            </button>
+            <button
+              type="button"
+              onClick={executeCreateRental}
+              disabled={loading}
+              className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition cursor-pointer"
+            >
+              {loading ? 'Creating...' : <><CheckCircle className="w-4 h-4" /> Confirm & Save</>}
+            </button>
+          </div>
+        }
+      >
          <div className="p-4 space-y-4 text-slate-900">
             <div className="bg-blue-50 p-4 border-l-4 border-blue-600 rounded-lg">
                <h3 className="font-bold text-blue-900 mb-1">Final Review</h3>
@@ -1184,24 +1209,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                   <span>Print / Download PDF</span>
                 </label>
               </div>
-            </div>
-
-            <div className="flex justify-between items-center pt-2 border-t border-slate-200 mt-6">
-              <button
-                type="button"
-                onClick={() => setIsConfirmModalOpen(false)}
-                className="px-4 py-2 text-sm font-bold text-slate-700 hover:text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-              >
-                Back to Edit
-              </button>
-              <button
-                type="button"
-                onClick={executeCreateRental}
-                disabled={loading}
-                className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50 transition cursor-pointer"
-              >
-                {loading ? 'Creating...' : <><CheckCircle className="w-4 h-4" /> Confirm & Save</>}
-              </button>
             </div>
          </div>
       </Modal>

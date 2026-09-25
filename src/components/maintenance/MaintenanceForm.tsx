@@ -18,7 +18,7 @@ import { uploadMaintenanceAttachments } from '../../utils/maintenanceUpload';
 import productService from '../../services/product.service';
 import maintenanceCategoryService from '../../services/maintenanceCategory.service';
 import ProductFormModal from '../products/ProductFormModal'; 
-import { PlusCircle, Car, Wrench, Layers, CreditCard, Paperclip, ArrowRight, ArrowLeft } from 'lucide-react'; 
+import { Plus, PlusCircle, Car, Wrench, Layers, CreditCard, Paperclip, ArrowRight, ArrowLeft } from 'lucide-react'; 
 
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
@@ -628,7 +628,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Scrollable Tab Content Body */}
-          <div className="flex-1 overflow-y-auto min-h-[500px] p-5 sm:p-6 space-y-6 custom-scrollbar text-slate-900">
+          <div className="flex-1 overflow-y-auto min-h-0 p-5 sm:p-6 space-y-6 custom-scrollbar text-slate-900">
             
             {/* TAB 1: VEHICLE & SERVICE */}
             {activeTab === 'vehicle_service' && (
@@ -1254,12 +1254,12 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
           </div>
 
           {/* Pinned Bottom Actions */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 shrink-0 bg-[#F8FAFC] border-t border-[#E2E8F0]">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-4 shrink-0 bg-[#F8FAFC] border-t border-[#E2E8F0] z-10 shadow-xs">
             <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-[#E2E8F0] rounded-xl hover:bg-[#2B314E] hover:text-slate-900 transition-colors"
+                className="px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-[#CBD5E1] rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1267,14 +1267,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 <button
                   type="button"
                   onClick={() => setActiveTab(prevTab.id)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-[#E2E8F0] rounded-xl hover:bg-[#2B314E] hover:text-slate-900 flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-[#CBD5E1] rounded-xl hover:bg-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" /> {prevTab.label}
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
               {!isCompany && (
                 <div className="hidden sm:block mr-2 text-right">
                   <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Cost</span>
@@ -1285,7 +1285,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                 <button
                   type="button"
                   onClick={() => setActiveTab(nextTab.id)}
-                  className="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {nextTab.label} <ArrowRight className="w-4 h-4" />
                 </button>
@@ -1293,8 +1293,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 text-sm font-semibold text-slate-900 bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 shadow-xs transition-colors cursor-pointer text-white"
+                className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 border border-emerald-600 rounded-xl hover:bg-emerald-700 shadow-sm active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >
+                <Plus className="w-4 h-4" />
                 {loading ? 'Saving…' : editLog ? 'Update Maintenance' : 'Schedule Maintenance'}
               </button>
             </div>

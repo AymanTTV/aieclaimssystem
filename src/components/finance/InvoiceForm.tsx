@@ -15,7 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import productService from '../../services/product.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
-import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer } from 'lucide-react';
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2 } from 'lucide-react';
 import Modal from '../ui/Modal';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 
@@ -58,10 +58,29 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
+type InvoiceFormTab = 'client_accounts' | 'line_items' | 'payment_settlement' | 'documents_actions';
+
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], groups = [], departments = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
 
+  const [activeTab, setActiveTab] = useState<InvoiceFormTab>('client_accounts');
+
+  const tabOrder: InvoiceFormTab[] = ['client_accounts', 'line_items', 'payment_settlement', 'documents_actions'];
+
+  const handleNextTab = () => {
+    const currentIndex = tabOrder.indexOf(activeTab);
+    if (currentIndex < tabOrder.length - 1) {
+      setActiveTab(tabOrder[currentIndex + 1]);
+    }
+  };
+
+  const handlePrevTab = () => {
+    const currentIndex = tabOrder.indexOf(activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(tabOrder[currentIndex - 1]);
+    }
+  };
   const [loading, setLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
@@ -316,14 +335,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     if (!user) return;
 
     if ((!formData.useCustomCustomer && !formData.customerId) || (formData.useCustomCustomer && !formData.customerName.trim())) {
+      setActiveTab('client_accounts');
       toast.error('A customer is required. Please select one or enter their details manually.');
       return;
     }
     if (!lineItems.length || lineItems.every(li => li.quantity * li.unitPrice - (li.discount/100)*li.quantity*li.unitPrice === 0)) {
+      setActiveTab('line_items');
       toast.error('Add at least one line item with a non-zero value.');
       return;
     }
     if (paidNow > total) {
+      setActiveTab('payment_settlement');
       toast.error('Amount paid cannot exceed the total amount.');
       return;
     }
@@ -668,7 +690,38 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         onProductCreated={handleProductCreated}
       />
 
-      <Modal isOpen={showConfirmModal} onClose={() => setShowConfirmModal(false)} title="Confirm Invoice Details" size="lg">
+      <Modal 
+        isOpen={showConfirmModal} 
+        onClose={() => setShowConfirmModal(false)} 
+        title="Confirm Invoice Details" 
+        size="lg"
+        zIndex="z-[60]"
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 w-full">
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Review details and confirm to create invoice
+            </span>
+            <div className="flex items-center justify-end space-x-3 w-full sm:w-auto">
+              <button 
+                type="button" 
+                onClick={() => setShowConfirmModal(false)} 
+                className="flex-1 sm:flex-none px-5 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-sm"
+              >
+                Back to Edit
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmAndSave} 
+                disabled={loading} 
+                className="flex-1 sm:flex-none px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-black shadow-md flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer text-sm"
+              >
+                {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
+                Confirm & Save
+              </button>
+            </div>
+          </div>
+        }
+      >
          <div className="space-y-6">
             <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner">
                 <h3 className="text-lg font-black text-gray-900 mb-4 border-b border-gray-200 pb-3">Complete Summary Breakdown</h3>
@@ -739,12 +792,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             </div>
 
             {/* Quick Actions (Selectable Checkboxes) */}
-            <div className="p-4 rounded-xl border border-gray-200/20 bg-gray-50/10 space-y-3">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-gray-400">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Quick Actions:
                   </span>
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-slate-500">
                     Select option(s) to automatically trigger upon saving
                   </span>
                 </div>
@@ -754,8 +807,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.whatsapp 
-                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 ring-1 ring-emerald-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-1 ring-emerald-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -763,9 +816,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       id="postSaveWhatsApp"
                       checked={postSaveActions.whatsapp}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, whatsapp: e.target.checked }))}
-                      className="h-4 w-4 rounded text-emerald-500 border-white/30 bg-black/40 focus:ring-emerald-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
                     />
-                    <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <MessageCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span className="text-xs font-bold">Send via WhatsApp</span>
                   </label>
 
@@ -773,8 +826,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.email 
-                        ? 'bg-sky-500/15 border-sky-500/50 text-sky-300 ring-1 ring-sky-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-sky-50 border-sky-500 text-sky-800 ring-1 ring-sky-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -782,9 +835,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       id="postSaveEmail"
                       checked={postSaveActions.email}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, email: e.target.checked }))}
-                      className="h-4 w-4 rounded text-sky-500 border-white/30 bg-black/40 focus:ring-sky-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
                     />
-                    <Mail className="w-4 h-4 text-sky-400 shrink-0" />
+                    <Mail className="w-4 h-4 text-sky-600 shrink-0" />
                     <span className="text-xs font-bold">Send via Email</span>
                   </label>
 
@@ -792,8 +845,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                   <label 
                     className={`flex items-center space-x-2.5 p-3 rounded-xl border cursor-pointer select-none transition-all ${
                       postSaveActions.printPdf 
-                        ? 'bg-purple-500/15 border-purple-500/50 text-purple-300 ring-1 ring-purple-500/30' 
-                        : 'bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-white/20'
+                        ? 'bg-purple-50 border-purple-500 text-purple-800 ring-1 ring-purple-500' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
                     <input
@@ -801,464 +854,818 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       id="postSavePrintPdf"
                       checked={postSaveActions.printPdf}
                       onChange={e => setPostSaveActions(prev => ({ ...prev, printPdf: e.target.checked }))}
-                      className="h-4 w-4 rounded text-purple-500 border-white/30 bg-black/40 focus:ring-purple-400 cursor-pointer"
+                      className="h-4 w-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
                     />
-                    <Printer className="w-4 h-4 text-purple-400 shrink-0" />
+                    <Printer className="w-4 h-4 text-purple-600 shrink-0" />
                     <span className="text-xs font-bold">Print / Download PDF</span>
                   </label>
                 </div>
             </div>
-
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowConfirmModal(false)} className="px-5 py-2.5 border rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition-colors">Back to Edit</button>
-                <button type="button" onClick={confirmAndSave} disabled={loading} className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-black shadow-md flex items-center gap-2 transition-colors disabled:opacity-50">
-                  {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <CheckCircle className="w-5 h-5" />}
-                  Confirm & Save
-                </button>
-            </div>
          </div>
       </Modal>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SearchableSelect
-              label="Account From (Debit)"
-              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
-              value={formData.accountFrom}
-              onChange={val => setFormData(fd => ({ ...fd, accountFrom: val as string || '' }))}
-              placeholder="Select source account..."
-            />
-            <SearchableSelect
-              label="Account To (Credit)"
-              options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
-              value={formData.accountTo}
-              onChange={val => setFormData(fd => ({ ...fd, accountTo: val as string || '' }))}
-              placeholder="Select destination account..."
-            />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div className="space-y-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.useCustomCustomer}
-                  onChange={e =>
-                    setFormData(fd => ({
-                      ...fd,
-                      useCustomCustomer: e.target.checked,
-                      customerId: '',
-                      customerName: ''
-                    }))
-                  }
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <span className="text-sm text-gray-700">Enter Customer Manually</span>
-              </label>
-              {formData.useCustomCustomer ? (
-                <>
-                  <FormField
-                    label="Customer Name"
-                    value={formData.customerName}
-                    onChange={e => setFormData(fd => ({ ...fd, customerName: e.target.value }))}
-                    required
-                  />
-                  <FormField
-                    type="tel"
-                    label="Phone Number"
-                    value={formData.customerPhone}
-                    onChange={e => setFormData(fd => ({ ...fd, customerPhone: e.target.value }))}
-                  />
-                </>
-              ) : (
-                <SearchableSelect
-                  label="Select Customer"
-                  options={customers.map(c => ({
-                    id: c.id,
-                    label: c.name,
-                    subLabel: `${c.mobile} • ${c.email}`
-                  }))}
-                  value={formData.customerId}
-                  onChange={id => {
-                    const c = customers.find(x => x.id === id)!;
-                    setFormData(fd => ({
-                      ...fd,
-                      customerId: id as string,
-                      customerName: c.name,
-                      customerPhone: c.mobile
-                    }));
-                  }}
-                  placeholder="Search…"
-                  required
-                />
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="checkbox" checked={formData.manualVehicleEntry} onChange={e => { setFormData({...formData, manualVehicleEntry: e.target.checked, vehicleId: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> 
-                <span className="text-sm text-gray-700">Enter Vehicle Manually</span>
-              </label>
-              
-              {formData.manualVehicleEntry ? (
-                <div className="grid grid-cols-1 gap-3 border border-gray-200 bg-gray-50 p-3 rounded-md">
-                  <FormField label="Make" value={formData.manualVehicleMake} onChange={e => setFormData({...formData, manualVehicleMake: e.target.value})} placeholder="e.g. Toyota" required={formData.manualVehicleEntry} />
-                  <FormField label="Model" value={formData.manualVehicleModel} onChange={e => setFormData({...formData, manualVehicleModel: e.target.value})} placeholder="e.g. Prius" required={formData.manualVehicleEntry} />
-                  <FormField label="Registration" value={formData.manualVehicleReg} onChange={e => setFormData({...formData, manualVehicleReg: e.target.value})} placeholder="e.g. AB12 CDE" required={formData.manualVehicleEntry} />
-                </div>
-              ) : (
-                <SearchableSelect
-                  label="Related Vehicle (optional)"
-                  options={vehicles.map(v => ({
-                    id: v.id,
-                    label: `${v.make} ${v.model} (${v.registrationNumber})`,
-                    subLabel: v.registrationNumber
-                  }))}
-                  value={formData.vehicleId}
-                  onChange={id => { 
-                    const v = vehicles.find(vh => vh.id === id);
-                    setFormData(fd => ({
-                      ...fd,
-                      vehicleId: id as string || '',
-                      vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : '',
-                      groupId: v?.assignedGroupId || fd.groupId,
-                      departmentId: v?.assignedDepartmentId || fd.departmentId,
-                    }));
-                  }}
-                  placeholder="Search…"
-                />
-              )}
-            </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            type="date"
-            label="Invoice Date"
-            value={formData.date}
-            onChange={e => setFormData(fd => ({ ...fd, date: e.target.value }))}
-            required
-          />
-          <FormField
-            type="date"
-            label="Due Date"
-            value={formData.dueDate}
-            onChange={e => setFormData(fd => ({ ...fd, dueDate: e.target.value }))}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SearchableSelect
-            label="Category"
-            options={categories.map(c => ({ id: c, label: c })).concat({ id: 'Other', label: 'Other' })}
-            value={formData.category}
-            onChange={val => setFormData(fd => ({ ...fd, category: val as string || '' }))}
-            placeholder="Select category..."
-            required
-          />
-
-          <SearchableSelect
-            label="Group (Optional)"
-            options={groups.map(g => ({ id: g.id, label: g.name }))}
-            value={resolvedGroupId}
-            onChange={val => setFormData(fd => ({ ...fd, groupId: val as string || '' }))}
-            placeholder="Select a group..."
-          />
-
-          <SearchableSelect
-            label="Department (Optional)"
-            options={departments.map(d => ({ id: d.id, label: d.name }))}
-            value={resolvedDeptId}
-            onChange={val => setFormData(fd => ({ ...fd, departmentId: val as string || '' }))}
-            placeholder="Select a department..."
-          />
-        </div>
-
-
-        <div className="grid grid-cols-1 gap-4">
-          {formData.category === 'Other' && (
-            <FormField
-              label="Custom Category"
-              value={formData.customCategory}
-              onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
-              required
-            />
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description (Optional)</label>
-            <textarea
-              value={formData.description}
-              onChange={e => setFormData(fd => ({ ...fd, description: e.target.value }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-              rows={2}
-              placeholder="General description or notes for this invoice..."
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 pt-2">
-          <input
-            type="checkbox"
-            id="isRecurring"
-            checked={formData.isRecurring}
-            onChange={e => setFormData(fd => ({ ...fd, isRecurring: e.target.checked }))}
-            className="rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700">Recurring Invoice</label>
-        </div>
-        
-        {formData.isRecurring && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Frequency</label>
-            <select
-              value={formData.recurringFrequency}
-              onChange={e => setFormData(fd => ({ ...fd, recurringFrequency: e.target.value }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-            >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-        )}
-
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-medium">Line Items</h3>
-            <button type="button" onClick={addLineItem} className="text-sm text-primary hover:text-primary-600">
-              + Add Line
-            </button>
-          </div>
-          <div className="space-y-3">
-            {lineItems.map((item, idx) => (
-              <div
-                key={item.id}
-                className="relative p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3"
+      {/* ── Navigation Sections Container ── */}
+      <div className="flex flex-col h-full flex-1 min-h-0 overflow-hidden bg-white text-slate-900">
+        {/* ── Navigation Sections Bar ── */}
+        <div className="flex border-b border-[#E2E8F0] px-3 sm:px-5 shrink-0 bg-[#F8FAFC] overflow-x-auto no-scrollbar">
+          {[
+            { id: 'client_accounts' as const, label: '1. Client & Accounts', icon: Users },
+            { id: 'line_items' as const, label: '2. Line Items & Billing', icon: Receipt, count: lineItems.length },
+            { id: 'payment_settlement' as const, label: '3. Payment & Settlement', icon: CreditCard, badge: formData.isPaid ? 'Paid' : (paidNow > 0 ? 'Partial' : undefined) },
+            { id: 'documents_actions' as const, label: '4. Documents & Actions', icon: Paperclip, badge: formData.uploadedDocument ? 'Attached' : undefined },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-1.5 py-2.5 px-3.5 border-b-2 font-medium text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? 'border-blue-600 text-blue-600 font-bold bg-white rounded-t-lg shadow-2xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'
+                }`}
               >
-                <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
-                  <div className="sm:col-span-2 relative">
-                    <FormField
-                      label="Description"
-                      value={item.description}
-                      onChange={e => handleDescriptionChange(idx, e.target.value)}
-                      onFocus={() => handleFieldFocus(idx)}
-                      onBlur={() => {
-                        setTimeout(() => handleFieldBlur(idx), 120);
-                        tryAutofillUnitPrice(item.description, idx);
-                      }}
-                      required
-                    />
-                    {showSuggestions[idx] && item.description && (
-                      <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-2xl mt-1 max-h-56 overflow-y-auto">
-                        {filterMatches(item.description).map(s => (
-                          <li
-                            key={s.id}
-                            className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
-                            onMouseDown={() => handleSuggestionSelect(s, idx)}
-                            title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}
-                          >
-                            <span className="truncate">
-                              {s.name}
-                              {s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}
-                            </span>
-                            <span className="text-gray-500 text-sm ml-3">
-                              {formatCurrency(s.lastPrice)}
-                            </span>
-                          </li>
-                        ))}
-                        <li 
-                          className="px-4 py-2 text-primary font-medium cursor-pointer hover:bg-gray-50 border-t flex items-center gap-2 sticky bottom-0 bg-white"
-                          onMouseDown={(e) => {
-                            e.preventDefault(); 
-                            setPendingLineIndex(idx);
-                            setShowProductModal(true);
-                          }}
-                        >
-                          <PlusCircle className="w-4 h-4" /> Create New Product
-                        </li>
-                      </ul>
+                <Icon className="w-3.5 h-3.5 pointer-events-none shrink-0" />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                    isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+                {tab.badge && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                    isActive ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Tab Content Body - Streamlined to fit without scrolling */}
+          <div className="p-3.5 sm:p-4.5 flex-1 min-h-0 overflow-y-auto no-scrollbar text-slate-900">
+            {/* SECTION 1: CLIENT & ACCOUNTS */}
+            {activeTab === 'client_accounts' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 animate-in fade-in duration-150">
+                {/* Left Column: Customer, Vehicle & Dates */}
+                <div className="space-y-3">
+                  {/* Customer Card */}
+                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Customer</h4>
+                      </div>
+                      <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={formData.useCustomCustomer}
+                          onChange={e =>
+                            setFormData(fd => ({
+                              ...fd,
+                              useCustomCustomer: e.target.checked,
+                              customerId: '',
+                              customerName: ''
+                            }))
+                          }
+                          className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-[11px] text-slate-600 font-semibold">Enter Manually</span>
+                      </label>
+                    </div>
+
+                    {formData.useCustomCustomer ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <FormField
+                          label="Customer Name"
+                          value={formData.customerName}
+                          onChange={e => setFormData(fd => ({ ...fd, customerName: e.target.value }))}
+                          placeholder="e.g. John Doe"
+                          inputClassName="py-1.5 text-xs"
+                          required
+                        />
+                        <FormField
+                          type="tel"
+                          label="Phone Number"
+                          value={formData.customerPhone}
+                          onChange={e => setFormData(fd => ({ ...fd, customerPhone: e.target.value }))}
+                          placeholder="e.g. +44 7123 456789"
+                          inputClassName="py-1.5 text-xs"
+                        />
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        label="Select Client"
+                        options={customers.map(c => ({
+                          id: c.id,
+                          label: c.name,
+                          subLabel: `${c.mobile} • ${c.email}`
+                        }))}
+                        value={formData.customerId}
+                        onChange={id => {
+                          const c = customers.find(x => x.id === id);
+                          if (c) {
+                            setFormData(fd => ({
+                              ...fd,
+                              customerId: id as string,
+                              customerName: c.name,
+                              customerPhone: c.mobile
+                            }));
+                          }
+                        }}
+                        placeholder="Search client…"
+                        required
+                      />
                     )}
                   </div>
-                  <FormField
-                    type="number"
-                    label="Quantity"
-                    value={item.quantity}
-                    onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
-                    min="1"
-                    inputClassName="w-full"
-                    required
-                  />
-                  <FormField
-                    type="number"
-                    label="Unit Price"
-                    value={item.unitPrice}
-                    onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
-                    min="0"
-                    step="0.01"
-                    inputClassName="w-full"
-                    required
-                  />
-                  <FormField
-                    type="number"
-                    label="Discount (%)"
-                    value={item.discount}
-                    onChange={e => handleLineChange(idx, 'discount', e.target.value)}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    inputClassName="w-full"
-                  />
-                  <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={item.includeVAT}
-                        onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
+
+                  {/* Vehicle Card */}
+                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <Car className="w-3.5 h-3.5 text-emerald-600" />
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Related Vehicle (Optional)</h4>
+                      </div>
+                      <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={formData.manualVehicleEntry}
+                          onChange={e => {
+                            setFormData({
+                              ...formData,
+                              manualVehicleEntry: e.target.checked,
+                              vehicleId: '',
+                              manualVehicleMake: '',
+                              manualVehicleModel: '',
+                              manualVehicleReg: ''
+                            });
+                          }}
+                          className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-[11px] text-slate-600 font-semibold">Enter Manually</span>
+                      </label>
+                    </div>
+
+                    {formData.manualVehicleEntry ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        <FormField label="Make" value={formData.manualVehicleMake} onChange={e => setFormData({...formData, manualVehicleMake: e.target.value})} placeholder="e.g. Toyota" inputClassName="py-1.5 text-xs" required={formData.manualVehicleEntry} />
+                        <FormField label="Model" value={formData.manualVehicleModel} onChange={e => setFormData({...formData, manualVehicleModel: e.target.value})} placeholder="e.g. Prius" inputClassName="py-1.5 text-xs" required={formData.manualVehicleEntry} />
+                        <FormField label="Reg" value={formData.manualVehicleReg} onChange={e => setFormData({...formData, manualVehicleReg: e.target.value})} placeholder="e.g. AB12 CDE" inputClassName="py-1.5 text-xs" required={formData.manualVehicleEntry} />
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        label="Assign Fleet Vehicle"
+                        options={vehicles.map(v => ({
+                          id: v.id,
+                          label: `${v.make} ${v.model} (${v.registrationNumber})`,
+                          subLabel: v.registrationNumber
+                        }))}
+                        value={formData.vehicleId}
+                        onChange={id => { 
+                          const v = vehicles.find(vh => vh.id === id);
+                          setFormData(fd => ({
+                            ...fd,
+                            vehicleId: id as string || '',
+                            vehicleName: v ? `${v.make} ${v.model} (${v.registrationNumber})` : '',
+                            groupId: v?.assignedGroupId || fd.groupId,
+                            departmentId: v?.assignedDepartmentId || fd.departmentId,
+                          }));
+                        }}
+                        placeholder="Search fleet vehicle…"
+                        isClearable
                       />
-                      <span className="text-sm text-gray-600">+ VAT</span>
+                    )}
+                  </div>
+
+                  {/* Dates & Schedule */}
+                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <FormField
+                        type="date"
+                        label="Invoice Date"
+                        value={formData.date}
+                        onChange={e => setFormData(fd => ({ ...fd, date: e.target.value }))}
+                        inputClassName="py-1 text-xs"
+                        required
+                      />
+                      <FormField
+                        type="date"
+                        label="Due Date"
+                        value={formData.dueDate}
+                        onChange={e => setFormData(fd => ({ ...fd, dueDate: e.target.value }))}
+                        inputClassName="py-1 text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          id="isRecurring"
+                          checked={formData.isRecurring}
+                          onChange={e => setFormData(fd => ({ ...fd, isRecurring: e.target.checked }))}
+                          className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                        />
+                        <span className="text-xs font-semibold text-gray-800">Recurring Invoice</span>
+                      </label>
+                      {formData.isRecurring && (
+                        <select
+                          value={formData.recurringFrequency}
+                          onChange={e => setFormData(fd => ({ ...fd, recurringFrequency: e.target.value }))}
+                          className="rounded-lg border border-gray-300 text-xs py-1 px-2 focus:border-primary focus:ring-primary"
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="quarterly">Quarterly</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Account, Classification & Notes */}
+                <div className="space-y-3">
+                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-200">
+                      <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Account & Classification</h4>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <SearchableSelect
+                        label="Account From (Debit)"
+                        options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+                        value={formData.accountFrom}
+                        onChange={val => setFormData(fd => ({ ...fd, accountFrom: val as string || '' }))}
+                        placeholder="Select source..."
+                      />
+                      <SearchableSelect
+                        label="Account To (Credit)"
+                        options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+                        value={formData.accountTo}
+                        onChange={val => setFormData(fd => ({ ...fd, accountTo: val as string || '' }))}
+                        placeholder="Select destination..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <SearchableSelect
+                        label="Category"
+                        options={categories.map(c => ({ id: c, label: c })).concat({ id: 'Other', label: 'Other' })}
+                        value={formData.category}
+                        onChange={val => setFormData(fd => ({ ...fd, category: val as string || '' }))}
+                        placeholder="Category..."
+                        required
+                      />
+                      <SearchableSelect
+                        label="Group (Optional)"
+                        options={groups.map(g => ({ id: g.id, label: g.name }))}
+                        value={resolvedGroupId}
+                        onChange={val => setFormData(fd => ({ ...fd, groupId: val as string || '' }))}
+                        placeholder="Group..."
+                      />
+                      <SearchableSelect
+                        label="Dept (Optional)"
+                        options={departments.map(d => ({ id: d.id, label: d.name }))}
+                        value={resolvedDeptId}
+                        onChange={val => setFormData(fd => ({ ...fd, departmentId: val as string || '' }))}
+                        placeholder="Dept..."
+                      />
+                    </div>
+
+                    {formData.category === 'Other' && (
+                      <FormField
+                        label="Custom Category"
+                        value={formData.customCategory}
+                        onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
+                        inputClassName="py-1 text-xs"
+                        required
+                      />
+                    )}
+                  </div>
+
+                  {/* Notes / Description */}
+                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-1.5 shadow-2xs">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Invoice Notes / Description
                     </label>
-                    <button type="button" onClick={() => removeLineItem(idx)} className="text-red-600 hover:text-red-800">
-                      Remove
+                    <textarea
+                      value={formData.description}
+                      onChange={e => setFormData(fd => ({ ...fd, description: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 shadow-2xs text-xs p-2 focus:border-primary focus:ring-primary"
+                      rows={2}
+                      placeholder="Add billing notes or customer comments..."
+                    />
+                  </div>
+
+                  {/* Snapshot Card */}
+                  <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-blue-950 uppercase text-[10px] tracking-wider">Active Client:</span>
+                      <p className="font-semibold text-blue-900 truncate max-w-[260px]">
+                        {getCustomerNameDisplay() !== 'N/A' ? getCustomerNameDisplay() : 'No client selected'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleNextTab}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 shadow-2xs cursor-pointer shrink-0"
+                    >
+                      Line Items <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-1 gap-4 items-end">
-                   <div className="w-full sm:w-1/2">
-                      <SearchableSelect
-                        label="Assign to Vehicle (Optional)"
-                        options={vehicles.map(v => ({ id: v.id, label: `${v.registrationNumber} - ${v.make} ${v.model}` }))}
-                        value={item.vehicleId || ''}
-                        onChange={(val) => {
-                           const vId = Array.isArray(val) ? val[0] : val;
-                           const v = vehicles.find(vh => vh.id === vId);
-                           handleLineChange(idx, 'vehicleId', vId || '');
-                           handleLineChange(idx, 'vehicleName', v ? `${v.make} ${v.model} (${v.registrationNumber})` : '');
-                        }}
-                        placeholder="-- No specific vehicle --"
-                        isClearable={true}
-                      />
-                   </div>
+              </div>
+            )}
+
+            {/* SECTION 2: LINE ITEMS & BILLING */}
+            {activeTab === 'line_items' && (
+              <div className="space-y-3 animate-in fade-in duration-150 flex flex-col">
+                <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-blue-600" />
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Line Items</h4>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                        {lineItems.length} {lineItems.length === 1 ? 'item' : 'items'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addLineItem}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Item
+                    </button>
+                  </div>
+
+                  {/* Compact items list container */}
+                  <div className="space-y-2 overflow-y-auto max-h-[290px] pr-1 custom-scrollbar">
+                    {lineItems.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 border border-slate-200 rounded-xl bg-white shadow-2xs hover:border-slate-300 transition-all space-y-2"
+                      >
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          {/* Item number & description */}
+                          <div className="col-span-12 sm:col-span-5 relative">
+                            <FormField
+                              label={`#${idx + 1} Description`}
+                              value={item.description}
+                              onChange={e => handleDescriptionChange(idx, e.target.value)}
+                              onFocus={() => handleFieldFocus(idx)}
+                              onBlur={() => {
+                                setTimeout(() => handleFieldBlur(idx), 120);
+                                tryAutofillUnitPrice(item.description, idx);
+                              }}
+                              placeholder="Part, labor, or service description..."
+                              inputClassName="py-1 text-xs"
+                              required
+                            />
+                            {showSuggestions[idx] && item.description && (
+                              <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-2xl mt-1 max-h-48 overflow-y-auto">
+                                {filterMatches(item.description).map(s => (
+                                  <li
+                                    key={s.id}
+                                    className="px-3 py-1.5 cursor-pointer hover:bg-gray-100 flex items-center justify-between text-xs"
+                                    onMouseDown={() => handleSuggestionSelect(s, idx)}
+                                  >
+                                    <span className="truncate">{s.name}</span>
+                                    <span className="text-gray-500 font-mono ml-2">{formatCurrency(s.lastPrice)}</span>
+                                  </li>
+                                ))}
+                                <li 
+                                  className="px-3 py-1.5 text-primary text-xs font-bold cursor-pointer hover:bg-gray-50 border-t flex items-center gap-1.5 sticky bottom-0 bg-white"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault(); 
+                                    setPendingLineIndex(idx);
+                                    setShowProductModal(true);
+                                  }}
+                                >
+                                  <PlusCircle className="w-3.5 h-3.5" /> Create Product
+                                </li>
+                              </ul>
+                            )}
+                          </div>
+
+                          {/* Qty */}
+                          <div className="col-span-4 sm:col-span-2">
+                            <FormField
+                              type="number"
+                              label="Qty"
+                              value={item.quantity}
+                              onChange={e => handleLineChange(idx, 'quantity', e.target.value)}
+                              min="1"
+                              inputClassName="py-1 text-xs"
+                              required
+                            />
+                          </div>
+
+                          {/* Unit Price */}
+                          <div className="col-span-4 sm:col-span-2">
+                            <FormField
+                              type="number"
+                              label="Unit Price (£)"
+                              value={item.unitPrice}
+                              onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)}
+                              min="0"
+                              step="0.01"
+                              inputClassName="py-1 text-xs"
+                              required
+                            />
+                          </div>
+
+                          {/* Discount */}
+                          <div className="col-span-4 sm:col-span-1">
+                            <FormField
+                              type="number"
+                              label="Disc%"
+                              value={item.discount}
+                              onChange={e => handleLineChange(idx, 'discount', e.target.value)}
+                              min="0"
+                              max="100"
+                              inputClassName="py-1 text-xs"
+                            />
+                          </div>
+
+                          {/* VAT & Delete */}
+                          <div className="col-span-12 sm:col-span-2 flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-4">
+                            <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={item.includeVAT}
+                                onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              <span className="text-[11px] font-bold text-slate-700">+VAT</span>
+                            </label>
+                            {lineItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeLineItem(idx)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Vehicle assignment per item */}
+                        <div className="w-full sm:w-1/2 pt-0.5">
+                          <SearchableSelect
+                            label="Assign to Vehicle (Optional)"
+                            options={vehicles.map(v => ({ id: v.id, label: `${v.registrationNumber} - ${v.make} ${v.model}` }))}
+                            value={item.vehicleId || ''}
+                            onChange={(val) => {
+                              const vId = Array.isArray(val) ? val[0] : val;
+                              const v = vehicles.find(vh => vh.id === vId);
+                              handleLineChange(idx, 'vehicleId', vId || '');
+                              handleLineChange(idx, 'vehicleName', v ? `${v.make} ${v.model} (${v.registrationNumber})` : '');
+                            }}
+                            placeholder="-- Assign vehicle for item --"
+                            isClearable
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Compact Billing Calculation Strip */}
+                <div className="bg-slate-50/90 p-2.5 rounded-xl border border-[#E2E8F0] shadow-2xs shrink-0">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-medium">Net Subtotal</p>
+                      <p className="text-xs font-bold font-mono text-slate-900">{formatCurrency(subTotal)}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-medium">VAT (20%)</p>
+                      <p className="text-xs font-bold font-mono text-blue-600">{formatCurrency(vatAmount)}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <p className="text-[10px] text-slate-500 font-medium">Discount</p>
+                      <p className="text-xs font-bold font-mono text-amber-600">–{formatCurrency(totalDiscount)}</p>
+                    </div>
+                    <div className="bg-blue-50/90 p-2 rounded-lg border border-blue-300">
+                      <p className="text-[10px] text-blue-700 font-bold uppercase">Total Due</p>
+                      <p className="text-sm font-black font-mono text-blue-950">{formatCurrency(total)}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* SECTION 3: PAYMENT & SETTLEMENT */}
+            {activeTab === 'payment_settlement' && (
+              <div className="space-y-3 animate-in fade-in duration-150">
+                {/* Balance Metrics - 3 compact tiles */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200 shadow-2xs">
+                    <p className="text-[10px] font-bold text-blue-700 uppercase">Gross Billing</p>
+                    <p className="text-lg font-black font-mono text-blue-950 mt-0.5">{formatCurrency(total)}</p>
+                  </div>
+                  <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
+                    <p className="text-[10px] font-bold text-emerald-700 uppercase">Paid Now</p>
+                    <p className="text-lg font-black font-mono text-emerald-950 mt-0.5">{formatCurrency(paidNow)}</p>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border shadow-2xs ${
+                    owing <= 0.005 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/80 border-rose-200'
+                  }`}>
+                    <p className={`text-[10px] font-bold uppercase ${owing <= 0.005 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {owing <= 0.005 ? 'Status' : 'Owing'}
+                    </p>
+                    <p className={`text-lg font-black font-mono mt-0.5 ${owing <= 0.005 ? 'text-emerald-900' : 'text-rose-950'}`}>
+                      {owing <= 0.005 ? '£0.00 (Settled)' : formatCurrency(Math.max(0, owing))}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Allocation Card */}
+                <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-emerald-600" />
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Payment Allocation</h4>
+                    </div>
+                    <label className="flex items-center space-x-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={formData.isPaid}
+                        onChange={e => setFormData(fd => ({
+                          ...fd,
+                          isPaid: e.target.checked,
+                          amountToPay: e.target.checked ? total.toFixed(2) : '0'
+                        }))}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Mark as Paid Now</span>
+                    </label>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                      <div className="flex-1">
+                        <FormField
+                          type="number"
+                          label="Amount to Pay (£)"
+                          value={formData.amountToPay}
+                          onChange={e => {
+                            const val = e.target.value;
+                            const numVal = parseFloat(val) || 0;
+                            setFormData(fd => ({
+                              ...fd,
+                              amountToPay: val,
+                              isPaid: numVal > 0
+                            }));
+                          }}
+                          min="0"
+                          max={total || 0}
+                          step="0.01"
+                          placeholder="0.00"
+                          inputClassName="py-1 text-xs"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 pb-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(fd => ({ ...fd, isPaid: true, amountToPay: total.toFixed(2) }))}
+                          className="px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          100% Full
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(fd => ({ ...fd, isPaid: true, amountToPay: (total * 0.5).toFixed(2) }))}
+                          className="px-2 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          50% Deposit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(fd => ({ ...fd, isPaid: false, amountToPay: '0' }))}
+                          className="px-2 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    {paidNow > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">Method</label>
+                          <select
+                            value={formData.paymentMethod}
+                            onChange={e => setFormData(fd => ({ ...fd, paymentMethod: e.target.value as any }))}
+                            className="w-full rounded-lg border border-gray-300 text-xs py-1 px-2 focus:border-primary focus:ring-primary"
+                            required
+                          >
+                            <option value="cash">Cash</option>
+                            <option value="card">Card</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cheque">Cheque</option>
+                          </select>
+                        </div>
+                        <div>
+                          <FormField
+                            label="Reference"
+                            value={formData.paymentReference}
+                            onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))}
+                            placeholder="e.g. BACS-8849"
+                            inputClassName="py-1 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <FormField
+                            label="Payment Notes"
+                            value={formData.paymentNotes}
+                            onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))}
+                            placeholder="Settlement notes..."
+                            inputClassName="py-1 text-xs"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 pt-0.5">
+                        ℹ️ No upfront payment recorded. Invoice will be created as <strong>Unpaid</strong> with full balance owing.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 4: DOCUMENTS & ACTIONS */}
+            {activeTab === 'documents_actions' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-150">
+                {/* Left Column: Attachment */}
+                <div className="bg-slate-50/90 p-3.5 rounded-xl border border-[#E2E8F0] space-y-2.5 shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-200">
+                    <Paperclip className="w-3.5 h-3.5 text-purple-600" />
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Attachment</h4>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 transition-colors text-center relative cursor-pointer flex-1 flex flex-col items-center justify-center min-h-[120px]">
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="space-y-1 pointer-events-none">
+                      <Paperclip className="w-5 h-5 text-slate-400 mx-auto" />
+                      {formData.uploadedDocument ? (
+                        <div>
+                          <p className="text-xs font-bold text-emerald-700 truncate max-w-[220px]">{formData.uploadedDocument.name}</p>
+                          <p className="text-[10px] text-slate-500">{(formData.uploadedDocument.size / (1024 * 1024)).toFixed(2)} MB • Click to replace</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs font-bold text-slate-700">Drag & drop or click to upload</p>
+                          <p className="text-[10px] text-slate-500">PDF, JPG, PNG (Max 10MB)</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Pre-Dispatch & Checklist */}
+                <div className="space-y-2.5">
+                  <div className="bg-slate-50/90 p-3.5 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
+                    <div className="flex items-center gap-1.5 pb-1 border-b border-slate-200">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Quick Actions & Direct Dispatch</h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShareInitialMode('whatsapp');
+                          setShowShareModal(true);
+                        }}
+                        className="flex items-center justify-center gap-1.5 p-2 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all cursor-pointer"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        Send via WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShareInitialMode('email');
+                          setShowShareModal(true);
+                        }}
+                        className="flex items-center justify-center gap-1.5 p-2 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-all cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-sky-600" />
+                        Send via Email
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePrintOrDownloadPDF()}
+                        disabled={isPrintingPdf}
+                        className="flex items-center justify-center gap-1.5 p-2 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-purple-600" />
+                        {isPrintingPdf ? 'Generating...' : 'Print / Download PDF'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Summary Review */}
+                  <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-blue-900 space-y-0.5">
+                      <p className="font-bold text-[11px]">Ready to Save & Generate</p>
+                      <p className="text-blue-800 text-[10px]">
+                        Customer: <span className="font-semibold text-blue-950">{getCustomerNameDisplay()}</span> • Total: <span className="font-semibold text-blue-950">{formatCurrency(total)}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm text-[#000000] font-semibold"><span>Net:</span><span className="font-mono">{formatCurrency(subTotal)}</span></div>
-          <div className="flex justify-between text-sm text-[#2563EB] font-semibold"><span>VAT:</span><span className="font-mono">{formatCurrency(vatAmount)}</span></div>
-          <div className="flex justify-between text-sm text-[#D97706] font-semibold"><span>Discount:</span><span className="font-mono">–{formatCurrency(totalDiscount)}</span></div>
-          <div className="flex justify-between text-lg font-bold pt-2 border-t text-[#D97706]"><span>Total:</span><span className="font-mono">{formatCurrency(total)}</span></div>
-          <div className="flex justify-between text-sm text-[#15803D] font-bold"><span>Paid:</span><span className="font-mono">{formatCurrency(paidNow)}</span></div>
-          <div className="flex justify-between text-sm text-[#DC2626] font-bold"><span>Owing:</span><span className="font-mono">{formatCurrency(Math.max(0, owing))}</span></div>
-        </div>
-
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={formData.isPaid}
-            onChange={e => setFormData(fd => ({ ...fd, isPaid: e.target.checked, amountToPay: e.target.checked ? total.toFixed(2) : '0' }))}
-            className="rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <span className="text-sm text-gray-700">Mark as Paid now</span>
-        </label>
-        <FormField
-          type="number"
-          label="Amount to Pay (£)"
-          value={formData.amountToPay}
-          onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))}
-          min="0"
-          max={total || 0}
-          step="0.01"
-          disabled={!formData.isPaid}
-        />
-
-        {paidNow > 0 && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <select
-                value={formData.paymentMethod}
-                onChange={e => setFormData(fd => ({ ...fd, paymentMethod: e.target.value as any }))}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                required
+          {/* ── Pinned Bottom Navigation Footer ── */}
+          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] px-4 sm:px-5 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+            {/* Left: Previous Section or Cancel */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 rounded-lg transition-colors cursor-pointer"
               >
-                <option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
-              </select>
+                Cancel
+              </button>
+              {activeTab !== 'client_accounts' && (
+                <button
+                  type="button"
+                  onClick={handlePrevTab}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-2xs transition-all cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Previous Section
+                </button>
+              )}
             </div>
-            <FormField label="Payment Reference" value={formData.paymentReference} onChange={e => setFormData(fd => ({ ...fd, paymentReference: e.target.value }))} />
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Payment Notes</label>
-              <textarea rows={2} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" placeholder="Any notes" value={formData.paymentNotes} onChange={e => setFormData(fd => ({ ...fd, paymentNotes: e.target.value }))} />
+
+            {/* Center: Live Totals Badges */}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-800">
+                <span>Total:</span>
+                <span className="font-mono">{formatCurrency(total)}</span>
+              </div>
+              {total > 0 && (
+                owing <= 0.005 ? (
+                  <span className="inline-flex items-center px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-lg">
+                    ✓ Paid in Full
+                  </span>
+                ) : (
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 border border-rose-200 rounded-lg text-xs font-bold text-rose-800">
+                    <span>Owing:</span>
+                    <span className="font-mono">{formatCurrency(Math.max(0, owing))}</span>
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Right: Next Section / Review Details */}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              {activeTab !== 'documents_actions' ? (
+                <button
+                  type="button"
+                  onClick={handleNextTab}
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-all shadow-2xs cursor-pointer"
+                >
+                  Next Section
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Review Details
+              </button>
             </div>
           </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Upload Document</label>
-          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-            <div className="space-y-1 text-center">
-              <p className="text-gray-500 text-sm">Drag & drop or click to upload</p>
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFormData(fd => ({ ...fd, uploadedDocument: e.currentTarget.files?.[0] || null }))} className="sr-only" />
-              <p className="text-xs text-gray-500">PDF/image up to 10MB</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-gray-200 mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">
-              Quick Actions:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setShareInitialMode('whatsapp');
-                setShowShareModal(true);
-              }}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
-              title="Share Invoice via WhatsApp"
-            >
-              <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-              Send WhatsApp
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShareInitialMode('email');
-                setShowShareModal(true);
-              }}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors shadow-sm"
-              title="Send Invoice via Email"
-            >
-              <Mail className="w-3.5 h-3.5 mr-1.5 text-sky-600" />
-              Send Email
-            </button>
-            <button
-              type="button"
-              onClick={handlePrintOrDownloadPDF}
-              disabled={isPrintingPdf}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors shadow-sm disabled:opacity-50"
-              title="Print or Download Invoice PDF"
-            >
-              <Printer className="w-3.5 h-3.5 mr-1.5 text-purple-600" />
-              {isPrintingPdf ? 'Generating...' : 'Print / Download PDF'}
-            </button>
-          </div>
-
-          <div className="flex space-x-3 w-full sm:w-auto justify-end">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary-600 shadow-sm">
-              Review Details
-            </button>
-          </div>
-        </div>
-      </form>
+        </form>
+      </div>
 
       {/* Share / Communication Modal (Triggered automatically post-save or via Quick Actions) */}
       <InvoiceCommunicationModal

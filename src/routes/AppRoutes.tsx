@@ -104,6 +104,8 @@ export default function AppRoutes() {
       <Route path="/maintenance/live" element={<PublicMirror />} />
       <Route path="/maintenance-public" element={<PublicMirror />} />
       <Route path="/schedule-mirror"  element={<PublicMirror />} />
+      <Route path="/workshop-tv"      element={<PublicMirror />} />
+      <Route path="/maintenance/tv"   element={<PublicMirror />} />
       {/* Member password flows */}
       <Route path="/members/forgot-password" element={<ForgotPassword />} />
       <Route path="/members/reset-password"  element={<ResetPassword />} />
