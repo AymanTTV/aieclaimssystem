@@ -385,6 +385,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return items.slice(0, 5);
   }, [navigation, isMemberArea]);
 
+  const firstName = useMemo(() => {
+    if (!user?.name) return 'User';
+    const trimmed = user.name.trim();
+    return trimmed.split(/\s+/)[0] || trimmed;
+  }, [user?.name]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] layout-wrapper">
       <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
@@ -394,7 +400,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <img src={logoUrl} alt="AIE Skyline" className="h-10 w-auto" />
             </Link>
 
-            <div className="hidden lg:flex items-center space-x-1">
+            <div className="hidden lg:flex items-center space-x-0.5 xl:space-x-1">
               {navigation.map(item => {
                 const Icon = item.icon;
                 const isActive = isActiveRoute(item.href) || !!item.submenu?.some(sub => isActiveRoute(sub.href));
@@ -409,16 +415,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     >
                       <button
                         onClick={() => setOpenSubmenu(prev => (prev === item.name ? null : item.name))}
-                        className={`group flex items-center px-3.5 py-2 text-sm font-semibold rounded-full transition-all ${
+                        className={`group flex items-center px-2.5 xl:px-3 py-1.5 text-xs xl:text-[13px] font-semibold rounded-full transition-all ${
                           isActive
                             ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs'
                             : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] border border-transparent'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 mr-1.5 transition-transform group-hover:scale-110 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
+                        <Icon className={`w-4 h-4 mr-1.5 transition-transform group-hover:scale-110 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                         <span>{item.name}</span>
                         <ChevronDown
-                          className={`w-4 h-4 ml-1 transition-transform duration-200 ${openSubmenu === item.name ? 'rotate-180' : ''} ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`}
+                          className={`w-3.5 h-3.5 ml-1 transition-transform duration-200 ${openSubmenu === item.name ? 'rotate-180' : ''} ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`}
                         />
                       </button>
 
@@ -438,7 +444,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             <Link
                               key={sub.href}
                               to={sub.href}
-                              className={`group/item relative mx-1 rounded-lg px-3 py-2 text-sm flex items-center
+                              className={`group/item relative mx-1 rounded-lg px-3 py-2 text-xs xl:text-[13px] flex items-center
                                           transition-colors ${
                                             subActive
                                               ? 'bg-[#FEE2E2] text-[#991B1B] font-semibold border border-[#FCA5A5]'
@@ -446,7 +452,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                           }`}
                               onClick={() => setOpenSubmenu(null)}
                             >
-                              {SubIcon && <SubIcon className="w-4 h-4 mr-2 transition-transform group-hover/item:translate-x-0.5" />}
+                              {SubIcon && <SubIcon className="w-3.5 h-3.5 mr-2 transition-transform group-hover/item:translate-x-0.5" />}
                               <span>{sub.name}</span>
                               {showBadge && (
                                 <span className="ml-auto inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[10px] font-bold text-white bg-[#EF4444] rounded-full">
@@ -465,17 +471,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`flex items-center px-3.5 py-2 text-sm font-semibold rounded-full transition-all ${
+                    className={`flex items-center px-2.5 xl:px-3 py-1.5 text-xs xl:text-[13px] font-semibold rounded-full transition-all ${
                       isActive
                         ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs'
                         : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] border border-transparent'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 mr-1.5 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
+                    <Icon className={`w-4 h-4 mr-1.5 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                     <span>{item.name}</span>
                     
                     {item.badgeCount ? (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1 text-[10px] font-bold text-[#FFFFFF] bg-[#EF4444] rounded-full shadow-2xs">
+                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[9px] font-bold text-[#FFFFFF] bg-[#EF4444] rounded-full shadow-2xs">
                         {item.badgeCount > 99 ? '99+' : item.badgeCount}
                       </span>
                     ) : null}
@@ -499,20 +505,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md transition-colors"
+                  className="flex items-center space-x-2.5 hover:bg-gray-50 p-1.5 rounded-md transition-colors"
                 >
                   {user?.photoURL ? (
-                    <img src={user.photoURL} alt={user?.name || 'User'} className="h-8 w-8 rounded-full object-cover" />
+                    <img src={user.photoURL} alt={firstName} className="h-8 w-8 rounded-full object-cover" />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center">
-                      {user?.name?.charAt(0)?.toUpperCase()}
+                    <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs">
+                      {firstName.charAt(0)?.toUpperCase()}
                     </div>
                   )}
                   <div className="hidden sm:block text-right">
-                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">{firstName}</p>
+                    <p className="text-[11px] text-gray-500 capitalize">{user?.role}</p>
                   </div>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isUserMenuOpen && (

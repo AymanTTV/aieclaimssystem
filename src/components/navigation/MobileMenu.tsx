@@ -89,33 +89,33 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                       onClick={() =>
                         setOpenSubmenu(isSubmenuOpen ? null : item.name)
                       }
-                      className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-colors ${
                         isSubmenuActive
                           ? 'text-primary bg-primary/5'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center">
-                        <Icon className="w-5 h-5 mr-3" />
+                        <Icon className="w-4 h-4 mr-2.5" />
                         {item.name}
                       </div>
                       {isSubmenuOpen ? (
-                        <ChevronUp className="w-4 h-4" />
+                        <ChevronUp className="w-3.5 h-3.5" />
                       ) : (
-                        <ChevronDown className="w-4 h-4" />
+                        <ChevronDown className="w-3.5 h-3.5" />
                       )}
                     </button>
 
                     {isSubmenuOpen && (
-                      <div className="ml-6 mt-2 space-y-1">
+                      <div className="ml-5 mt-1.5 space-y-1">
                         {item.submenu!.map(subitem => (
                           <Link
                             key={subitem.href}
                             to={subitem.href}
                             onClick={onClose}
-                            className={`block px-4 py-2 text-sm rounded-md ${
+                            className={`block px-3.5 py-1.5 text-xs rounded-md ${
                               currentPath === subitem.href
-                                ? 'text-primary bg-primary/5'
+                                ? 'text-primary bg-primary/5 font-semibold'
                                 : 'text-gray-600 hover:bg-gray-50'
                             }`}
                           >
@@ -129,18 +129,18 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                   <Link
                     to={item.href}
                     onClick={onClose}
-                    className={`flex items-center justify-between px-4 py-3 text-sm rounded-full transition-colors ${
+                    className={`flex items-center justify-between px-3.5 py-2.5 text-xs rounded-full transition-colors ${
                       isActive
                         ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] shadow-xs font-semibold'
                         : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]'
                     }`}
                   >
                     <div className="flex items-center">
-                      <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
+                      <Icon className={`w-4 h-4 mr-2.5 ${isActive ? 'text-[#991B1B]' : 'text-[#64748B]'}`} />
                       <span>{item.name}</span>
                     </div>
                     {item.href === ROUTES.CHAT && unreadChatCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold text-white bg-[#EF4444] rounded-full">
+                      <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold text-white bg-[#EF4444] rounded-full">
                         {unreadChatCount}
                       </span>
                     )}
