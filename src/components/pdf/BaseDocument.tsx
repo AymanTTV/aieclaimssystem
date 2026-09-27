@@ -9,6 +9,7 @@ interface BaseDocumentProps {
   children: React.ReactNode;
   companyDetails: any;
   showFooter?: boolean;
+  orientation?: 'portrait' | 'landscape';
 }
 
 const BaseDocument: React.FC<BaseDocumentProps> = ({
@@ -16,9 +17,10 @@ const BaseDocument: React.FC<BaseDocumentProps> = ({
   children,
   companyDetails,
   showFooter = true,
+  orientation = 'portrait',
 }) => (
   <Document>
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" orientation={orientation} style={[styles.page, orientation === 'landscape' ? { paddingHorizontal: 30, paddingTop: 30, paddingBottom: 50 } : {}]}>
       {/* Header */}
       <View style={styles.header} fixed>
         <View style={styles.headerLeft}>
@@ -43,7 +45,7 @@ const BaseDocument: React.FC<BaseDocumentProps> = ({
       </View>
 
       {/* Title */}
-      <View style={styles.titleContainer}>
+      <View style={styles.titleContainer} fixed>
         <Text style={styles.title}>{title}</Text>
       </View>
 

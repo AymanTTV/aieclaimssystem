@@ -17,6 +17,7 @@ import ManageCategoriesModal from '../components/finance/ManageCategoriesModal';
 import ManageAccountsModal from '../components/finance/ManageAccountsModal';
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service'; 
+import unifiedCategoryService from '../services/unifiedCategory.service';
 import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
 
 import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
@@ -75,14 +76,15 @@ const Invoices: React.FC = () => {
   const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
   const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
   useEffect(() => {
+    const unsub = unifiedCategoryService.subscribe((cats) => {
+      setCategories(cats.map((c) => c.name));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const fetchData = async () => {
       try {
-        const catSnap = await getDocs(collection(db, 'invoiceCategories'));
-        const cats: string[] = [];
-        catSnap.forEach((docSnap) => cats.push(docSnap.data().name));
-        cats.sort((a, b) => a.localeCompare(b));
-        setCategories(cats);
-
         const accSnap = await getDocs(collection(db, 'accounts'));
         const accs: Account[] = [];
         accSnap.forEach((docSnap) => accs.push({ id: docSnap.id, ...docSnap.data() } as Account));
@@ -106,11 +108,8 @@ const Invoices: React.FC = () => {
 
   const refreshCategories = async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'invoiceCategories'));
-      const cats: string[] = [];
-      snapshot.forEach((docSnap) => cats.push(docSnap.data().name));
-      cats.sort((a, b) => a.localeCompare(b));
-      setCategories(cats);
+      const cats = await unifiedCategoryService.getAll();
+      setCategories(cats.map((c) => c.name));
     } catch (err) {
       console.error('Error refreshing categories:', err);
     }

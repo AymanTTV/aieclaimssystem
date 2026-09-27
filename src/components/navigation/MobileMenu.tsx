@@ -19,7 +19,6 @@ interface MobileMenuProps {
   navigation: NavItem[];
   currentPath: string;
   unreadChatCount: number;
-  onOpenShare?: () => void;
 }
 
 const MobileMenu: React.FC<MobileMenuProps> = ({
@@ -28,7 +27,6 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
   navigation,
   currentPath,
   unreadChatCount,
-  onOpenShare,
 }) => {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   if (!isOpen) return null;
@@ -51,28 +49,6 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
         </div>
 
         <nav className="px-4 py-6">
-          {/* Share System Link action on mobile */}
-          {onOpenShare && (
-            <div className="mb-4 pb-3 border-b border-gray-100">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenShare();
-                }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm rounded-full font-bold text-[#212049] bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 hover:border-[#423fbd] transition shadow-2xs"
-              >
-                <div className="flex items-center">
-                  <Share2 className="w-4 h-4 mr-2.5 text-[#423fbd]" />
-                  <span>Share System Link</span>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-[#423fbd]">
-                  Preview Card
-                </span>
-              </button>
-            </div>
-          )}
-
           {navigation.map(item => {
             const Icon = item.icon;
             const hasSubmenu = item.submenu && item.submenu.length > 0;

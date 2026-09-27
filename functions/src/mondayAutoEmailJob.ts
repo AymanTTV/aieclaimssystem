@@ -183,7 +183,7 @@ export const mondayAutoEmailJob = onSchedule(
     timeZone: 'Europe/London',
     region: 'europe-west2',
   },
-  async (event) => {
+  async (event: any) => {
     logger.info('=== Starting Monday Automated Rental Email Job ===');
 
     // 1. Check if global_auto_email_enabled is true
@@ -259,7 +259,7 @@ AIE Skyline Limited`,
           .where('category', '==', 'rental')
           .get();
         const activeTpl = tplSnap.docs.find(
-          (d) =>
+          (d: any) =>
             d.id === 'rental_reminder_monday' ||
             (d.data().name && d.data().name.toLowerCase().includes('monday'))
         );

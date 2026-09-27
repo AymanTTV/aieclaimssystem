@@ -5,6 +5,7 @@ import { moveToTrash } from '../../utils/trashService';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
+import { checkVehicleStatus } from '../../utils/vehicleStatusManager';
 
 interface MaintenanceDeleteModalProps {
   logId: string;
@@ -39,6 +40,11 @@ const MaintenanceDeleteModal: React.FC<MaintenanceDeleteModalProps> = ({ logId, 
       user?.id || 'system', 
       displayName
     );
+
+    // Sync vehicle availability
+    if (logData.vehicleId) {
+      await checkVehicleStatus(logData.vehicleId);
+    }
 
     toast.success('Maintenance log moved to trash');
     onClose();

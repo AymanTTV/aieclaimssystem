@@ -21,6 +21,7 @@ export interface Accident {
   insuranceCompany: string;
   policyNumber: string;
   policyExcess?: string;
+  isDrivable?: boolean; // Is the vehicle drivable? (true = Yes, false = No)
 
   // Fault Party Details
   faultPartyName: string;
@@ -35,6 +36,7 @@ export interface Accident {
   accidentDate: string;
   accidentTime: string;
   accidentLocation: string;
+  towYard?: string; // Current location or recovery tow yard if non-drivable
   description: string;
   damageDetails: string;
 

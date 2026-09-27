@@ -794,6 +794,17 @@ export default function BulkEmail() {
     if (ctx['Insurance Expiry']) alias['Insurance Expiry Date'] = ctx['Insurance Expiry'];
     if (ctx['Last Maintenance']) alias['Last Maintenance Date'] = ctx['Last Maintenance'];
     if (ctx['Next Maintenance']) alias['Next Maintenance Date'] = ctx['Next Maintenance'];
+    if (ctx['Last Service Mileage']) {
+      alias['Last Service Mileage Done'] = ctx['Last Service Mileage'];
+      alias['last_service_mileage'] = ctx['Last Service Mileage'];
+    }
+    if (ctx['Last Service Date']) {
+      alias['last_service_date'] = ctx['Last Service Date'];
+      alias['Last Maintenance'] = ctx['Last Service Date'];
+    }
+    if (ctx['Service Mileage Required']) {
+      alias['service_mileage_required'] = ctx['Service Mileage Required'];
+    }
 
     return { ...ctx, ...alias };
   };
@@ -954,9 +965,38 @@ export default function BulkEmail() {
         ctx['Additional Notes']= (m as any).description || '';
         ctx['Maintenance Type']= (m as any).type || '';
 
-        ctx['Mileage'] = String((m as any).currentMileage || (m as any).mileage || 'N/A');
-        ctx['NextMileage'] = String((m as any).nextServiceMileage || 'N/A');
+        const currMil = (m as any).currentMileage ?? (m as any).mileage ?? v?.mileage;
+        const lastMil = v?.mileage ?? (v as any)?.lastServiceMileage ?? (v as any)?.lastServiceMileageDone ?? currMil;
+        const lastSvcDate = safeFmt((v as any)?.lastMaintenance || (v as any)?.lastServiceDate || (m as any).date, 'dd/MM/yyyy');
+        const svcMilReq = v?.serviceInterval !== undefined ? String(v.serviceInterval) : (v as any)?.serviceInterval !== undefined ? String((v as any).serviceInterval) : 'N/A';
+        const nextMil = (m as any).nextServiceMileage ?? v?.nextServiceMileage;
+        const nextSvcDate = safeFmt((m as any).nextServiceDate || v?.nextMaintenance, 'dd/MM/yyyy');
+        const compDate = safeFmt((m as any).completedDate, 'dd/MM/yyyy');
+
+        ctx['Mileage'] = currMil !== undefined ? String(currMil) : 'N/A';
+        ctx['Current Mileage'] = ctx['Mileage'];
         ctx['Insert Mileage'] = ctx['Mileage'];
+        ctx['Last Service Mileage'] = lastMil !== undefined ? String(lastMil) : 'N/A';
+        ctx['Last Service Mileage Done'] = ctx['Last Service Mileage'];
+        ctx['Last Service Date'] = lastSvcDate || 'N/A';
+        ctx['Service Mileage Required'] = svcMilReq;
+        ctx['NextMileage'] = nextMil !== undefined ? String(nextMil) : 'N/A';
+        ctx['Next Service Mileage'] = ctx['NextMileage'];
+        ctx['Next Service Date'] = nextSvcDate || 'N/A';
+        ctx['Completed Date'] = compDate || 'N/A';
+        ctx['Service Date'] = safeFmt((m as any).date, 'dd/MM/yyyy') || 'N/A';
+        ctx['Scheduled Date'] = ctx['Service Date'];
+        ctx['Scheduled Time'] = safeFmt((m as any).date, 'HH:mm') || '10:00 AM';
+        ctx['Scheduled Date & Time'] = ctx['Date & Time'] || `${ctx['Scheduled Date']} at ${ctx['Scheduled Time']}`;
+        ctx['Order Number'] = (m as any).orderNumber || (m as any).id || 'N/A';
+        ctx['Maintenance Order ID'] = ctx['Order Number'];
+        ctx['Maintenance ID'] = ctx['Order Number'];
+        ctx['Work Order Number'] = ctx['Order Number'];
+        ctx['Total Cost'] = typeof (m as any).cost === 'number' ? `£${(m as any).cost.toFixed(2)}` : '£0.00';
+        ctx['Cost'] = ctx['Total Cost'];
+        ctx['Paid Amount'] = typeof (m as any).paidAmount === 'number' ? `£${(m as any).paidAmount.toFixed(2)}` : '£0.00';
+        ctx['Remaining Amount'] = typeof (m as any).remainingAmount === 'number' ? `£${(m as any).remainingAmount.toFixed(2)}` : '£0.00';
+        ctx['Maintenance Status'] = (m as any).status || 'Scheduled';
 
         // --- NEW DRIVER LOOKUP FOR SERVICE CENTER MESSAGES ---
         let driverName = (m as any).customerName || (m as any).driverName || v?.owner?.name;
@@ -1229,6 +1269,13 @@ export default function BulkEmail() {
         if (v.year) ctx['Year'] = `${v.year}`;
         
         ctx['Mileage'] = String(v.mileage || 'N/A');
+        ctx['Current Mileage'] = ctx['Mileage'];
+        ctx['Last Service Mileage'] = String(v.mileage || 'N/A');
+        ctx['Last Service Mileage Done'] = ctx['Last Service Mileage'];
+        ctx['Last Service Date'] = safeFmt(v.lastMaintenance) || 'N/A';
+        ctx['Service Mileage Required'] = v.serviceInterval !== undefined ? String(v.serviceInterval) : 'N/A';
+        ctx['Next Service Mileage'] = v.nextServiceMileage !== undefined ? String(v.nextServiceMileage) : 'N/A';
+        ctx['Next Service Date'] = safeFmt(v.nextMaintenance) || 'N/A';
         ctx['Purchased Date'] = safeFmt(v.purchasedDate) || 'N/A';
         ctx['Insurance Expiry'] = safeFmt(v.insuranceExpiry) || 'N/A';
         ctx['MOT Expiry'] = safeFmt(v.motExpiry) || 'N/A';

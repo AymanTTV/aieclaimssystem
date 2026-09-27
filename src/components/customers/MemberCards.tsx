@@ -8,6 +8,7 @@ import { Eye, Edit, Trash2, FileText, File, Tag, Send, Inbox, Phone, Mail, MapPi
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
+import { queryHighRiskDriver } from '../../services/highRiskService';
 
 interface MemberCardsProps {
   customers: Customer[];
@@ -147,9 +148,28 @@ export const MemberCards: React.FC<MemberCardsProps> = ({
 
                     {/* Name & Type */}
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors" title={customer.name}>
-                        {customer.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors" title={customer.name}>
+                          {customer.name}
+                        </h4>
+                        {(() => {
+                          const risk = queryHighRiskDriver(customer.name);
+                          if (!risk.isMatch || !risk.match) return null;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                risk.match.riskLevel === 'High Risk'
+                                  ? 'bg-red-100 text-red-700 border border-red-300'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}
+                              title={`High Risk Registry Alert: ${risk.match.riskLevel} (${risk.match.category})`}
+                            >
+                              <ShieldAlert className="w-2.5 h-2.5 text-red-600" />
+                              <span>{risk.match.riskLevel === 'High Risk' ? 'High Risk' : 'Caution'}</span>
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                           {customer.type || 'Member'}

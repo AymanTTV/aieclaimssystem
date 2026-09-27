@@ -1,7 +1,7 @@
 // src/components/maintenance/MaintenanceTable.tsx
 import React, { useMemo, useState } from 'react';
 import { DataTable } from '../DataTable/DataTable';
-import { MaintenanceLog, Vehicle, Customer, Rental } from '../../types';
+import { MaintenanceLog, Vehicle, Customer, Rental, isOffRoadAccidentLog } from '../../types';
 import {
   Eye,
   Pencil,
@@ -12,7 +12,8 @@ import {
   Receipt,
   FileSignature,
   MessageCircle,
-  Mail
+  Mail,
+  AlertTriangle
 } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
 import { format, differenceInCalendarDays } from 'date-fns';
@@ -46,6 +47,14 @@ interface MaintenanceTableProps {
   onComplete: (log: MaintenanceLog) => void;
   onGenerateInvoice: (log: MaintenanceLog) => void;
   onStatusChange: (log: MaintenanceLog, newStatus: string) => void;
+  activeCustomersMap?: Record<string, Customer>;
+  serviceCenters?: ServiceCenter[];
+  activeRentals?: Rental[];
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
+  roadConditionFilter?: string;
+  onRoadConditionFilterChange?: (condition: string) => void;
+  offRoadAccidentCount?: number;
 }
 
 const ActionBtn = ({
@@ -84,7 +93,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   onPay,
   onComplete,
   onGenerateInvoice,
-  onStatusChange
+  onStatusChange,
+  statusFilter,
+  onStatusFilterChange,
+  roadConditionFilter,
+  onRoadConditionFilterChange,
+  offRoadAccidentCount
 }) => {
   const { can, isCompany } = usePermissions();
   const { user } = useAuth();
@@ -175,14 +189,34 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   const canEditStatusFromTable = can('maintenance', 'tableStatus');
 
   const getStatusColor = (status: string, isScheduledUrgent?: boolean) => {
-    if (status === 'scheduled' && isScheduledUrgent) {
+    const s = String(status || '').toLowerCase().trim();
+    if (s === 'scheduled' && isScheduledUrgent) {
       return 'text-red-900 bg-red-100 border-red-400 ring-red-400 font-bold';
     }
-    switch (status) {
+    switch (s) {
       case 'completed':
         return 'text-emerald-900 bg-emerald-100 border-emerald-400 ring-emerald-400 font-bold';
       case 'in-progress':
         return 'text-orange-950 bg-orange-100 border-orange-400 ring-orange-400 font-bold';
+      case 'workshop':
+        return 'text-purple-950 bg-purple-100 border-purple-400 ring-purple-400 font-bold';
+      case 'parts-backorder':
+      case 'awaiting-parts':
+        return 'text-amber-950 bg-amber-100 border-amber-400 ring-amber-400 font-bold';
+      case 'bodywork':
+        return 'text-indigo-950 bg-indigo-100 border-indigo-400 ring-indigo-400 font-bold';
+      case 'off-road':
+      case 'off-road (vor)':
+      case 'off road (vor)':
+      case 'vor':
+      case 'off-road-accident':
+        return 'text-rose-950 bg-rose-100 border-rose-400 ring-rose-400 font-bold';
+      case 'pending':
+      case 'awaiting-approval':
+        return 'text-yellow-950 bg-yellow-100 border-yellow-400 ring-yellow-400 font-bold';
+      case 'inspection':
+      case 'diagnostic':
+        return 'text-sky-950 bg-sky-100 border-sky-400 ring-sky-400 font-bold';
       case 'cancelled':
         return 'text-slate-700 bg-slate-100 border-slate-300 ring-slate-300';
       default:
@@ -278,6 +312,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="min-w-[140px]">Vehicle</div>,
       cell: ({ row }: any) => {
         const log = row.original;
+        const isAccidentOffRoad = isOffRoadAccidentLog(log);
         
         if (log.vehicleDetails) {
           return (
@@ -288,10 +323,20 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               >
                 {log.vehicleDetails.make} {log.vehicleDetails.model}
               </div>
-              <div className="mt-0.5">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black uppercase font-mono tracking-wider bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
                   {log.vehicleDetails.registrationNumber}
                 </span>
+                {isAccidentOffRoad && (
+                  <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase tracking-wider border ${
+                    log.status === 'completed'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                  }`}>
+                    <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                    {log.status === 'completed' ? 'Repaired' : 'Off-Road (Accident)'}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -308,10 +353,20 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
               >
                 {vehicle.make} {vehicle.model}
               </div>
-              <div className="mt-0.5">
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black uppercase font-mono tracking-wider bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
                   {vehicle.registrationNumber}
                 </span>
+                {isAccidentOffRoad && (
+                  <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase tracking-wider border ${
+                    log.status === 'completed'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                  }`}>
+                    <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                    {log.status === 'completed' ? 'Repaired' : 'Off-Road (Accident)'}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -363,14 +418,93 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const status = row.original.status;
         const isScheduled = status === 'scheduled';
         const isInProgress = status === 'in-progress';
+        const isWorkshop = status === 'workshop';
+        const isPartsBackorder = status === 'parts-backorder';
+        const isBodywork = status === 'bodywork';
+        const isOffRoad = isOffRoadAccidentLog(row.original) || status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor';
+        const isPending = status === 'pending';
+        const isInspection = status === 'inspection';
         const isCompleted = status === 'completed';
         const isCancelled = status === 'cancelled';
-        const days = differenceInCalendarDays(d, new Date());
+
+        if (!d) {
+          if (isPartsBackorder) {
+            return (
+              <div className="flex flex-col w-32">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800">
+                  Awaiting Parts
+                </span>
+                <span className="text-[10px] text-amber-600 font-medium">Date not required</span>
+              </div>
+            );
+          }
+          if (isOffRoad) {
+            return (
+              <div className="flex flex-col w-32">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700">
+                  OFF ROAD (VOR)
+                </span>
+                <span className="text-[10px] text-rose-600 font-medium">Incident Report</span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex flex-col w-32">
+              <span className="text-xs text-slate-400 font-medium">Date not set</span>
+            </div>
+          );
+        }
+
+        const validDate = d instanceof Date ? d : new Date(d);
+        const isValid = !isNaN(validDate.getTime());
+        const days = isValid ? differenceInCalendarDays(validDate, new Date()) : 0;
 
         let badge: React.ReactNode = null;
         let dateTextColor = 'text-slate-700';
 
-        if (isScheduled) {
+        if (isOffRoad && !isCompleted && !isCancelled) {
+          dateTextColor = 'text-rose-800 font-bold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-rose-600 text-white px-2 py-0.5 text-[10px] font-black shadow-xs">
+              OFF ROAD (VOR)
+            </span>
+          );
+        } else if (isPartsBackorder) {
+          dateTextColor = 'text-amber-800 font-semibold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-amber-500 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              Awaiting Parts (TBD)
+            </span>
+          );
+        } else if (isWorkshop) {
+          dateTextColor = 'text-purple-800 font-semibold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              In Workshop
+            </span>
+          );
+        } else if (isBodywork) {
+          dateTextColor = 'text-indigo-800 font-semibold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-indigo-600 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              Bodywork
+            </span>
+          );
+        } else if (isPending) {
+          dateTextColor = 'text-yellow-800 font-semibold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-yellow-500 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              Pending Approval
+            </span>
+          );
+        } else if (isInspection) {
+          dateTextColor = 'text-sky-800 font-semibold';
+          badge = (
+            <span className="inline-flex items-center rounded-full bg-sky-600 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs">
+              Inspection / MOT
+            </span>
+          );
+        } else if (isScheduled) {
           if (days < 0) {
             dateTextColor = 'text-red-700 font-bold';
             badge = (
@@ -417,7 +551,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           <div className="flex flex-col w-32">
             {/* Color-coded date text reflecting its schedule state */}
             <span className={`text-sm ${dateTextColor}`}>
-              {format(d, 'dd/MM/yyyy HH:mm')}
+              {isValid ? format(validDate, 'dd/MM/yyyy HH:mm') : '-'}
             </span>
             <div className="h-4">{badge}</div>
           </div>
@@ -430,10 +564,27 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="w-36 min-w-[140px]">Status</div>,
       cell: ({ row }: any) => {
         const log = row.original;
+        const isAccidentOffRoad = isOffRoadAccidentLog(log);
         const isScheduledUrgent =
           log.status === 'scheduled' &&
           log.date &&
           differenceInCalendarDays(new Date(log.date), new Date()) <= 7;
+
+        const getSelectValue = (st: string) => {
+          const val = String(st || '').toLowerCase().trim();
+          if (val === 'off-road' || val === 'off-road (vor)' || val === 'off road (vor)' || val === 'vor' || isAccidentOffRoad) return 'off-road';
+          if (val === 'parts-backorder' || val === 'awaiting-parts' || val === 'parts backorder') return 'parts-backorder';
+          if (val === 'pending' || val === 'awaiting-approval') return 'pending';
+          if (val === 'inspection' || val === 'diagnostic') return 'inspection';
+          if (val === 'workshop') return 'workshop';
+          if (val === 'bodywork') return 'bodywork';
+          if (val === 'in-progress') return 'in-progress';
+          if (val === 'completed') return 'completed';
+          if (val === 'cancelled') return 'cancelled';
+          return val || 'scheduled';
+        };
+
+        const currentSelectVal = getSelectValue(log.status);
 
         const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
           const val = e.target.value;
@@ -448,15 +599,21 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           <div className="space-y-1.5 w-36 min-w-[140px]" onClick={(e) => e.stopPropagation()}>
             {canEditStatusFromTable ? (
               <select
-                value={log.status}
+                value={currentSelectVal}
                 onChange={handleChange}
                 className={`block w-full min-w-[136px] text-xs font-bold rounded-lg border py-1.5 pl-2.5 pr-7 cursor-pointer ring-1 ring-inset shadow-2xs sm:text-xs sm:leading-tight transition-all ${getStatusColor(
-                  log.status,
+                  currentSelectVal,
                   isScheduledUrgent
                 )}`}
               >
                 <option value="scheduled">Scheduled</option>
                 <option value="in-progress">In Progress</option>
+                <option value="workshop">In Workshop</option>
+                <option value="parts-backorder">Awaiting Parts</option>
+                <option value="bodywork">Bodywork</option>
+                <option value="off-road">OFF ROAD (VOR)</option>
+                <option value="pending">Pending Approval</option>
+                <option value="inspection">Inspection / MOT</option>
                 {can('maintenance', 'complete') && (
                   <option value="completed">Completed</option>
                 )}
@@ -465,12 +622,24 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                 )}
               </select>
             ) : (
-              <StatusBadge status={log.status} />
+              <StatusBadge status={currentSelectVal === 'off-road' ? 'OFF ROAD (VOR)' : log.status} />
             )}
 
             {!isCompany && (
               <div className="pl-0.5">
                 <StatusBadge status={log.paymentStatus} />
+              </div>
+            )}
+
+            {isAccidentOffRoad && (
+              <div className="pl-0.5">
+                <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  log.status === 'completed'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}>
+                  {log.status === 'completed' ? 'Vehicle Available' : 'Vehicle Unavailable'}
+                </span>
               </div>
             )}
           </div>
@@ -633,9 +802,14 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     }).length;
   }, [logs]);
 
-  const inProgressCount = useMemo(() => {
-    return logs.filter(log => log.status === 'in-progress').length;
-  }, [logs]);
+  const scheduledCount = useMemo(() => logs.filter(log => log.status === 'scheduled').length, [logs]);
+  const inProgressCount = useMemo(() => logs.filter(log => log.status === 'in-progress').length, [logs]);
+  const workshopCount = useMemo(() => logs.filter(log => log.status === 'workshop').length, [logs]);
+  const partsBackorderCount = useMemo(() => logs.filter(log => log.status === 'parts-backorder' || log.status === 'awaiting-parts').length, [logs]);
+  const bodyworkCount = useMemo(() => logs.filter(log => log.status === 'bodywork').length, [logs]);
+  const pendingCount = useMemo(() => logs.filter(log => log.status === 'pending' || log.status === 'awaiting-approval').length, [logs]);
+  const completedCount = useMemo(() => logs.filter(log => log.status === 'completed').length, [logs]);
+  const cancelledCount = useMemo(() => logs.filter(log => log.status === 'cancelled').length, [logs]);
 
   const displayedLogs = useMemo(() => {
     if (activeHighlightFilter === 'due7d') {
@@ -654,6 +828,12 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   const rowClassName = (row: { original: MaintenanceLog }) => {
     const { date, status } = row.original;
 
+    // 0. Off-Road / VOR / Accident (highlight Rose)
+    const isOffRoad = isOffRoadAccidentLog(row.original) || status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor';
+    if (isOffRoad && status !== 'completed' && status !== 'cancelled') {
+      return '!bg-[#FFE4E6] hover:!bg-[#FECDD3] text-slate-900 [&>td]:!bg-[#FFE4E6] hover:[&>td]:!bg-[#FECDD3] [&>td]:!border-rose-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-rose-600 transition-colors duration-150';
+    }
+
     // 1. Due in ≤7d (highlight Red)
     if (status === 'scheduled') {
       if (date) {
@@ -668,6 +848,26 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     // 2. In Progress (highlight Orange)
     if (status === 'in-progress') {
       return '!bg-[#FFEDD5] hover:!bg-[#FED7AA] text-slate-900 [&>td]:!bg-[#FFEDD5] hover:[&>td]:!bg-[#FED7AA] [&>td]:!border-orange-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-orange-500 transition-colors duration-150';
+    }
+
+    // 3. Workshop (highlight Purple)
+    if (status === 'workshop') {
+      return '!bg-[#FAF5FF] hover:!bg-[#F3E8FF] text-slate-900 [&>td]:!bg-[#FAF5FF] hover:[&>td]:!bg-[#F3E8FF] [&>td]:!border-purple-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-purple-600 transition-colors duration-150';
+    }
+
+    // 4. Parts Backorder (highlight Amber)
+    if (status === 'parts-backorder' || status === 'awaiting-parts') {
+      return '!bg-[#FFFBEB] hover:!bg-[#FEF3C7] text-slate-900 [&>td]:!bg-[#FFFBEB] hover:[&>td]:!bg-[#FEF3C7] [&>td]:!border-amber-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-amber-600 transition-colors duration-150';
+    }
+
+    // 5. Bodywork (highlight Indigo)
+    if (status === 'bodywork') {
+      return '!bg-[#EEF2FF] hover:!bg-[#E0E7FF] text-slate-900 [&>td]:!bg-[#EEF2FF] hover:[&>td]:!bg-[#E0E7FF] [&>td]:!border-indigo-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-indigo-600 transition-colors duration-150';
+    }
+
+    // 6. Pending (highlight Yellow)
+    if (status === 'pending' || status === 'awaiting-approval') {
+      return '!bg-[#FEFCE8] hover:!bg-[#FEF9C3] text-slate-900 [&>td]:!bg-[#FEFCE8] hover:[&>td]:!bg-[#FEF9C3] [&>td]:!border-yellow-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-yellow-500 transition-colors duration-150';
     }
 
     // All other: no colour!
@@ -716,49 +916,240 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         </div>
       )}
 
-      {/* Color Status Legend with Interactive Dynamic Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3 px-4 bg-[#F1F5F9] border border-[#E2E8F0] rounded-2xl shadow-xs text-xs mb-4">
-        <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-          <span className="text-[#475569] font-bold uppercase tracking-wider text-[11px]">Row Indicators:</span>
+      {/* Color Status Legend with Interactive Dynamic Filters Combined in One Line */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 py-2.5 px-3.5 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl shadow-xs text-xs mb-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <span className="text-[#475569] font-bold uppercase tracking-wider text-[11px] shrink-0 mr-0.5">
+            Row Indicators:
+          </span>
+
+          {/* 1. All Scheduled */}
+          {onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'scheduled' ? 'all' : 'scheduled')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'scheduled'
+                  ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400 border-amber-600'
+                  : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+              }`}
+              title="Filter by all Scheduled jobs"
+            >
+              <span>Scheduled</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'scheduled' ? 'bg-amber-900 text-white' : 'bg-amber-200 text-amber-900'
+              }`}>
+                {scheduledCount}
+              </span>
+            </button>
+          )}
+
+          {/* 2. Due in ≤7d */}
           <button
             type="button"
             onClick={() => setActiveHighlightFilter(prev => prev === 'due7d' ? 'all' : 'due7d')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
               activeHighlightFilter === 'due7d'
-                ? 'bg-[#FEE2E2] border border-red-400 ring-2 ring-red-300 text-[#B91C1C] shadow-xs'
+                ? 'bg-[#B91C1C] text-white shadow-xs ring-2 ring-red-400'
                 : 'bg-[#FEE2E2] hover:bg-[#FECACA] border border-red-200 text-[#B91C1C]'
             }`}
             title="Click to filter: Show only jobs due in ≤7 days"
           >
-            <span className="w-3.5 h-3.5 rounded-full bg-[#B91C1C] border border-red-300 inline-block shadow-xs animate-pulse"></span>
-            <span className="font-bold">Due in ≤7d</span>
-            <span className="bg-[#B91C1C] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+            <span className={`w-2.5 h-2.5 rounded-full inline-block ${activeHighlightFilter === 'due7d' ? 'bg-white' : 'bg-[#B91C1C]'}`}></span>
+            <span>Due in ≤7d</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs ${
+              activeHighlightFilter === 'due7d' ? 'bg-red-800 text-white' : 'bg-[#B91C1C] text-white'
+            }`}>
               {due7dCount}
             </span>
           </button>
+
+          {/* 3. In Progress */}
           <button
             type="button"
-            onClick={() => setActiveHighlightFilter(prev => prev === 'in-progress' ? 'all' : 'in-progress')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-              activeHighlightFilter === 'in-progress'
-                ? 'bg-[#FEF3C7] border border-amber-400 ring-2 ring-amber-300 text-[#B45309] shadow-xs'
+            onClick={() => {
+              if (onStatusFilterChange) {
+                onStatusFilterChange(statusFilter === 'in-progress' ? 'all' : 'in-progress');
+              } else {
+                setActiveHighlightFilter(prev => prev === 'in-progress' ? 'all' : 'in-progress');
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              statusFilter === 'in-progress' || activeHighlightFilter === 'in-progress'
+                ? 'bg-[#B45309] text-white shadow-xs ring-2 ring-amber-400'
                 : 'bg-[#FEF3C7] hover:bg-[#FDE68A] border border-amber-200 text-[#B45309]'
             }`}
             title="Click to filter: Show only jobs in progress"
           >
-            <span className="w-3.5 h-3.5 rounded-full bg-[#B45309] border border-amber-300 inline-block shadow-xs"></span>
-            <span className="font-bold">In Progress</span>
-            <span className="bg-[#B45309] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+            <span className={`w-2.5 h-2.5 rounded-full inline-block ${
+              statusFilter === 'in-progress' || activeHighlightFilter === 'in-progress' ? 'bg-white' : 'bg-[#B45309]'
+            }`}></span>
+            <span>In Progress</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs ${
+              statusFilter === 'in-progress' || activeHighlightFilter === 'in-progress' ? 'bg-amber-900 text-white' : 'bg-[#B45309] text-white'
+            }`}>
               {inProgressCount}
             </span>
           </button>
+
+          {/* 4. In Workshop */}
+          {onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'workshop' ? 'all' : 'workshop')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'workshop'
+                  ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400 border-purple-600'
+                  : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+              }`}
+              title="Filter by vehicles In Workshop"
+            >
+              <span>In Workshop</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'workshop' ? 'bg-purple-900 text-white' : 'bg-purple-200 text-purple-900'
+              }`}>
+                {workshopCount}
+              </span>
+            </button>
+          )}
+
+          {/* 5. Awaiting Parts */}
+          {onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'parts-backorder' ? 'all' : 'parts-backorder')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'parts-backorder'
+                  ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400 border-amber-600'
+                  : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+              }`}
+              title="Filter by vehicles Awaiting Parts"
+            >
+              <span>Awaiting Parts</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'parts-backorder' ? 'bg-amber-900 text-white' : 'bg-amber-200 text-amber-900'
+              }`}>
+                {partsBackorderCount}
+              </span>
+            </button>
+          )}
+
+          {/* 6. Bodywork */}
+          {onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'bodywork' ? 'all' : 'bodywork')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'bodywork'
+                  ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400 border-indigo-600'
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+              }`}
+              title="Filter by Bodywork"
+            >
+              <span>Bodywork</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'bodywork' ? 'bg-indigo-900 text-white' : 'bg-indigo-200 text-indigo-900'
+              }`}>
+                {bodyworkCount}
+              </span>
+            </button>
+          )}
+
+          {/* 7. Off-Road (VOR) */}
+          {onRoadConditionFilterChange && (
+            <button
+              type="button"
+              onClick={() => onRoadConditionFilterChange(roadConditionFilter === 'off-road-accident' ? 'all' : 'off-road-accident')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                roadConditionFilter === 'off-road-accident'
+                  ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400 border-rose-600'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+              }`}
+              title="Filter by Off-Road non-drivable vehicles (VOR)"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+              <span>Off-Road (VOR)</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                roadConditionFilter === 'off-road-accident' ? 'bg-white text-rose-700' : 'bg-rose-200 text-rose-900'
+              }`}>
+                {offRoadAccidentCount ?? 0}
+              </span>
+            </button>
+          )}
+
+          {/* 8. Pending */}
+          {pendingCount > 0 && onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'pending' ? 'all' : 'pending')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'pending'
+                  ? 'bg-yellow-600 text-white shadow-xs ring-2 ring-yellow-400 border-yellow-600'
+                  : 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100'
+              }`}
+              title="Filter by Pending Approval"
+            >
+              <span>Pending</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'pending' ? 'bg-yellow-900 text-white' : 'bg-yellow-200 text-yellow-900'
+              }`}>
+                {pendingCount}
+              </span>
+            </button>
+          )}
+
+          {/* 9. Completed */}
+          {canSeeCompleted && onStatusFilterChange && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'completed' ? 'all' : 'completed')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'completed'
+                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400 border-emerald-600'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+              }`}
+              title="Filter by Completed jobs"
+            >
+              <span>Completed</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'completed' ? 'bg-emerald-900 text-white' : 'bg-emerald-200 text-emerald-900'
+              }`}>
+                {completedCount}
+              </span>
+            </button>
+          )}
+
+          {/* 10. Cancelled */}
+          {canSeeCompleted && onStatusFilterChange && cancelledCount > 0 && (
+            <button
+              type="button"
+              onClick={() => onStatusFilterChange(statusFilter === 'cancelled' ? 'all' : 'cancelled')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                statusFilter === 'cancelled'
+                  ? 'bg-slate-700 text-white shadow-xs ring-2 ring-slate-400 border-slate-700'
+                  : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+              }`}
+              title="Filter by Cancelled jobs"
+            >
+              <span>Cancelled</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                statusFilter === 'cancelled' ? 'bg-slate-900 text-white' : 'bg-slate-300 text-slate-900'
+              }`}>
+                {cancelledCount}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
-          {activeHighlightFilter !== 'all' && (
+          {(activeHighlightFilter !== 'all' || (statusFilter && statusFilter !== 'all') || (roadConditionFilter && roadConditionFilter !== 'all')) && (
             <button
               type="button"
-              onClick={() => setActiveHighlightFilter('all')}
+              onClick={() => {
+                setActiveHighlightFilter('all');
+                onStatusFilterChange?.('all');
+                onRoadConditionFilterChange?.('all');
+              }}
               className="text-xs text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
             >
               Reset Filter
@@ -796,6 +1187,9 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         context={commModal.context}
         initialMode={commModal.mode}
         initialRecipient={commModal.recipientType}
+        vehicles={Object.values(vehicles)}
+        customers={Object.values(activeCustomersMap)}
+        rentals={activeRentals}
       />
 
       {/* Maintenance Bulk Communication Modal */}

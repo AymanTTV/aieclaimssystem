@@ -9,13 +9,15 @@ import { DataTable } from '../components/DataTable/DataTable';
 import Modal from '../components/ui/Modal';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { differenceInDays, startOfMonth, endOfMonth, isValid, format } from 'date-fns';
-import { Activity, Car, Download, FileSpreadsheet, Search, Filter, TrendingUp, Clock, AlertTriangle, Eye, FileText, User } from 'lucide-react';
+import { Activity, Car, Download, FileSpreadsheet, Search, Filter, TrendingUp, Clock, AlertTriangle, Eye, FileText, User, RotateCcw, History, Users, BarChart3, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
 import UtilisationBulkDocument from '../components/pdf/UtilisationBulkDocument';
 import UtilisationSingleDocument from '../components/pdf/UtilisationSingleDocument';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import VehicleAssignmentHistoryTable, { DriverAssignmentRecord } from '../components/utilisation/VehicleAssignmentHistoryTable';
+import FleetHoursWorkedIdleChart from '../components/utilisation/FleetHoursWorkedIdleChart';
 
 // Robust date parser to handle raw Firestore Timestamps, Dates, and Strings
 // Robust date parser to handle raw Firestore Timestamps, ISO Strings, and UK Date Strings (DD/MM/YYYY)
@@ -83,6 +85,12 @@ const Utilisation = () => {
   
   // Modal State
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+
+  // Tab View State: 'metrics' (Utilisation table), 'hoursChart' (7-Day Worked vs Idle Hours), or 'driverLog' (Historical Driver Assignment Log)
+  const [activeTab, setActiveTab] = useState<'metrics' | 'hoursChart' | 'driverLog'>('metrics');
+
+  // Uniform random average daily mileage between 76 and 100 applied to all vehicles whose mileage was not updated
+  const [defaultDailyMileageRate] = useState<number>(() => Math.floor(Math.random() * (100 - 76 + 1)) + 76);
 
   const loading = vLoad || rLoad || mLoad || cLoad;
 
@@ -216,6 +224,12 @@ const Utilisation = () => {
       let maintenanceDays = 0;
       let unavailableDays = 0; // Tracks days that are either rented OR in maintenance
 
+      // Check if vehicle status or active log indicates maintenance
+      const vStatus = (vehicle.status || '').toLowerCase().trim();
+      const isStatusMaintenance = vStatus === 'maintenance' || vStatus === 'repair' || vStatus === 'scheduled-maintenance' || vStatus === 'in-maintenance';
+      const hasActiveMaintLog = logs.some(l => l.vehicleId === vehicle.id && (l.status === 'in-progress' || (l.status !== 'cancelled' && !l.completedDate)));
+      const isVehicleInMaintenance = isStatusMaintenance || hasActiveMaintLog;
+
       for (let i = 0; i < totalDaysInRange; i++) {
         const currentDayStart = new Date(rangeStart);
         currentDayStart.setDate(currentDayStart.getDate() + i);
@@ -229,7 +243,9 @@ const Utilisation = () => {
 
         // Evaluate both conditions independently
         const isRented = rentalPeriods.some(p => p.start.getTime() <= cEnd && p.end.getTime() >= cStart);
-        const isMaint = maintPeriods.some(p => p.start.getTime() <= cEnd && p.end.getTime() >= cStart);
+        const isLogMaint = maintPeriods.some(p => p.start.getTime() <= cEnd && p.end.getTime() >= cStart);
+        // If the vehicle is in maintenance, any day it is not rented is an off-road maintenance day
+        const isMaint = isLogMaint || (isVehicleInMaintenance && !isRented);
 
         if (isRented) {
           rentedDays++;
@@ -246,18 +262,26 @@ const Utilisation = () => {
       }
 
       // --- 4. Final Utilisation Math ---
-      // Use the combined unavailableDays to prevent double-subtracting overlapping days
-      const availableDays = Math.max(0, totalDaysInRange - unavailableDays);
+      // RULE: If the vehicle is in maintenance, that means the vehicle is NOT available, so available is ZERO (0).
+      let availableDays = Math.max(0, totalDaysInRange - unavailableDays);
+      if (isVehicleInMaintenance) {
+        availableDays = 0;
+        maintenanceDays = Math.max(maintenanceDays, totalDaysInRange - rentedDays);
+      }
       
       let utilisationPct = 0;
       const possibleHireDays = totalDaysInRange - maintenanceDays;
       if (possibleHireDays > 0) {
         utilisationPct = (rentedDays / possibleHireDays) * 100;
+      } else if (rentedDays > 0) {
+        utilisationPct = (rentedDays / totalDaysInRange) * 100;
       }
       if (utilisationPct > 100) utilisationPct = 100;
 
-      // --- 5. Pure Historical Exact Mileage Difference ---
+      // --- 5. Pure Historical Exact Mileage Difference with 76 mi/day Fallback ---
       let estMileageTotal = 0;
+      let hasUpdatedMileage = false;
+
       if (vehicle.mileageUpdates && Array.isArray(vehicle.mileageUpdates) && vehicle.mileageUpdates.length > 0) {
         const updates = vehicle.mileageUpdates
           .map((u: any) => ({ ...u, parsedDate: parseFirestoreDate(u.date), mileage: Number(u.mileage) }))
@@ -277,29 +301,147 @@ const Utilisation = () => {
 
           if (startUpdate && endUpdate && endUpdate.parsedDate.getTime() >= startUpdate.parsedDate.getTime()) {
             const diff = endUpdate.mileage - startUpdate.mileage;
-            estMileageTotal = Math.max(0, diff); 
+            if (diff > 0) {
+              estMileageTotal = diff;
+              hasUpdatedMileage = true;
+            }
           }
         }
       }
 
-      // --- 6. Estimated Hours ---
-      const estHoursTotal = rentedDays * 24;
+      // RULE: If the mileage of the vehicle is not updated, utilisation automatically adds
+      // a uniform randomly chosen average mileage between 76 and 100 per day (all vehicles without updated mileage share this same rate)
+      // UNLESS the vehicle is available (which means the vehicle was not rented and was available for rent, where no average mileage is added).
+      if (!hasUpdatedMileage) {
+        estMileageTotal = rentedDays * defaultDailyMileageRate;
+      }
+
+      // --- 6. Driving Hours ---
+      const AVG_COMMERCIAL_SPEED_MPH = 22; // Commercial mixed/urban driving average speed
+      let estHoursTotal = 0;
+      let hoursBasis: 'mileage' | 'days' = 'days';
+
+      if (estMileageTotal > 0) {
+        estHoursTotal = Math.round(estMileageTotal / AVG_COMMERCIAL_SPEED_MPH);
+        hoursBasis = hasUpdatedMileage ? 'mileage' : 'days';
+      } else {
+        estHoursTotal = 0;
+        hoursBasis = 'days';
+      }
+
       const estHoursPerWeek = Math.round(estHoursTotal / weeksInRange);
       const estMileagePerWeek = Math.round(estMileageTotal / weeksInRange);
 
-      // --- 7. Most Recent Driver ---
-      let recentDriver = 'None';
-      const vehicleRentals = rentals.filter(r => r.vehicleId === vehicle.id && r.status !== 'cancelled');
-      if (vehicleRentals.length > 0) {
-        const sortedRentals = [...vehicleRentals].sort((a, b) => {
-           const aDate = parseFirestoreDate(a.startDate);
-           const bDate = parseFirestoreDate(b.startDate);
-           return bDate.getTime() - aDate.getTime();
-        });
-        const latest = sortedRentals[0];
-        const cust = customers.find(c => c.id === latest.customerId);
-        recentDriver = cust ? cust.name : 'Unknown';
+      // --- 7. Historical Driver Assignment Log & Previous Driver Tracking ---
+      const driverHistory: DriverAssignmentRecord[] = [];
+
+      rentals.forEach(rental => {
+        if (rental.status === 'cancelled') return;
+
+        // Case 1: Primary assigned vehicle
+        if (rental.vehicleId === vehicle.id) {
+          const rStart = parseFirestoreDate(rental.startDate);
+          let rEnd = parseFirestoreDate(rental.endDate);
+          const isCompleted = ['completed', 'complete', 'returned'].includes((rental.status || '').toLowerCase());
+          if (isCompleted && rental.returnCondition && rental.returnCondition.date) {
+            const actualReturn = parseFirestoreDate(rental.returnCondition.date);
+            if (!isNaN(actualReturn.getTime())) {
+              rEnd = actualReturn;
+            }
+          } else if (rental.status === 'active' && rEnd.getTime() < Date.now()) {
+            rEnd = new Date();
+          }
+
+          if (!isNaN(rStart.getTime())) {
+            const cust = customers.find(c => c.id === rental.customerId);
+            const isOngoing = rental.status === 'active' || (!isCompleted && rEnd.getTime() >= Date.now());
+            const durationDays = !isNaN(rEnd.getTime())
+              ? Math.max(1, Math.round(Math.abs(rEnd.getTime() - rStart.getTime()) / (1000 * 60 * 60 * 24)))
+              : 1;
+
+            driverHistory.push({
+              id: rental.id,
+              vehicleId: vehicle.id,
+              vehicleRegistration: vehicle.registrationNumber,
+              vehicleMakeModel: `${vehicle.make} ${vehicle.model}`,
+              customerId: rental.customerId,
+              driverName: cust ? cust.name : 'Unknown Driver',
+              driverPhone: cust?.mobile || (cust as any)?.phone,
+              driverEmail: cust?.email,
+              startDate: rStart,
+              endDate: rEnd,
+              isCurrent: false, // will mark after sorting
+              isOngoing,
+              durationDays,
+              assignmentType: 'Rental',
+              agreementNumber: rental.rentalAgreementNumber,
+              status: rental.status || 'active',
+              notes: rental.notes && rental.notes.length > 0 ? rental.notes[0].text : undefined
+            });
+          }
+        }
+
+        // Case 2: Substitution vehicle
+        if (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0) {
+          rental.hireSubstitutionDetails.forEach((sub, sIdx) => {
+            const subReg = (sub.registration || '').toLowerCase().replace(/\s+/g, '');
+            const vehReg = (vehicle.registrationNumber || '').toLowerCase().replace(/\s+/g, '');
+
+            if (subReg && subReg === vehReg) {
+              const sStart = parseFirestoreDate(sub.givenAt);
+              let sEnd = sub.returnCondition ? parseFirestoreDate(sub.returnCondition.date) : parseFirestoreDate(sub.expectedReturnAt);
+              const isSubCompleted = !!sub.returnCondition;
+              if (!isSubCompleted && sEnd.getTime() < Date.now()) {
+                sEnd = new Date();
+              }
+
+              if (!isNaN(sStart.getTime())) {
+                const cust = customers.find(c => c.id === rental.customerId);
+                const isOngoing = !isSubCompleted && sEnd.getTime() >= Date.now();
+                const durationDays = !isNaN(sEnd.getTime())
+                  ? Math.max(1, Math.round(Math.abs(sEnd.getTime() - sStart.getTime()) / (1000 * 60 * 60 * 24)))
+                  : 1;
+
+                driverHistory.push({
+                  id: `${rental.id}-sub-${sIdx}`,
+                  vehicleId: vehicle.id,
+                  vehicleRegistration: vehicle.registrationNumber,
+                  vehicleMakeModel: `${vehicle.make} ${vehicle.model}`,
+                  customerId: rental.customerId,
+                  driverName: cust ? cust.name : 'Unknown Driver',
+                  driverPhone: cust?.mobile || (cust as any)?.phone,
+                  driverEmail: cust?.email,
+                  startDate: sStart,
+                  endDate: sEnd,
+                  isCurrent: false,
+                  isOngoing,
+                  durationDays,
+                  assignmentType: 'Substitution',
+                  agreementNumber: rental.rentalAgreementNumber,
+                  status: isSubCompleted ? 'returned' : 'active'
+                });
+              }
+            }
+          });
+        }
+      });
+
+      // Sort assignments descending by start date (newest first)
+      driverHistory.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+
+      if (driverHistory.length > 0) {
+        driverHistory[0].isCurrent = true;
       }
+
+      const currentDriverRecord = driverHistory[0] || null;
+      const recentDriver = currentDriverRecord ? currentDriverRecord.driverName : 'None';
+
+      // Keep record of the previous driver when vehicle is assigned to another driver
+      const previousDriverRecord = driverHistory.length > 1 ? driverHistory[1] : null;
+      const previousDriver = previousDriverRecord ? previousDriverRecord.driverName : 'None';
+      const previousDriverDates = previousDriverRecord && isValid(previousDriverRecord.startDate) && isValid(previousDriverRecord.endDate)
+        ? `${format(previousDriverRecord.startDate, 'dd/MM/yyyy')} - ${format(previousDriverRecord.endDate, 'dd/MM/yyyy')}`
+        : null;
 
       return {
         id: vehicle.id,
@@ -308,26 +450,36 @@ const Utilisation = () => {
         model: vehicle.model,
         status: vehicle.status,
         image: vehicle.image,
+        year: vehicle.year,
         recentDriver,
+        previousDriver,
+        previousDriverDates,
+        currentDriverRecord,
+        previousDriverRecord,
+        driverHistory,
         availableDays,
         rentedDays,
         maintenanceDays,
         estMileageTotal,
+        hasUpdatedMileage,
+        defaultDailyMileageRate,
         estMileagePerWeek,
         estHoursTotal,
         estHoursPerWeek,
         utilisationPct,
-        totalDaysInRange
+        totalDaysInRange,
+        hoursBasis
       };
     });
-  }, [vehicles, rentals, logs, customers, startDate, endDate, showSold]);
+  }, [vehicles, rentals, logs, customers, startDate, endDate, showSold, defaultDailyMileageRate]);
 
   // Apply Filters & Sorting
   const filteredData = useMemo(() => {
     let result = rawUtilisationData.filter(item => {
       const matchesSearch = item.registration.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             item.makeModel.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            item.recentDriver.toLowerCase().includes(searchQuery.toLowerCase());
+                            item.recentDriver.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            item.previousDriver.toLowerCase().includes(searchQuery.toLowerCase());
       
       const selVehs = Array.isArray(selectedVehicles) ? selectedVehicles : [selectedVehicles];
       const matchesVehicle = selVehs.includes('all') || selVehs.includes(item.registration);
@@ -345,40 +497,82 @@ const Utilisation = () => {
     return result.sort((a, b) => b.utilisationPct - a.utilisationPct);
   }, [rawUtilisationData, searchQuery, selectedVehicles, selectedModels, utilMin, utilMax]);
 
+  // Aggregate all driver assignments across the fleet for the historical log table
+  const allDriverAssignments = useMemo(() => {
+    return rawUtilisationData.flatMap(item => item.driverHistory || []);
+  }, [rawUtilisationData]);
+
   const avgUtilisation = filteredData.length ? (filteredData.reduce((acc, curr) => acc + curr.utilisationPct, 0) / filteredData.length) : 0;
   const underutilisedCount = filteredData.filter(v => v.utilisationPct < 30).length;
   const totalRentedDays = filteredData.reduce((acc, curr) => acc + curr.rentedDays, 0);
 
-  // --- RICH HTML EXCEL EXPORT ---
-  const handleExportExcel = useCallback(() => {
+  // --- ENHANCED RICH HTML EXCEL EXPORT ---
+  const handleExportExcel = useCallback(async () => {
     const formattedStart = format(parseLocal(startDate), 'dd MMM yyyy');
     const formattedEnd = format(parseLocal(endDate), 'dd MMM yyyy');
+    const companyDetails = await getCompanyInfo();
+
+    const totalVehicles = filteredData.length;
+    const sumTotalDays = filteredData.reduce((acc, curr) => acc + (curr.totalDaysInRange || 0), 0);
+    const sumAvailableDays = filteredData.reduce((acc, curr) => acc + (curr.availableDays || 0), 0);
+    const sumRentedDays = filteredData.reduce((acc, curr) => acc + (curr.rentedDays || 0), 0);
+    const sumMaintDays = filteredData.reduce((acc, curr) => acc + (curr.maintenanceDays || 0), 0);
+    const sumMileageTotal = filteredData.reduce((acc, curr) => acc + (curr.estMileageTotal || 0), 0);
+    const sumMileageWk = filteredData.reduce((acc, curr) => acc + (curr.estMileagePerWeek || 0), 0);
+    const sumHoursTotal = filteredData.reduce((acc, curr) => acc + (curr.estHoursTotal || 0), 0);
+    const sumHoursWk = filteredData.reduce((acc, curr) => acc + (curr.estHoursPerWeek || 0), 0);
+    const overallAvgUtil = totalVehicles > 0 ? (filteredData.reduce((acc, curr) => acc + curr.utilisationPct, 0) / totalVehicles) : 0;
 
     let tableHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8"></head>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Calibri, Arial, sans-serif; }
+          table { border-collapse: collapse; width: 100%; }
+          th { font-size: 11pt; font-weight: bold; }
+          td { font-size: 10pt; vertical-align: middle; }
+        </style>
+      </head>
       <body>
         <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;">
+          <!-- Report Header Banner -->
+          <tr>
+            <td colspan="15" style="background-color: #16192B; color: #FFFFFF; font-size: 16pt; font-weight: bold; padding: 14px 10px; text-align: left;">
+              ${companyDetails.fullName || 'AIE Skyline Limited'} — Fleet Utilisation & Driver Assignment Report
+            </td>
+          </tr>
+          <tr>
+            <td colspan="15" style="background-color: #F8FAFC; color: #334155; font-size: 10pt; padding: 8px 10px; border-bottom: 2px solid #CBD5E1;">
+              <strong>Period:</strong> ${formattedStart} to ${formattedEnd} &nbsp;|&nbsp; 
+              <strong>Generated:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm')} &nbsp;|&nbsp; 
+              <strong>Vehicles:</strong> ${totalVehicles} &nbsp;|&nbsp; 
+              <strong>Fleet Avg Utilisation:</strong> ${overallAvgUtil.toFixed(1)}% &nbsp;|&nbsp; 
+              <strong>Standard:</strong> Average Driving Model: 8 to 12 hours/day, 5 to 6 days/week (~55 hrs/wk full-time active hire — not 24h continuous)
+            </td>
+          </tr>
           <thead>
             <tr>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Registration</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Make/Model</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Recent Driver</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Total Days</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Available Days</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Rented Days</th>
-              <th rowspan="2" style="background-color: #16192B; color: #FFFFFF; padding: 14px; font-size: 13px; font-weight: bold; text-align: center; vertical-align: middle; text-transform: uppercase;">Maint Days</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Registration</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Make / Model</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Status</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Current Driver</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Previous Driver</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Driver Dates</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Total Days</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Available Days</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Rented Days</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Off-Road Days</th>
               
-              <th colspan="5" style="background-color: #2B314E; color: #FFFFFF; padding: 10px; font-size: 14px; font-weight: bold; text-align: center; border-bottom: 2px solid #16192B; text-transform: uppercase;">
-                Analysis Period: ${formattedStart} to ${formattedEnd}
-              </th>
+              <th colspan="2" style="background-color: #2B314E; color: #FFFFFF; padding: 8px; font-size: 11pt; text-align: center; text-transform: uppercase;">Mileage</th>
+              <th colspan="2" style="background-color: #1E3A8A; color: #FFFFFF; padding: 8px; font-size: 11pt; text-align: center; text-transform: uppercase;">Avg Driving Hours</th>
+              <th rowspan="2" style="background-color: #1E293B; color: #FFFFFF; padding: 12px 8px; font-size: 11pt; text-align: center; vertical-align: middle; text-transform: uppercase;">Utilisation %</th>
             </tr>
             <tr style="color: #FFFFFF; font-weight: bold; text-align: center;">
-              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Total Mileage</th>
-              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Mileage/Wk</th>
-              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Total Hours</th>
-              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Est Hours/Wk</th>
-              <th style="background-color: #16192B; color: #FFFFFF; padding: 10px; font-size: 12px; text-transform: uppercase;">Utilisation %</th>
+              <th style="background-color: #2B314E; color: #FFFFFF; padding: 8px; font-size: 10pt; text-transform: uppercase;">Total (mi)</th>
+              <th style="background-color: #2B314E; color: #FFFFFF; padding: 8px; font-size: 10pt; text-transform: uppercase;">Per Week</th>
+              <th style="background-color: #1E3A8A; color: #FFFFFF; padding: 8px; font-size: 10pt; text-transform: uppercase;">Total Hours</th>
+              <th style="background-color: #1E3A8A; color: #FFFFFF; padding: 8px; font-size: 10pt; text-transform: uppercase;">Hours / Wk</th>
             </tr>
           </thead>
           <tbody>
@@ -386,42 +580,70 @@ const Utilisation = () => {
 
     filteredData.forEach((r, idx) => {
       const pct = r.utilisationPct;
-      const rowBg = idx % 2 === 1 ? '#EEF5FD' : '#FFFFFF';
-      const badgeBg = pct >= 60 ? '#dcfce7' : pct >= 30 ? '#fef3c7' : '#fee2e2'; 
-      const textColor = pct >= 60 ? '#166534' : pct >= 30 ? '#92400e' : '#991b1b';
+      const rowBg = idx % 2 === 1 ? '#F8FAFC' : '#FFFFFF';
+      const badgeBg = pct >= 60 ? '#DCFCE7' : pct >= 30 ? '#FEF3C7' : '#FEE2E2'; 
+      const textColor = pct >= 60 ? '#15803D' : pct >= 30 ? '#B45309' : '#B91C1C';
+      const prevDriverText = r.previousDriver && r.previousDriver !== 'None' 
+        ? `${r.previousDriver}${r.previousDriverDates ? ` (${r.previousDriverDates})` : ''}` 
+        : '-';
 
       tableHtml += `
         <tr style="text-align: center; background-color: ${rowBg};">
-          <td style="padding: 8px; font-weight: bold; border: 1px solid #CBD5E1;">${r.registration}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.makeModel}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.recentDriver}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.totalDaysInRange}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.availableDays}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.rentedDays}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.maintenanceDays}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estMileageTotal.toLocaleString()}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estMileagePerWeek.toLocaleString()}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estHoursTotal.toLocaleString()}</td>
-          <td style="padding: 8px; border: 1px solid #CBD5E1;">${r.estHoursPerWeek.toLocaleString()}</td>
-          <td style="padding: 8px; background-color: ${badgeBg}; color: ${textColor}; font-weight: bold; border: 1px solid #CBD5E1;">
+          <td style="padding: 7px; font-weight: bold; border: 1px solid #CBD5E1;">${r.registration}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.makeModel}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1; text-transform: uppercase; font-size: 9pt;">${r.status || 'Active'}</td>
+          <td style="padding: 7px; font-weight: bold; border: 1px solid #CBD5E1;">${r.recentDriver}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${prevDriverText}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1; font-size: 9pt;">${r.previousDriverDates || '-'}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.totalDaysInRange}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.availableDays}</td>
+          <td style="padding: 7px; font-weight: bold; color: #047857; border: 1px solid #CBD5E1;">${r.rentedDays}</td>
+          <td style="padding: 7px; color: ${r.maintenanceDays > 0 ? '#B91C1C' : '#64748B'}; border: 1px solid #CBD5E1;">${r.maintenanceDays}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.estMileageTotal.toLocaleString()}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.estMileagePerWeek.toLocaleString()}</td>
+          <td style="padding: 7px; font-weight: bold; border: 1px solid #CBD5E1;">${r.estHoursTotal.toLocaleString()}</td>
+          <td style="padding: 7px; border: 1px solid #CBD5E1;">${r.estHoursPerWeek.toLocaleString()}</td>
+          <td style="padding: 7px; background-color: ${badgeBg}; color: ${textColor}; font-weight: bold; border: 1px solid #CBD5E1;">
             ${pct.toFixed(1)}%
           </td>
         </tr>
       `;
     });
 
-    tableHtml += `</tbody></table></body></html>`;
+    // Summary Totals Row at the bottom of the table
+    tableHtml += `
+          <tr style="background-color: #16192B; color: #FFFFFF; font-weight: bold; text-align: center; border-top: 2px solid #0F172A;">
+            <td colspan="6" style="padding: 10px; text-align: left; font-size: 11pt; border: 1px solid #0F172A;">
+              FLEET TOTALS & AVERAGES (${totalVehicles} Vehicles)
+            </td>
+            <td style="padding: 10px; border: 1px solid #0F172A;">${sumTotalDays.toLocaleString()}</td>
+            <td style="padding: 10px; border: 1px solid #0F172A;">${sumAvailableDays.toLocaleString()}</td>
+            <td style="padding: 10px; color: #34D399; border: 1px solid #0F172A;">${sumRentedDays.toLocaleString()}</td>
+            <td style="padding: 10px; color: #F87171; border: 1px solid #0F172A;">${sumMaintDays.toLocaleString()}</td>
+            <td style="padding: 10px; border: 1px solid #0F172A;">${sumMileageTotal.toLocaleString()}</td>
+            <td style="padding: 10px; border: 1px solid #0F172A;">${sumMileageWk.toLocaleString()}</td>
+            <td style="padding: 10px; color: #93C5FD; border: 1px solid #0F172A;">${sumHoursTotal.toLocaleString()}</td>
+            <td style="padding: 10px; color: #93C5FD; border: 1px solid #0F172A;">${sumHoursWk.toLocaleString()}</td>
+            <td style="padding: 10px; font-size: 11pt; color: #FCD34D; border: 1px solid #0F172A;">
+              ${overallAvgUtil.toFixed(1)}%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </body>
+    </html>
+    `;
 
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Fleet_Utilisation_${startDate}_to_${endDate}.xls`;
+    link.download = `Fleet_Utilisation_Report_${startDate}_to_${endDate}.xls`;
     
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    toast.success('Excel export downloaded successfully');
+    toast.success('Enhanced Excel export downloaded successfully');
   }, [filteredData, startDate, endDate]);
 
   const getCompanyInfo = async () => {
@@ -437,13 +659,31 @@ const Utilisation = () => {
     toast.loading('Generating PDF Report...', { id: 'pdf-gen' });
     try {
       const companyDetails = await getCompanyInfo();
-      const docElement = <UtilisationBulkDocument records={filteredData} startDate={startDate} endDate={endDate} companyDetails={companyDetails} />;
+      const docElement = (
+        <UtilisationBulkDocument 
+          records={filteredData} 
+          startDate={startDate} 
+          endDate={endDate} 
+          companyDetails={companyDetails}
+          vehicles={vehicles}
+          rentals={rentals}
+          logs={logs}
+          showSold={showSold}
+        />
+      );
       const asPdf = pdf([]); 
       asPdf.updateContainer(docElement);
       const blob = await asPdf.toBlob();
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      toast.success('Report generated!', { id: 'pdf-gen' });
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Fleet_Utilisation_Report_${startDate}_to_${endDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('PDF report downloaded successfully!', { id: 'pdf-gen' });
     } catch (err) {
       toast.error('Failed to generate report', { id: 'pdf-gen' });
     }
@@ -458,8 +698,15 @@ const Utilisation = () => {
       asPdf.updateContainer(docElement);
       const blob = await asPdf.toBlob();
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      toast.success('Document opened!', { id: 'pdf-single' });
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Utilisation_Report_${record.registration}_${startDate}_to_${endDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Vehicle report downloaded!', { id: 'pdf-single' });
     } catch {
       toast.error('Failed to generate document', { id: 'pdf-single' });
     }
@@ -519,15 +766,32 @@ const Utilisation = () => {
       }
     },
     {
-      header: 'Driver',
+      header: 'Driver & History',
       accessorKey: 'recentDriver',
       enableSorting: true,
-      cell: ({ getValue }: any) => {
-        const driver = getValue() || 'None';
+      cell: ({ row }: any) => {
+        const driver = row.original.recentDriver || 'None';
+        const prev = row.original.previousDriver;
+        const hasPrev = prev && prev !== 'None';
         return (
-          <div className="flex items-center gap-1 min-w-0" title={driver}>
-            <User className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-800 truncate max-w-[95px]">{driver}</span>
+          <div className="flex flex-col min-w-0 py-0.5 leading-tight">
+            <div className="flex items-center gap-1 min-w-0" title={`Current Driver: ${driver}`}>
+              <User className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800 truncate max-w-[100px]">{driver}</span>
+            </div>
+            {hasPrev ? (
+              <div 
+                className="flex items-center gap-1 min-w-0 text-[10px] text-slate-500 font-medium mt-0.5" 
+                title={`Previous Driver: ${prev}${row.original.previousDriverDates ? ` (${row.original.previousDriverDates})` : ''}`}
+              >
+                <RotateCcw className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                <span className="truncate max-w-[100px]">Prev: {prev}</span>
+              </div>
+            ) : (
+              <span className="text-[9.5px] text-slate-400 mt-0.5">
+                {row.original.driverHistory?.length <= 1 ? '1st driver' : 'None'}
+              </span>
+            )}
           </div>
         );
       }
@@ -569,40 +833,35 @@ const Utilisation = () => {
       header: 'Avail',
       accessorKey: 'availableDays',
       enableSorting: true,
-      cell: ({ row }: any) => (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
-          {row.original.availableDays}d
-        </span>
-      )
+      cell: ({ row }: any) => {
+        const avail = row.original.availableDays;
+        return (
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold border whitespace-nowrap ${
+            avail > 0 ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'
+          }`}>
+            {avail}d
+          </span>
+        );
+      }
     },
     {
       header: 'Mileage',
       accessorKey: 'estMileageTotal',
       enableSorting: true,
       cell: ({ row }: any) => (
-        <div className="flex flex-col whitespace-nowrap leading-tight">
-          <span className="font-bold text-slate-900 font-mono text-xs">
-            {row.original.estMileageTotal.toLocaleString()} mi
-          </span>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {row.original.estMileagePerWeek.toLocaleString()}/wk
-          </span>
-        </div>
+        <span className="font-bold text-slate-900 font-mono text-xs whitespace-nowrap">
+          {row.original.estMileageTotal.toLocaleString()} mi
+        </span>
       )
     },
     {
-      header: 'Hours',
+      header: 'Avg Driving Hours',
       accessorKey: 'estHoursTotal',
       enableSorting: true,
       cell: ({ row }: any) => (
-        <div className="flex flex-col whitespace-nowrap leading-tight">
-          <span className="font-bold text-slate-900 font-mono text-xs">
-            {row.original.estHoursTotal.toLocaleString()} h
-          </span>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {row.original.estHoursPerWeek.toLocaleString()}/wk
-          </span>
-        </div>
+        <span className="font-bold text-slate-900 font-mono text-xs whitespace-nowrap">
+          {row.original.estHoursTotal.toLocaleString()} h
+        </span>
       )
     },
     {
@@ -677,6 +936,25 @@ const Utilisation = () => {
           <p className="text-sm text-[#64748B] mt-0.5 font-medium">Fleet utilisation percentages, rental active days, off-road maintenance, and mileage tracking.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Action bar button to view Fleet Worked vs. Idle Hours in separate section */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'hoursChart' ? 'metrics' : 'hoursChart')}
+            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer shadow-xs ${
+              activeTab === 'hoursChart'
+                ? 'bg-[#2563EB] text-white shadow-blue-200'
+                : 'bg-white border border-[#CBD5E1] text-[#1E293B] hover:bg-[#F8FAFC]'
+            }`}
+            title="View 7-Day Fleet Worked vs. Idle Hours Analysis"
+          >
+            <BarChart3 className={`w-4 h-4 ${activeTab === 'hoursChart' ? 'text-white' : 'text-blue-600'}`} />
+            <span>7-Day Hours Analysis</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+              activeTab === 'hoursChart' ? 'bg-blue-700 text-white' : 'bg-blue-50 text-blue-700'
+            }`}>
+              7D
+            </span>
+          </button>
+
           {can('utilisation', 'export') && (
             <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-[#CBD5E1] rounded-xl text-sm font-semibold text-[#1E293B] hover:bg-[#F8FAFC] shadow-xs transition-colors cursor-pointer">
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Excel
@@ -737,116 +1015,201 @@ const Utilisation = () => {
         </div>
       </div>
 
-      {/* ADVANCED FILTERS */}
-      <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
-        <div className="bg-[#F8FAFC] text-[#0F172A] px-5 py-3.5 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#0F172A]">
-            <Filter className="w-4 h-4 text-[#2563EB]" />
-            <span>Analysis Parameters</span>
-          </div>
-          <span className="text-xs text-[#64748B] font-medium">Filter by keyword, vehicle, model, utilisation range & date range</span>
+      {/* VIEW TABS & SECTION ACTION BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveTab('metrics')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'metrics'
+                ? 'bg-[#2563EB] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Fleet Utilisation & Mileage</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
+              activeTab === 'metrics' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {filteredData.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('hoursChart')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'hoursChart'
+                ? 'bg-[#2563EB] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>Fleet Worked vs. Idle Hours (Last 7 Days)</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
+              activeTab === 'hoursChart' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              7 Days
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('driverLog')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'driverLog'
+                ? 'bg-[#2563EB] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Historical Driver Assignment Log</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono ${
+              activeTab === 'driverLog' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {allDriverAssignments.length}
+            </span>
+          </button>
         </div>
-        
-        <div className="p-5">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-           <div className="lg:col-span-3">
-             <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Search Keyword</label>
-             <div className="relative">
-               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]"/>
-               <input 
-                 value={searchQuery} 
-                 onChange={(e) => setSearchQuery(e.target.value)} 
-                 className="w-full pl-9 py-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-[#94A3B8] shadow-xs" 
-                 placeholder="Reg, Model, Driver..." 
-               />
-             </div>
-           </div>
-           
-           <div className="lg:col-span-2 z-20">
-             <SearchableSelect
-               label="Registrations"
-               labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
-               options={vehicleOptions}
-               value={selectedVehicles}
-               onChange={setSelectedVehicles}
-               isMulti={true}
-               placeholder="Select registrations..."
-             />
-           </div>
 
-           <div className="lg:col-span-2 z-10">
-             <SearchableSelect
-               label="Models"
-               labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
-               options={modelOptions}
-               value={selectedModels}
-               onChange={setSelectedModels}
-               isMulti={true}
-               placeholder="Select models..."
-             />
-           </div>
-
-           <div className="lg:col-span-2">
-             <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Utilisation Range (%)</label>
-             <div className="flex items-center gap-2">
-               <input 
-                 type="number" 
-                 placeholder="Min" 
-                 value={utilMin} 
-                 onChange={e => setUtilMin(e.target.value === '' ? '' : Number(e.target.value))} 
-                 className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
-               />
-               <span className="text-[#94A3B8] font-bold">-</span>
-               <input 
-                 type="number" 
-                 placeholder="Max" 
-                 value={utilMax} 
-                 onChange={e => setUtilMax(e.target.value === '' ? '' : Number(e.target.value))} 
-                 className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
-               />
-             </div>
-           </div>
-
-           <div className="lg:col-span-3 grid grid-cols-2 gap-2">
-             <div>
-               <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Start Date</label>
-               <input
-                 type="date"
-                 value={startDate}
-                 onChange={e => setStartDate(e.target.value)}
-                 className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
-               />
-             </div>
-             <div>
-               <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">End Date</label>
-               <input
-                 type="date"
-                 value={endDate}
-                 onChange={e => setEndDate(e.target.value)}
-                 className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
-               />
-             </div>
-           </div>
-
-           <div className="lg:col-span-12 flex items-center mt-4 pt-3 border-t border-[#E2E8F0]">
-             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#475569] uppercase tracking-wider hover:text-[#0F172A] transition-colors">
-               <input 
-                 type="checkbox" 
-                 checked={showSold} 
-                 onChange={e => setShowSold(e.target.checked)} 
-                 className="rounded border-[#CBD5E1] bg-white text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
-               />
-               Include Sold Vehicles
-             </label>
-           </div>
+        {activeTab === 'hoursChart' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Activity className="w-3.5 h-3.5" /> Return to Fleet Table
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* DATA TABLE */}
-      <div className="w-full max-w-full overflow-hidden">
-        <DataTable compact data={filteredData} columns={columns} module="vehicles" tableId="utilisation-table" onRowClick={record => setSelectedRecord(record)} />
-      </div>
+      {activeTab === 'metrics' ? (
+        <>
+          {/* ADVANCED FILTERS */}
+          <div className="rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden bg-white">
+            <div className="bg-[#F8FAFC] text-[#0F172A] px-5 py-3.5 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#0F172A]">
+                <Filter className="w-4 h-4 text-[#2563EB]" />
+                <span>Analysis Parameters</span>
+              </div>
+              <span className="text-xs text-[#64748B] font-medium">Filter by keyword, vehicle, model, utilisation range & date range</span>
+            </div>
+            
+            <div className="p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+               <div className="lg:col-span-3">
+                 <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Search Keyword</label>
+                 <div className="relative">
+                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#94A3B8]"/>
+                   <input 
+                     value={searchQuery} 
+                     onChange={(e) => setSearchQuery(e.target.value)} 
+                     className="w-full pl-9 py-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-[#94A3B8] shadow-xs" 
+                     placeholder="Reg, Model, Driver..." 
+                   />
+                 </div>
+               </div>
+               
+               <div className="lg:col-span-2 z-20">
+                 <SearchableSelect
+                   label="Registrations"
+                   labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
+                   options={vehicleOptions}
+                   value={selectedVehicles}
+                   onChange={setSelectedVehicles}
+                   isMulti={true}
+                   placeholder="Select registrations..."
+                 />
+               </div>
+
+               <div className="lg:col-span-2 z-10">
+                 <SearchableSelect
+                   label="Models"
+                   labelClassName="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1"
+                   options={modelOptions}
+                   value={selectedModels}
+                   onChange={setSelectedModels}
+                   isMulti={true}
+                   placeholder="Select models..."
+                 />
+               </div>
+
+               <div className="lg:col-span-2">
+                 <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Utilisation Range (%)</label>
+                 <div className="flex items-center gap-2">
+                   <input 
+                     type="number" 
+                     placeholder="Min" 
+                     value={utilMin} 
+                     onChange={e => setUtilMin(e.target.value === '' ? '' : Number(e.target.value))} 
+                     className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
+                   />
+                   <span className="text-[#94A3B8] font-bold">-</span>
+                   <input 
+                     type="number" 
+                     placeholder="Max" 
+                     value={utilMax} 
+                     onChange={e => setUtilMax(e.target.value === '' ? '' : Number(e.target.value))} 
+                     className="w-full py-2 px-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center placeholder-[#94A3B8] shadow-xs" 
+                   />
+                 </div>
+               </div>
+
+               <div className="lg:col-span-3 grid grid-cols-2 gap-2">
+                 <div>
+                   <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">Start Date</label>
+                   <input
+                     type="date"
+                     value={startDate}
+                     onChange={e => setStartDate(e.target.value)}
+                     className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">End Date</label>
+                   <input
+                     type="date"
+                     value={endDate}
+                     onChange={e => setEndDate(e.target.value)}
+                     className="w-full py-2 px-3 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                   />
+                 </div>
+               </div>
+
+               <div className="lg:col-span-12 flex items-center mt-4 pt-3 border-t border-[#E2E8F0]">
+                 <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#475569] uppercase tracking-wider hover:text-[#0F172A] transition-colors">
+                   <input 
+                     type="checkbox" 
+                     checked={showSold} 
+                     onChange={e => setShowSold(e.target.checked)} 
+                     className="rounded border-[#CBD5E1] bg-white text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
+                   />
+                   Include Sold Vehicles
+                 </label>
+               </div>
+              </div>
+            </div>
+          </div>
+
+          {/* DATA TABLE */}
+          <div className="w-full max-w-full overflow-hidden">
+            <DataTable compact data={filteredData} columns={columns} module="vehicles" tableId="utilisation-table" onRowClick={record => setSelectedRecord(record)} />
+          </div>
+        </>
+      ) : activeTab === 'hoursChart' ? (
+        <div className="space-y-4">
+          <FleetHoursWorkedIdleChart
+            vehicles={vehicles}
+            rentals={rentals}
+            logs={logs}
+            showSold={showSold}
+          />
+        </div>
+      ) : (
+        <VehicleAssignmentHistoryTable 
+          assignments={allDriverAssignments} 
+          selectedVehicleReg={selectedVehicles !== 'all' && typeof selectedVehicles === 'string' ? selectedVehicles : undefined}
+        />
+      )}
 
       {/* ENHANCED XL DETAILS MODAL */}
       <Modal isOpen={!!selectedRecord} onClose={() => setSelectedRecord(null)} title="Detailed Vehicle Utilisation Report" size="xl">
@@ -878,14 +1241,27 @@ const Utilisation = () => {
                    </div>
                  </div>
                  
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                      <p className="text-xs text-gray-500 uppercase font-bold">Current Status</p>
                      <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedRecord.status.toUpperCase()}</p>
                    </div>
-                   <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                     <p className="text-xs text-gray-500 uppercase font-bold">Most Recent Driver</p>
-                     <p className="text-sm font-bold text-primary mt-0.5">{selectedRecord.recentDriver}</p>
+                   <div className="bg-emerald-50/70 p-3 rounded-lg border border-emerald-200">
+                     <p className="text-xs text-emerald-800 uppercase font-bold flex items-center gap-1">
+                       <User className="w-3.5 h-3.5 text-emerald-600" /> Current Driver
+                     </p>
+                     <p className="text-sm font-bold text-emerald-950 mt-0.5 truncate">{selectedRecord.recentDriver}</p>
+                   </div>
+                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                     <p className="text-xs text-slate-500 uppercase font-bold flex items-center gap-1">
+                       <RotateCcw className="w-3.5 h-3.5 text-slate-400" /> Previous Driver
+                     </p>
+                     <p className="text-sm font-bold text-slate-800 mt-0.5 truncate">
+                       {selectedRecord.previousDriver !== 'None' ? selectedRecord.previousDriver : 'No previous driver'}
+                     </p>
+                     {selectedRecord.previousDriverDates && (
+                       <p className="text-[10px] text-slate-500 font-mono mt-0.5">{selectedRecord.previousDriverDates}</p>
+                     )}
                    </div>
                  </div>
               </div>
@@ -919,28 +1295,58 @@ const Utilisation = () => {
 
             {/* Usage Estimates Table Row */}
             <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-xs">
-               <div className="bg-[#F8FAFC] px-5 py-3 border-b border-[#E2E8F0] flex items-center gap-2">
-                 <TrendingUp className="w-4 h-4 text-emerald-600"/>
-                 <h4 className="font-bold text-xs uppercase tracking-wider text-[#334155]">Calculated Usage Estimates</h4>
+               <div className="bg-[#F8FAFC] px-5 py-3 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                 <div className="flex items-center gap-2">
+                   <TrendingUp className="w-4 h-4 text-emerald-600"/>
+                   <h4 className="font-bold text-xs uppercase tracking-wider text-[#334155]">Calculated Driving Hours & Mileage Estimates</h4>
+                 </div>
+                 <span className="text-[11px] font-semibold text-slate-500">
+                   {selectedRecord.hasUpdatedMileage
+                     ? `Derived from ${selectedRecord.estMileageTotal.toLocaleString()} recorded miles (~22 mph commercial speed)`
+                     : `Estimated at fleet average ${selectedRecord.defaultDailyMileageRate || defaultDailyMileageRate} miles/day for ${selectedRecord.rentedDays} rented days (0 miles for available days)`}
+                 </span>
                </div>
                <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
                  <div className="p-4 text-center bg-white">
-                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Total Hours</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Total Driving Hours</p>
                     <p className="text-2xl font-mono font-black text-slate-900">{selectedRecord.estHoursTotal.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {selectedRecord.hasUpdatedMileage ? 'From actual mileage' : `Average ${selectedRecord.defaultDailyMileageRate || defaultDailyMileageRate} mi/day pace`}
+                    </p>
                  </div>
                  <div className="p-4 text-center bg-[#EEF5FD]">
                     <p className="text-xs font-bold text-slate-500 uppercase mb-1">Hours / Week</p>
                     <p className="text-2xl font-mono font-black text-slate-900">{selectedRecord.estHoursPerWeek.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Average driving pace</p>
                  </div>
                  <div className="p-4 text-center bg-white">
                     <p className="text-xs font-bold text-blue-800 uppercase mb-1">Total Mileage</p>
                     <p className="text-2xl font-mono font-black text-blue-700">{selectedRecord.estMileageTotal.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {selectedRecord.hasUpdatedMileage ? 'Odometer difference' : `Average ${selectedRecord.defaultDailyMileageRate || defaultDailyMileageRate} mi/day (rented)`}
+                    </p>
                  </div>
                  <div className="p-4 text-center bg-[#EEF5FD]">
                     <p className="text-xs font-bold text-blue-800 uppercase mb-1">Mileage / Week</p>
                     <p className="text-2xl font-mono font-black text-blue-700">{selectedRecord.estMileagePerWeek.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Average weekly miles</p>
                  </div>
                </div>
+               <div className="p-3 bg-amber-50/70 border-t border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                 <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                 <span>
+                   <strong>Rental Commitment Rule:</strong> When assigned to a driver, this vehicle is rented and unavailable to hire until returned with no driver assigned. Even if the driver rests 1–2 days a week (working 5 to 6 days), the vehicle remains in their possession and not available to the fleet.
+                 </span>
+               </div>
+            </div>
+
+            {/* Historical Driver Assignment Log Sub-Component for this Vehicle */}
+            <div className="pt-2">
+              <VehicleAssignmentHistoryTable 
+                assignments={selectedRecord.driverHistory || []} 
+                compact={true} 
+                selectedVehicleReg={selectedRecord.registration} 
+              />
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">

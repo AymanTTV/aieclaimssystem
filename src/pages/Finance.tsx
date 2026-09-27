@@ -13,12 +13,14 @@ import TransactionForm from '../components/finance/TransactionForm';
 import TransactionDetails from '../components/finance/TransactionDetails';
 import TransactionDeleteModal from '../components/finance/TransactionDeleteModal'; 
 import ManageAccountsModal from '../components/finance/ManageAccountsModal';
+import ManageCategoriesModal from '../components/finance/ManageCategoriesModal';
 import Modal from '../components/ui/Modal'; 
 import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import AssignGroupCategoryModal from '../components/finance/AssignGroupCategoryModal';
 import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
+import { FleetBIReportModal } from '../components/finance/FleetBIReportModal';
 
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { pdf } from '@react-pdf/renderer'; 
@@ -404,16 +406,11 @@ const Finance: React.FC = () => {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false); 
   
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showBIReportModal, setShowBIReportModal] = useState(false);
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
-  
-  const [editCat, setEditCat] = useState<{ id: string; name: string } | null>(null);
-  const [catName, setCatName] = useState<string>('');
-  
-  const [isBulkCatAdd, setIsBulkCatAdd] = useState(false);
-  const [selectedCatIds, setSelectedCatIds] = useState<Set<string>>(new Set());
 
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
 
@@ -433,92 +430,14 @@ const Finance: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const loadCategories = useCallback(() => {
+  useEffect(() => {
     setLoadingCats(true);
-    financeCategoryService.getAll()
-      .then((docs) => setFinanceCategories(docs.sort((a,b)=> a.name.localeCompare(b.name)))) 
-      .catch((err) => { toast.error('Could not load categories'); })
-      .finally(() => setLoadingCats(false));
+    const unsubscribe = financeCategoryService.subscribe((cats) => {
+      setFinanceCategories(cats);
+      setLoadingCats(false);
+    });
+    return () => unsubscribe();
   }, []);
-  useEffect(() => { loadCategories(); }, [loadCategories]);
-
-  const resetCatForm = () => {
-      setShowCatModal(false);
-      setEditCat(null);
-      setCatName('');
-      setIsBulkCatAdd(false);
-      setSelectedCatIds(new Set());
-  }
-
-  const openCatForm = (cat?: { id: string; name: string }) => { 
-      if (cat) { setEditCat(cat); setCatName(cat.name); } 
-      else { setEditCat(null); setCatName(''); } 
-      setShowCatModal(true); 
-  };
-
-  const handleCatSubmit = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (!catName.trim()) { toast.error('Name required'); return; } 
-      setLoadingCats(true); 
-      try { 
-          if (editCat) { 
-              await financeCategoryService.update(editCat.id, { name: catName.trim() }); 
-              toast.success('Updated'); 
-          } else { 
-              if (isBulkCatAdd) {
-                  const names = catName.split(',').map(n => n.trim()).filter(Boolean);
-                  const uniqueNames = Array.from(new Set(names));
-                  await Promise.all(uniqueNames.map(name => financeCategoryService.create({ name })));
-                  toast.success(`Created ${uniqueNames.length} categories`);
-              } else {
-                  await financeCategoryService.create({ name: catName.trim() }); 
-                  toast.success('Created'); 
-              }
-          } 
-          resetCatForm();
-          loadCategories(); 
-      } catch (err) { toast.error('Failed'); } 
-      finally { setLoadingCats(false); } 
-  };
-  
-  const handleCatDelete = async (catId: string) => { 
-      const cat = financeCategories.find(c => c.id === catId); 
-      if (cat?.name === 'Transfer' || cat?.name === 'Loan Received' || cat?.name === 'Loan Provided') { toast.error(`Cannot delete essential category: "${cat.name}"`); return; } 
-      if (!window.confirm(`Delete "${cat?.name || catId}"?`)) return; 
-      setLoadingCats(true); 
-      try { 
-          await financeCategoryService.delete(catId); 
-          setFinanceCategories(prev => prev.filter(c => c.id !== catId));
-          setSelectedCatIds(prev => { const s = new Set(prev); s.delete(catId); return s; });
-          toast.success('Deleted'); 
-      } catch (err) { toast.error('Failed'); loadCategories(); } 
-      finally { setLoadingCats(false); } 
-  };
-
-  const handleBulkCatDelete = async () => {
-      if (selectedCatIds.size === 0) return;
-      const essential = ['Transfer', 'Loan Received', 'Loan Provided'];
-      const toDelete = financeCategories.filter(c => selectedCatIds.has(c.id));
-      const hasEssential = toDelete.some(c => essential.includes(c.name));
-      
-      if (hasEssential) {
-          toast.error("Cannot delete essential categories (Transfer, Loan Received, Loan Provided). Please unselect them.");
-          return;
-      }
-      if (!window.confirm(`Delete ${selectedCatIds.size} categories?`)) return;
-      
-      setLoadingCats(true);
-      try {
-          await Promise.all(Array.from(selectedCatIds).map(id => financeCategoryService.delete(id)));
-          toast.success(`Deleted ${selectedCatIds.size} categories`);
-          setSelectedCatIds(new Set());
-          loadCategories();
-      } catch (err) { 
-          toast.error('Failed to delete categories'); 
-      } finally { 
-          setLoadingCats(false); 
-      }
-  };
 
   const { 
       searchQuery, setSearchQuery, 
@@ -933,27 +852,6 @@ const Finance: React.FC = () => {
   if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   if (error) return <div className="text-center py-10 text-red-600 font-semibold">Error loading financial data: {error}</div>;
 
-  const currentCatSearch = (isBulkCatAdd ? catName.split(',').pop()?.trim() : catName.trim()) || '';
-
-  const filteredFinanceCategories = financeCategories
-    .filter((cat) => cat.name.toLowerCase().includes(currentCatSearch.toLowerCase()))
-    .sort((a, b) => {
-      if (!currentCatSearch) return 0;
-      const query = currentCatSearch.toLowerCase();
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
-
-      if (aName === query && bName !== query) return -1;
-      if (aName !== query && bName === query) return 1;
-
-      const aStarts = aName.startsWith(query);
-      const bStarts = bName.startsWith(query);
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-
-      return aName.localeCompare(bName);
-    });
-
   return (
     <div className="space-y-6 p-4 md:p-6">
       
@@ -983,6 +881,7 @@ const Finance: React.FC = () => {
           onAddIncome={() => setShowAddIncome(true)} 
           onAddExpense={() => setShowAddExpense(true)} 
           onAddRecurring={() => setShowRecurringModal(true)} 
+          onOpenBIReport={() => setShowBIReportModal(true)}
           onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} 
           onManageGroups={() => setManageOpen(true)} 
           onManageDepartments={() => setShowManageDepartments(true)}
@@ -1147,83 +1046,8 @@ const Finance: React.FC = () => {
       <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
       <Modal isOpen={showDeleteLinkedModal} onClose={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} title="Delete Linked Transaction?" size="md"><div className="p-1"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-4 mt-0 text-left"><h3 className="text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3><div className="mt-2"><p className="text-sm text-gray-500">This transaction appears linked to {linkedTransactionsToDelete ? linkedTransactionsToDelete.length - 1 : 0} other(s). Delete only this one, or all linked parts?</p></div></div></div><div className="mt-6 flex flex-col sm:flex-row-reverse gap-3"><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteLinked} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 sm:w-auto">{deleteLoading ? "Deleting..." : `Delete All ${linkedTransactionsToDelete?.length || 0} Linked`}</button><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteSingle} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:w-auto">{deleteLoading ? "..." : "Delete Only This One"}</button><button type="button" disabled={deleteLoading} onClick={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:mt-0 sm:w-auto">Cancel</button></div></div></Modal>
       
-      <Modal isOpen={showCatModal} onClose={resetCatForm} title={editCat ? 'Edit Category' : (isBulkCatAdd ? 'Bulk Add Categories' : 'Add Category')} size="md">
-        <form onSubmit={handleCatSubmit} className="flex flex-col space-y-3 mb-4">
-          {!editCat && (
-             <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-gray-700">Category Details</label>
-                <button type="button" onClick={() => setIsBulkCatAdd(!isBulkCatAdd)} className="text-xs text-indigo-600 font-medium hover:text-indigo-800 flex items-center">
-                    <Layers className="h-3 w-3 mr-1" />
-                    {isBulkCatAdd ? 'Switch to Single Add' : 'Switch to Bulk Add'}
-                </button>
-             </div>
-          )}
-          <div className="flex items-center space-x-2">
-            <input 
-              type="text" 
-              value={catName} 
-              onChange={(e) => setCatName(e.target.value)} 
-              placeholder={isBulkCatAdd ? "cat1, cat2, cat3..." : "Type category name..."} 
-              required 
-              className="flex-1 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" 
-            />
-            <button type="submit" disabled={loadingCats || !catName.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
-                {loadingCats ? 'Saving...' : (editCat ? 'Update' : 'Add')}
-            </button>
-            <button type="button" onClick={resetCatForm} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 text-gray-700">Cancel</button>
-          </div>
-          {isBulkCatAdd && <p className="text-xs text-gray-500">Separate multiple categories using a comma (,)</p>}
-        </form>
-
-        <div className="pt-2 border-t border-gray-100">
-            {selectedCatIds.size > 0 && (
-                <div className="bg-red-50 p-2 mb-3 rounded-md flex justify-between items-center border border-red-100">
-                    <span className="text-sm text-red-800 font-medium">{selectedCatIds.size} selected</span>
-                    <button onClick={handleBulkCatDelete} disabled={loadingCats} className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50">
-                        Delete Selected
-                    </button>
-                </div>
-            )}
-
-            <div className="max-h-56 overflow-y-auto border rounded-md bg-white">
-              {loadingCats ? <div className="text-gray-500 text-sm p-4 text-center">Loading…</div> : (
-                <ul>
-                  {filteredFinanceCategories.map((c) => {
-                    const isEssential = c.name === 'Transfer' || c.name === 'Loan Received' || c.name === 'Loan Provided';
-                    return (
-                        <li key={c.id} className="flex justify-between items-center px-4 py-2 border-b last:border-0 hover:bg-gray-50">
-                          <div className="flex items-center space-x-3">
-                              <input 
-                                  type="checkbox" 
-                                  disabled={isEssential} 
-                                  checked={selectedCatIds.has(c.id)} 
-                                  onChange={(e) => {
-                                      const newSet = new Set(selectedCatIds);
-                                      if (e.target.checked) newSet.add(c.id); else newSet.delete(c.id);
-                                      setSelectedCatIds(newSet);
-                                  }} 
-                                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 disabled:opacity-50 disabled:cursor-not-allowed" 
-                              />
-                              <span className={`text-sm ${isEssential ? 'text-gray-500 italic' : (currentCatSearch && c.name.toLowerCase() === currentCatSearch.toLowerCase() ? 'font-bold text-indigo-700' : 'text-gray-800')}`}>{c.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button onClick={() => openCatForm(c)} disabled={loadingCats}><Edit2 className="h-4 w-4 text-indigo-600 hover:text-indigo-800" /></button>
-                            <button 
-                                onClick={() => handleCatDelete(c.id)} 
-                                disabled={loadingCats || isEssential} 
-                                className={isEssential ? 'opacity-30 cursor-not-allowed' : ''}
-                            >
-                                <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
-                            </button>
-                          </div>
-                        </li>
-                    )
-                  })}
-                  {filteredFinanceCategories.length === 0 && <li className="text-gray-500 text-sm p-4 text-center">{currentCatSearch ? 'No matching categories found. Ready to add!' : 'No categories found.'}</li>}
-                </ul>
-              )}
-            </div>
-        </div>
+      <Modal isOpen={showCatModal} onClose={() => setShowCatModal(false)} title="Manage Categories" size="lg">
+        <ManageCategoriesModal onClose={() => setShowCatModal(false)} onCategoriesChanged={setFinanceCategories} />
       </Modal>
 
       <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)} title="Confirm Bulk Delete" size="sm">
@@ -1251,6 +1075,16 @@ const Finance: React.FC = () => {
          </div>
        </div>
       </Modal>
+
+      <FleetBIReportModal
+        isOpen={showBIReportModal}
+        onClose={() => setShowBIReportModal(false)}
+        transactions={transactions}
+        vehicles={vehicles}
+        accounts={accounts}
+        totalOwingFromOwners={totalOwingFromOwners}
+        totalOwingFromAccounts={totalOwingFromAccounts}
+      />
 
     </div>
   );

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import toast from 'react-hot-toast';
+import { triggerAfterAccidentReportInsert, isVehicleNonDrivable } from '../../services/accidentMaintenanceSync';
 
 interface AccidentFormProps {
   onClose: () => void;
@@ -43,6 +44,7 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ onClose }) => {
     damageDetails: '',
     type: 'fault' as 'fault' | 'non-fault',
     amount: '', // Add amount field
+    isDrivable: true,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,16 +53,22 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ onClose }) => {
     setLoading(true);
 
     try {
-      await addDoc(collection(db, 'accidents'), {
+      const accidentPayload = {
         ...formData,
         amount: parseFloat(formData.amount) || 0, // Convert amount to number
         status: 'reported',
         submittedBy: user.id,
         submittedAt: new Date(),
         updatedAt: new Date()
-      });
+      };
 
-      toast.success('Accident reported successfully');
+      const docRef = await addDoc(collection(db, 'accidents'), accidentPayload);
+
+      if (isVehicleNonDrivable(formData.isDrivable)) {
+        await triggerAfterAccidentReportInsert(docRef.id, accidentPayload, user);
+      } else {
+        toast.success('Accident reported successfully');
+      }
       onClose();
     } catch (error) {
       console.error('Error submitting accident:', error);
@@ -174,6 +182,48 @@ const AccidentForm: React.FC<AccidentFormProps> = ({ onClose }) => {
           value={formData.policyExcess}
           onChange={(e) => setFormData({ ...formData, policyExcess: e.target.value })}
         />
+      </div>
+
+      {/* Vehicle Drivability Option */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+          Is the vehicle drivable? <span className="text-red-500">*</span>
+        </label>
+        <p className="text-xs text-slate-500 mb-2.5">
+          Specify whether the vehicle can still be safely driven or is off-road (VOR).
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, isDrivable: true })}
+            className={`flex items-center justify-between p-2.5 rounded-lg border-2 text-left cursor-pointer transition-all ${
+              formData.isDrivable === true
+                ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-300/40'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <div>
+              <span className="font-bold text-xs block">Yes - Drivable</span>
+              <span className="text-[10px] text-slate-500">Roadworthy</span>
+            </div>
+            <span>🚗</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, isDrivable: false })}
+            className={`flex items-center justify-between p-2.5 rounded-lg border-2 text-left cursor-pointer transition-all ${
+              formData.isDrivable === false
+                ? 'bg-rose-50 border-rose-500 text-rose-900 ring-2 ring-rose-300/40'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <div>
+              <span className="font-bold text-xs block text-rose-900">No - Non-Drivable</span>
+              <span className="text-[10px] text-rose-600">VOR / Off-Road</span>
+            </div>
+            <span>🚨</span>
+          </button>
+        </div>
       </div>
 
       {/* Accident Type and Amount */}

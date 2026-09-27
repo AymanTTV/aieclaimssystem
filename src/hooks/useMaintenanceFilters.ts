@@ -1,6 +1,6 @@
 // src/hooks/useMaintenanceFilters.ts
 import { useState, useMemo } from 'react';
-import { MaintenanceLog, Vehicle } from '../types';
+import { MaintenanceLog, Vehicle, isOffRoadAccidentLog } from '../types';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { usePermissions } from './usePermissions';
 import { useAuth } from '../context/AuthContext'; 
@@ -17,6 +17,7 @@ export const useMaintenanceFilters = (
   const [typeFilter, setTypeFilter] = useState('all');
   const [vehicleFilter, setVehicleFilter] = useState('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  const [roadConditionFilter, setRoadConditionFilter] = useState('all');
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
 
   const filteredLogs = useMemo(() => {
@@ -39,18 +40,23 @@ export const useMaintenanceFilters = (
           return false;
         }
 
-        // 2. STRICT NAME CHECK: The Service Provider MUST match this company's name.
-        const providerLower = (log.serviceProvider || '').trim().toLowerCase();
-        
-        // If a service provider is listed and it's NOT this company, hide the record!
-        if (providerLower && providerLower !== companyNameLower) {
-          return false; 
-        }
-
-        // 3. Fallback: If service provider is entirely blank, ensure the vehicle is assigned to them
+        const isOffRoadAccident = isOffRoadAccidentLog(log) || log.ticketCategory === 'ACCIDENT DAMAGE' || log.category === 'ACCIDENT DAMAGE';
         const isAssignedVehicle = Boolean(log.vehicleId && vehicles[log.vehicleId]);
-        if (!providerLower && !isAssignedVehicle) {
-          return false;
+
+        // If it's an off-road accident record for their vehicle, keep it visible
+        if (!isOffRoadAccident) {
+          // 2. STRICT NAME CHECK: The Service Provider MUST match this company's name.
+          const providerLower = (log.serviceProvider || '').trim().toLowerCase();
+          
+          // If a service provider is listed and it's NOT this company, hide the record!
+          if (providerLower && providerLower !== companyNameLower) {
+            return false; 
+          }
+
+          // 3. Fallback: If service provider is entirely blank, ensure the vehicle is assigned to them
+          if (!providerLower && !isAssignedVehicle) {
+            return false;
+          }
         }
       }
 
@@ -60,6 +66,7 @@ export const useMaintenanceFilters = (
         paymentStatusFilter === 'all' && 
         vehicleFilter === 'all' && 
         typeFilter === 'all' &&
+        roadConditionFilter === 'all' &&
         !searchQuery && 
         !dateRange.from && 
         !dateRange.to;
@@ -105,9 +112,45 @@ export const useMaintenanceFilters = (
         );
       })();
 
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (log.status || '').toLowerCase() === statusFilter.toLowerCase();
+      const matchesStatus = (() => {
+        if (statusFilter === 'all') return true;
+        const target = statusFilter.toLowerCase().trim();
+        const logStatus = (log.status || '').toLowerCase().trim();
+
+        if (target === 'off-road' || target === 'off-road (vor)' || target === 'vor') {
+          return (
+            logStatus === 'off-road' ||
+            logStatus === 'off-road (vor)' ||
+            logStatus === 'off road (vor)' ||
+            logStatus === 'vor' ||
+            isOffRoadAccidentLog(log)
+          );
+        }
+
+        if (target === 'parts-backorder' || target === 'awaiting-parts') {
+          return (
+            logStatus === 'parts-backorder' ||
+            logStatus === 'parts backorder' ||
+            logStatus === 'awaiting-parts' ||
+            logStatus === 'awaiting parts' ||
+            logStatus === 'backorder'
+          );
+        }
+
+        if (target === 'pending' || target === 'awaiting-approval') {
+          return (
+            logStatus === 'pending' ||
+            logStatus === 'awaiting-approval' ||
+            logStatus === 'awaiting approval'
+          );
+        }
+
+        if (target === 'workshop') {
+          return logStatus === 'workshop' || logStatus === 'in workshop';
+        }
+
+        return logStatus === target;
+      })();
 
       const matchesType =
         typeFilter === 'all' ||
@@ -119,6 +162,22 @@ export const useMaintenanceFilters = (
       const matchesPaymentStatus =
         paymentStatusFilter === 'all' ||
         (log.paymentStatus || '').toLowerCase() === paymentStatusFilter.toLowerCase();
+
+      // Road Condition / Non-drivable due to accident filter
+      const matchesRoadCondition = (() => {
+        if (roadConditionFilter === 'all') return true;
+        const isAccidentOffRoad = isOffRoadAccidentLog(log);
+        if (roadConditionFilter === 'off-road-accident') {
+          return isAccidentOffRoad;
+        }
+        if (roadConditionFilter === 'all-off-road') {
+          return isAccidentOffRoad || log.isOffRoad === true || log.isNonDrivable === true;
+        }
+        if (roadConditionFilter === 'drivable') {
+          return !isAccidentOffRoad && !log.isOffRoad && !log.isNonDrivable;
+        }
+        return true;
+      })();
 
       // Date Range Logic
       let matchesDate = true;
@@ -142,6 +201,7 @@ export const useMaintenanceFilters = (
         matchesType &&
         matchesVehicle &&
         matchesPaymentStatus &&
+        matchesRoadCondition &&
         matchesDate
       );
     });
@@ -153,6 +213,7 @@ export const useMaintenanceFilters = (
     typeFilter,
     vehicleFilter,
     paymentStatusFilter,
+    roadConditionFilter,
     dateRange,
     can,
     isCompany,
@@ -170,6 +231,8 @@ export const useMaintenanceFilters = (
     setVehicleFilter,
     paymentStatusFilter,
     setPaymentStatusFilter,
+    roadConditionFilter,
+    setRoadConditionFilter,
     dateRange,
     setDateRange,
     filteredLogs

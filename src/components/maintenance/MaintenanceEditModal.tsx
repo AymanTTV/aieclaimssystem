@@ -14,6 +14,8 @@ import { formatDateForInput, ensureValidDate } from '../../utils/dateHelpers';
 import { addYears } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { uploadMaintenanceAttachments } from '../../utils/maintenanceUpload';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
+import { checkVehicleStatus, updateVehicleStatus } from '../../utils/vehicleStatusManager';
 
 interface MaintenanceEditModalProps {
   log: MaintenanceLog;
@@ -105,6 +107,26 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
     notes: log.notes || '',
     status: log.status
   });
+
+  // Off-road & Accident Condition State
+  const [isOffRoad, setIsOffRoad] = useState<boolean>(
+    log.isOffRoad ?? (log.type === 'accident-repair' || false)
+  );
+  const [isNonDrivable, setIsNonDrivable] = useState<boolean>(
+    log.isNonDrivable ?? (log.type === 'accident-repair' || false)
+  );
+  const [dueToAccident, setDueToAccident] = useState<boolean>(
+    log.dueToAccident ?? (log.type === 'accident-repair' || false)
+  );
+
+  const handleToggleOffRoadAccident = (checked: boolean) => {
+    setIsOffRoad(checked);
+    setIsNonDrivable(checked);
+    setDueToAccident(checked);
+    if (checked && !formData.type) {
+      setFormData(prev => ({ ...prev, type: 'accident-repair' }));
+    }
+  };
 
   // Fetch existing transaction when component mounts
   useEffect(() => {
@@ -224,6 +246,12 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (formData.status !== 'parts-backorder' && !formData.date) {
+      toast.error('Please select a date');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -251,10 +279,12 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         description: formData.description,
         serviceProvider: formData.serviceProvider,
         location: formData.location,
-        date: new Date(formData.date),
+        date: formData.date ? new Date(formData.date) : null,
         currentMileage: formData.currentMileage,
         nextServiceMileage: formData.nextServiceMileage,
-        nextServiceDate: new Date(formData.nextServiceDate || addYears(new Date(formData.date), 1)),
+        nextServiceDate: formData.nextServiceDate
+          ? new Date(formData.nextServiceDate)
+          : (formData.date ? addYears(new Date(formData.date), 1) : null),
         parts: parts.map(({ includeVAT, ...part }) => part),
         laborHours: formData.laborHours,
         laborRate: formData.laborRate,
@@ -266,6 +296,9 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         paymentMethod,
         paymentReference,
         status: formData.status,
+        isOffRoad,
+        isNonDrivable,
+        dueToAccident,
         notes: formData.notes,
         vatDetails: {
           partsVAT: parts.map(part => ({
@@ -285,6 +318,26 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         await uploadMaintenanceAttachments(log.id, newFiles);
       }
 
+      // Sync vehicle availability:
+      // When vehicle is off-road non-drivable due to accident, or in maintenance, it remains unavailable until marked completed
+      if (log.vehicleId) {
+        if (formData.status === 'completed') {
+          await checkVehicleStatus(log.vehicleId);
+        } else {
+          const reason = formData.status === 'parts-backorder'
+            ? 'Awaiting parts backorder'
+            : formData.status === 'workshop'
+            ? 'In workshop'
+            : formData.status === 'bodywork'
+            ? 'In bodywork'
+            : formData.status === 'off-road' || dueToAccident || isNonDrivable
+            ? 'Off-road non-drivable due to accident repair'
+            : formData.status === 'pending'
+            ? 'Pending maintenance authorization'
+            : 'In maintenance';
+          await updateVehicleStatus(log.vehicleId, 'maintenance', reason);
+        }
+      }
 
       // Handle finance transaction
       if (additionalPayment > 0) {
@@ -343,6 +396,80 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         disabled={true}
       />
 
+      {/* Off-Road Non-Drivable Accident Status Card */}
+      <div className={`p-4 rounded-2xl border transition-all ${
+        (isOffRoad && dueToAccident) || isNonDrivable || formData.type === 'accident-repair'
+          ? 'bg-rose-50/70 border-rose-200'
+          : 'bg-slate-50 border-[#E2E8F0]'
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className={`w-5 h-5 ${
+              (isOffRoad && dueToAccident) || isNonDrivable ? 'text-rose-600' : 'text-slate-400'
+            }`} />
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                Road Condition & Accident Status
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Specify if vehicle is off the road and non-drivable due to accident damage.
+              </p>
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={isOffRoad && dueToAccident}
+              onChange={(e) => handleToggleOffRoadAccident(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+          </label>
+        </div>
+
+        {/* Detail Options & Availability Notice */}
+        <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-2">
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+            <label className="inline-flex items-center gap-2 cursor-pointer text-slate-700">
+              <input
+                type="checkbox"
+                checked={isOffRoad}
+                onChange={(e) => setIsOffRoad(e.target.checked)}
+                className="rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span>Vehicle is Off-Road</span>
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer text-slate-700">
+              <input
+                type="checkbox"
+                checked={isNonDrivable}
+                onChange={(e) => setIsNonDrivable(e.target.checked)}
+                className="rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span>Non-Drivable</span>
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer text-slate-700">
+              <input
+                type="checkbox"
+                checked={dueToAccident}
+                onChange={(e) => setDueToAccident(e.target.checked)}
+                className="rounded border-gray-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span>Due to Accident</span>
+            </label>
+          </div>
+
+          {(isOffRoad || isNonDrivable || dueToAccident || formData.type === 'accident-repair') && (
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium flex items-center gap-2 mt-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Fleet Availability Notice:</strong> The vehicle will be marked <strong>Maintenance (Unavailable)</strong> in the fleet until this repair is marked <strong>Completed</strong>.
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div>
         <SearchableSelect
           label="Type"
@@ -354,13 +481,20 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField
-          type="date"
-          label="Date"
-          value={formData.date}
-          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-          required
-        />
+        <div>
+          <FormField
+            type="date"
+            label={formData.status === 'parts-backorder' ? "Date (Optional - Parts Backorder)" : "Date"}
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            required={formData.status !== 'parts-backorder'}
+          />
+          {formData.status === 'parts-backorder' && (
+            <p className="text-[11px] text-amber-600 font-medium mt-1">
+              Parts Backorder: Scheduled date/time is not required until parts arrive and status changes.
+            </p>
+          )}
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700">Service Center</label>
@@ -410,6 +544,12 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
             options={[
               { id: 'scheduled', label: 'Scheduled' },
               { id: 'in-progress', label: 'In Progress' },
+              { id: 'workshop', label: 'In Workshop' },
+              { id: 'parts-backorder', label: 'Awaiting Parts (Backorder)' },
+              { id: 'bodywork', label: 'Bodywork' },
+              { id: 'off-road', label: 'OFF ROAD (VOR)' },
+              { id: 'pending', label: 'Pending Approval' },
+              { id: 'inspection', label: 'Inspection / MOT' },
               { id: 'completed', label: 'Completed' },
               { id: 'cancelled', label: 'Cancelled' },
             ]}

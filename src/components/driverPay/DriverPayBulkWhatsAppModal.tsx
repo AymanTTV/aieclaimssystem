@@ -48,9 +48,15 @@ export const DriverPayBulkWhatsAppModal: React.FC<DriverPayBulkWhatsAppModalProp
   onComplete,
 }) => {
   const { user } = useAuth();
-  const { can, isAdmin } = usePermissions();
+  const { can, isAdmin, isManager } = usePermissions();
 
-  const canSendWhatsApp = isAdmin || can('driverPay', 'whatsapp') || can('driverPay', 'send');
+  const canSendWhatsApp =
+    isAdmin ||
+    isManager ||
+    can('driverPay', 'whatsapp') ||
+    can('driverPay', 'send') ||
+    can('whatsapp', 'send') ||
+    can('driverPay', 'view');
   const [templates, setTemplates] = useState<DriverPayTemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);

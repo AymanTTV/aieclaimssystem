@@ -12,6 +12,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { useCustomers } from '../../hooks/useCustomers';
 import { useVehicles } from '../../hooks/useVehicles';
 import { calculateReportingTiming } from '../../utils/accidentCalculations';
+import { triggerAfterAccidentReportInsert, isVehicleNonDrivable } from '../../services/accidentMaintenanceSync';
 
 interface AccidentClaimEditProps {
   accident: Accident;
@@ -57,6 +58,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
     insuranceCompany: accident.insuranceCompany,
     policyNumber: accident.policyNumber,
     policyExcess: accident.policyExcess || '',
+    isDrivable: accident.isDrivable !== undefined ? accident.isDrivable : true,
     faultPartyName: accident.faultPartyName,
     faultPartyAddress: accident.faultPartyAddress || '',
     faultPartyPhone: accident.faultPartyPhone || '',
@@ -229,7 +231,7 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
       };
 
       const accidentRef = doc(db, 'accidents', accident.id);
-      await updateDoc(accidentRef, {
+      const updatedPayload = {
         ...formData,
         ...timingPayload,
         refNo: refNoValue,
@@ -238,9 +240,26 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
         otherTypeDescription: formData.type === 'other' ? formData.otherTypeDescription : '',
         updatedAt: new Date(),
         updatedBy: user.id,
-      });
+      };
 
-      toast.success('Accident claim updated successfully');
+      await updateDoc(accidentRef, updatedPayload);
+
+      // Trigger automatic maintenance ticket creation if vehicle is non-drivable (VOR)
+      if (isVehicleNonDrivable(formData.isDrivable) && !accident.maintenanceTicketId) {
+        await triggerAfterAccidentReportInsert(
+          accident.id,
+          {
+            ...accident,
+            ...updatedPayload,
+            id: accident.id,
+            vehicleId: selectedVehicleId || accident.vehicleId,
+          },
+          user
+        );
+      } else {
+        toast.success('Accident claim updated successfully');
+      }
+
       onClose();
     } catch (error) {
       console.error('Error updating accident claim:', error);
@@ -712,6 +731,63 @@ const AccidentClaimEdit: React.FC<AccidentClaimEditProps> = ({ accident, onClose
             />
           </div>
         )}
+
+        {/* Vehicle Drivability Condition */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Is the vehicle drivable? <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Specify whether our fleet vehicle can still be safely driven or is off the road / non-drivable.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, isDrivable: true })}
+              className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                formData.isDrivable === true
+                  ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs ring-2 ring-emerald-300/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  formData.isDrivable === true ? 'border-emerald-600 bg-emerald-600' : 'border-slate-400'
+                }`}>
+                  {formData.isDrivable === true && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                </span>
+                <div>
+                  <span className="font-bold text-sm block">Yes - Drivable</span>
+                  <span className="text-[11px] text-slate-500">Vehicle is roadworthy & operational</span>
+                </div>
+              </div>
+              <span className="text-lg">🚗</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, isDrivable: false })}
+              className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                formData.isDrivable === false
+                  ? 'bg-rose-50 border-rose-500 text-rose-900 shadow-xs ring-2 ring-rose-300/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  formData.isDrivable === false ? 'border-rose-600 bg-rose-600' : 'border-slate-400'
+                }`}>
+                  {formData.isDrivable === false && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                </span>
+                <div>
+                  <span className="font-bold text-sm block text-rose-900">No - Non-Drivable (VOR)</span>
+                  <span className="text-[11px] text-rose-600">Off-road, requires garage or recovery</span>
+                </div>
+              </div>
+              <span className="text-lg">🚨</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Fault Party Details */}

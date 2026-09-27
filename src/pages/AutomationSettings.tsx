@@ -115,6 +115,9 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
       '{tax_expiry}',
       '{last_maintenance}',
       '{next_maintenance}',
+      '{last_service_mileage}',
+      '{last_service_date}',
+      '{service_mileage_required}',
     ],
   },
   {
@@ -229,6 +232,7 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
           '{scheduled_date_time}',
           '{completed_date}',
           '{next_service_date}',
+          '{last_service_date}',
         ],
       },
       {
@@ -241,6 +245,8 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
           '{parts_required}',
           '{inspection_type}',
           '{current_mileage}',
+          '{last_service_mileage}',
+          '{service_mileage_required}',
           '{next_service_mileage}',
         ],
       },

@@ -3,15 +3,22 @@ import React, { useState, useMemo } from 'react';
 import { useUsers } from '../hooks/useUsers';
 import { DataTable } from '../components/DataTable/DataTable';
 import { format } from 'date-fns';
-import { Plus, Eye, Shield, Trash2, Users as UsersIcon, ShieldCheck, Building2, UserPlus, Mail, Phone, MapPin, Edit, Calendar, Search } from 'lucide-react';
+import { Plus, Eye, Shield, Trash2, Users as UsersIcon, ShieldCheck, Building2, UserPlus, Mail, Phone, MapPin, Edit, Calendar, Search, RefreshCw, Share2 } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import UserRoleModal from '../components/users/UserRoleModal';
 import UserDeleteModal from '../components/users/UserDeleteModal';
 import UserEditModal from '../components/users/UserEditModal';
+import SyncPermissionsModal from '../components/users/SyncPermissionsModal';
+import { ShareSystemModal } from '../components/common/ShareSystemModal';
 import Modal from '../components/ui/Modal';
 import StatusBadge from '../components/ui/StatusBadge';
 import { usePermissions } from '../hooks/usePermissions';
 import { User } from '../types';
+import { normalizePermissions, RolePermissions, Permission } from '../types/roles';
+import ModulePermissionsPageView from '../components/users/ModulePermissionsPageView';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import toast from 'react-hot-toast';
 
 const ROLE_ORDER: Record<string, number> = {
   manager: 1, admin: 2, finance: 3, claims: 4, company: 5, member: 6,
@@ -23,8 +30,73 @@ const Users = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editingUserInfo, setEditingUserInfo] = useState<User | null>(null);
+  const [showRolePermissionsModal, setShowRolePermissionsModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showShareSystemModal, setShowShareSystemModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+
+  // Dedicated Module Permissions Page Tab States
+  const [activePageTab, setActivePageTab] = useState<'users' | 'permissions'>('users');
+  const [pageRole, setPageRole] = useState<User['role']>('admin');
+  const [pagePermissions, setPagePermissions] = useState<RolePermissions>(() => normalizePermissions('admin'));
+  const [pageSelectedModule, setPageSelectedModule] = useState<keyof RolePermissions>('vehicles');
+  const [pageSaving, setPageSaving] = useState(false);
+
+  const handleRoleTemplateChange = (newRole: User['role']) => {
+    setPageRole(newRole);
+    setPagePermissions(normalizePermissions(newRole));
+    toast.success(`Loaded permissions template for ${newRole.toUpperCase()}`);
+  };
+
+  const handlePagePermissionChange = (moduleKey: keyof RolePermissions, actionKey: PermissionAction, value: boolean) => {
+    setPagePermissions((prev) => ({
+      ...prev,
+      [moduleKey]: {
+        ...prev[moduleKey],
+        [actionKey]: value,
+      },
+    }));
+  };
+
+  const handlePageToggleModuleAll = (moduleKey: keyof RolePermissions, value: boolean) => {
+    setPagePermissions((prev) => {
+      const next = { ...prev };
+      const mod = { ...(next[moduleKey] || {}) } as Record<string, boolean>;
+      Object.keys(mod).forEach((k) => {
+        mod[k] = value;
+      });
+      next[moduleKey] = mod as Permission;
+      return next;
+    });
+    toast.success(value ? `Enabled all on ${moduleKey}` : `Cleared all on ${moduleKey}`);
+  };
+
+  const handleSavePagePermissions = async () => {
+    if (!isManager) return;
+    setPageSaving(true);
+    const toastId = toast.loading(`Saving ${pageRole.toUpperCase()} permissions...`);
+    try {
+      const batch = writeBatch(db);
+      const roleDocRef = doc(db, 'roleTemplates', pageRole);
+      batch.set(
+        roleDocRef,
+        {
+          role: pageRole,
+          permissions: pagePermissions,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+      await batch.commit();
+      toast.success(`Successfully saved permissions for role: ${pageRole.toUpperCase()}`, { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save permissions template', { id: toastId });
+    } finally {
+      setPageSaving(false);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -97,6 +169,19 @@ const Users = () => {
             <Eye className="w-4 h-4" />
           </button>
           
+          {(can('share', 'view') || can('users', 'share')) && (
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setShowShareSystemModal(true); 
+              }} 
+              className="p-2 text-gray-400 hover:text-[#423fbd] hover:bg-indigo-50 rounded-lg transition-colors" 
+              title="Share System link"
+            >
+              <Share2 className="w-4 h-4 text-[#423fbd]" />
+            </button>
+          )}
+          
           {isManager && (
             <>
               <button onClick={(e) => { e.stopPropagation(); setEditingUserInfo(row.original); }} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit Profile">
@@ -132,64 +217,162 @@ const Users = () => {
           <h1 className="text-[24px] font-bold text-[#0F172A] tracking-tight leading-tight">User Management</h1>
           <p className="text-sm text-[#64748B] mt-0.5 font-medium">Manage system access, roles, and corporate accounts.</p>
         </div>
-        {can('users', 'create') && (
-          <button onClick={() => setShowForm(true)} className="flex items-center px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold rounded-xl transition-colors shadow-xs cursor-pointer text-sm">
-            <Plus className="h-4 w-4 mr-1.5" /> Add New User
+        <div className="flex flex-wrap items-center gap-2.5">
+          {can('share', 'view') && (
+            <button 
+              onClick={() => setShowShareSystemModal(true)} 
+              className="flex items-center px-3.5 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-[#212049] border border-blue-200 font-bold rounded-xl transition-all shadow-xs cursor-pointer text-sm"
+              title="Share AIE Skyline System link with social preview card and QR code"
+            >
+              <Share2 className="h-4 w-4 mr-1.5 text-[#423fbd]" /> Share System
+            </button>
+          )}
+          {isManager && (
+            <>
+              <button 
+                onClick={() => setShowSyncModal(true)} 
+                className="flex items-center px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold rounded-xl transition-all shadow-xs cursor-pointer text-sm"
+                title="Cross-check all defined action bars across every module (Claims, Finance, etc.) against permissions schema"
+              >
+                <RefreshCw className="h-4 w-4 mr-1.5 text-indigo-600" /> Sync Permissions
+              </button>
+              <button 
+                onClick={() => setShowRolePermissionsModal(true)} 
+                className="flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl transition-colors shadow-xs cursor-pointer text-sm"
+                title="Bulk Select & Apply actions across pages, configure and assign permissions to roles in 1-click"
+              >
+                <Shield className="h-4 w-4 mr-1.5" /> Role Permissions Matrix
+              </button>
+            </>
+          )}
+          {can('users', 'create') && (
+            <button onClick={() => setShowForm(true)} className="flex items-center px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold rounded-xl transition-colors shadow-xs cursor-pointer text-sm">
+              <Plus className="h-4 w-4 mr-1.5" /> Add New User
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── TOP PAGE-LEVEL TAB SWITCHER: USER DIRECTORY vs MODULE PERMISSIONS PAGES ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActivePageTab('users')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+              activePageTab === 'users'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UsersIcon className="w-4 h-4" />
+            <span>User Accounts ({stats.total})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePageTab('permissions')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+              activePageTab === 'permissions'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50/60'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            <span>Module Permissions Pages</span>
+            <span className={`px-2 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+              activePageTab === 'permissions' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'
+            }`}>
+              34 Modules
+            </span>
+          </button>
+        </div>
+
+        {activePageTab === 'permissions' ? (
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <span>Every module has its own dedicated page with a complete list of permissions</span>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500 font-medium hidden sm:block">
+            <span>Manage accounts, view activity, and assign role access</span>
+          </div>
         )}
       </div>
 
-      {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#F8FAFC] p-5 rounded-2xl shadow-xs border border-[#CBD5E1] hover:border-slate-300 flex items-center gap-4 transition-all text-[#0F172A]">
-          <div className="p-3 bg-white border border-[#CBD5E1] text-[#334155] rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
-          <div><p className="text-xs text-[#334155] font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0F172A] tracking-tight">{stats.total}</p></div>
-        </div>
-        <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] hover:border-sky-300 flex items-center gap-4 transition-all text-[#0F172A]">
-          <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
-          <div><p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.admins}</p></div>
-        </div>
-        <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] hover:border-purple-300 flex items-center gap-4 transition-all text-[#0F172A]">
-          <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
-          <div><p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{stats.companies}</p></div>
-        </div>
-        <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] hover:border-emerald-300 flex items-center gap-4 transition-all text-[#0F172A]">
-          <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
-          <div><p className="text-xs text-[#059669] font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#047857] tracking-tight">{stats.members}</p></div>
-        </div>
-      </div>
-
-      {/* FILTERS */}
-      <div className="bg-white p-4 rounded-2xl shadow-xs border border-[#E2E8F0] flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-[#94A3B8]" />
-          <input 
-            type="text" 
-            placeholder="Search by name, email, or company..." 
-            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all shadow-xs" 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
+      {/* ── VIEW TAB 1: MODULE PERMISSIONS PAGES (EVERY MODULE HAS ITS OWN PAGE & PERMISSION LIST) ── */}
+      {activePageTab === 'permissions' && (
+        <div className="h-[calc(100vh-210px)] min-h-[720px] flex flex-col">
+          <ModulePermissionsPageView
+            role={pageRole}
+            onRoleChange={handleRoleTemplateChange}
+            customPermissions={pagePermissions}
+            onChangePermission={handlePagePermissionChange}
+            onToggleModuleAll={handlePageToggleModuleAll}
+            isManager={isManager}
+            selectedModule={pageSelectedModule}
+            onSelectModule={setPageSelectedModule}
+            onSave={handleSavePagePermissions}
+            saving={pageSaving}
           />
         </div>
-        <select 
-          className="py-2.5 px-4 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all sm:w-48 shadow-xs" 
-          value={roleFilter} 
-          onChange={(e) => setRoleFilter(e.target.value)}
-        >
-          <option value="all">All Roles</option>
-          <option value="manager">Manager</option>
-          <option value="admin">Admin</option>
-          <option value="finance">Finance</option>
-          <option value="claims">Claims</option>
-          <option value="company">Company</option>
-          <option value="member">Member</option>
-        </select>
-      </div>
+      )}
 
-      {/* TABLE */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <DataTable data={filteredUsers} columns={columns} onRowClick={(user) => setSelectedUser(user)} />
-      </div>
+      {/* ── VIEW TAB 2: USER DIRECTORY & ACCOUNTS TABLE ── */}
+      {activePageTab === 'users' && (
+        <>
+          {/* SUMMARY CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-[#F8FAFC] p-5 rounded-2xl shadow-xs border border-[#CBD5E1] hover:border-slate-300 flex items-center gap-4 transition-all text-[#0F172A]">
+              <div className="p-3 bg-white border border-[#CBD5E1] text-[#334155] rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
+              <div><p className="text-xs text-[#334155] font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0F172A] tracking-tight">{stats.total}</p></div>
+            </div>
+            <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] hover:border-sky-300 flex items-center gap-4 transition-all text-[#0F172A]">
+              <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
+              <div><p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.admins}</p></div>
+            </div>
+            <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] hover:border-purple-300 flex items-center gap-4 transition-all text-[#0F172A]">
+              <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
+              <div><p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{stats.companies}</p></div>
+            </div>
+            <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] hover:border-emerald-300 flex items-center gap-4 transition-all text-[#0F172A]">
+              <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
+              <div><p className="text-xs text-[#059669] font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#047857] tracking-tight">{stats.members}</p></div>
+            </div>
+          </div>
+
+          {/* FILTERS */}
+          <div className="bg-white p-4 rounded-2xl shadow-xs border border-[#E2E8F0] flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-[#94A3B8]" />
+              <input 
+                type="text" 
+                placeholder="Search by name, email, or company..." 
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all shadow-xs" 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+              />
+            </div>
+            <select 
+              className="py-2.5 px-4 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all sm:w-48 shadow-xs" 
+              value={roleFilter} 
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">All Roles</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+              <option value="finance">Finance</option>
+              <option value="claims">Claims</option>
+              <option value="company">Company</option>
+              <option value="member">Member</option>
+            </select>
+          </div>
+
+          {/* TABLE */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <DataTable data={filteredUsers} columns={columns} onRowClick={(user) => setSelectedUser(user)} />
+          </div>
+        </>
+      )}
 
       {/* CREATE USER MODAL */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Create New User" size="xl">
@@ -261,17 +444,50 @@ const Users = () => {
         {editingUserInfo && <UserEditModal user={editingUserInfo} onClose={() => setEditingUserInfo(null)} />}
       </Modal>
 
+      {/* ROLE PERMISSIONS MATRIX MODAL */}
+      <Modal 
+        isOpen={showRolePermissionsModal} 
+        onClose={() => setShowRolePermissionsModal(false)} 
+        title="Role Permissions Matrix & Bulk Assignment"
+        subtitle="Bulk Select pages & actions, Bulk Apply and assign permissions to roles in 1-click"
+        size="full"
+        hideHeader={true}
+        theme="default"
+        className="w-[99vw] max-w-[99vw] h-[98vh] max-h-[98vh] border border-slate-200/90 rounded-2xl overflow-hidden bg-[#F8FAFC] shadow-2xl"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden bg-[#F8FAFC]"
+      >
+        <UserRoleModal user={null} initialRole="admin" onClose={() => setShowRolePermissionsModal(false)} />
+      </Modal>
+
       {/* PERMISSIONS MODAL */}
       <Modal 
         isOpen={!!editingUser} 
         onClose={() => setEditingUser(null)} 
-        title="Manage User Permissions" 
-        size="xl"
+        title={editingUser ? `Access Permissions: ${editingUser.name}` : "User Permissions Matrix"}
+        subtitle={editingUser ? `${editingUser.email} • Role: ${editingUser.role.toUpperCase()}` : undefined}
+        size="full"
+        hideHeader={true}
         theme="default"
-        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden bg-white"
+        className="w-[99vw] max-w-[99vw] h-[98vh] max-h-[98vh] border border-slate-200/90 rounded-2xl overflow-hidden bg-[#F8FAFC] shadow-2xl"
+        contentClassName="p-0 flex flex-col min-h-0 overflow-hidden bg-[#F8FAFC]"
       >
         {editingUser && <UserRoleModal user={editingUser} onClose={() => setEditingUser(null)} />}
       </Modal>
+
+      {/* SYNC PERMISSIONS MODAL */}
+      <SyncPermissionsModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        activeRole="admin"
+        customPermissions={normalizePermissions('admin')}
+      />
+
+      {/* SHARE SYSTEM MODAL */}
+      <ShareSystemModal
+        isOpen={showShareSystemModal}
+        onClose={() => setShowShareSystemModal(false)}
+        defaultPath="/users"
+      />
 
       {/* DELETE MODAL */}
       <Modal isOpen={!!deletingUserId} onClose={() => setDeletingUserId(null)} title="Delete User" size="xl">

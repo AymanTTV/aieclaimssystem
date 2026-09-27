@@ -48,6 +48,7 @@ import Modal from '../ui/Modal';
 import { usePermissions } from '../../hooks/usePermissions';
 import MileageUpdateForm from './MileageUpdateForm';
 import toast from 'react-hot-toast';
+import { startOfDay } from 'date-fns';
 
 export type VehicleDetailTab =
   | 'specs'
@@ -264,13 +265,10 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
     return e;
   }, [motExpirySaved, motTestDate]);
 
-  const isWarrantyRed = useMemo(() => {
-    const currentMileage = vehicle.mileage || 0;
-    if (currentMileage >= 150000) return true;
-    if (!warrantyEndDate) return false;
-    if (warrantyEndDate.getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000) return true;
-    return false;
-  }, [warrantyEndDate, vehicle.mileage]);
+  const isWarrantyExpired = useMemo(() => {
+    if (!warrantyEndDate || isNaN(warrantyEndDate.getTime())) return false;
+    return startOfDay(warrantyEndDate).getTime() < startOfDay(new Date()).getTime();
+  }, [warrantyEndDate]);
 
   // Expiry counter for badge
   const expiringAlertCount = useMemo(() => {
@@ -381,7 +379,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
       );
     }
 
-    const isPast = date.getTime() < Date.now();
+    const isWarranty = label.toLowerCase().includes('warranty');
+    const isPast = startOfDay(date).getTime() < startOfDay(new Date()).getTime();
     const isDueSoon = !isPast && date.getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000;
 
     return (
@@ -389,22 +388,34 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
         <div className="flex items-center justify-between gap-1 mb-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">{label}</span>
           {isPast ? (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200 uppercase">
+            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
+              isWarranty ? 'bg-slate-200 text-black border border-slate-300' : 'bg-rose-100 text-rose-800 border border-rose-200'
+            }`}>
               Expired
             </span>
-          ) : isDueSoon ? (
+          ) : isDueSoon && !isWarranty ? (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 uppercase">
               Expiring
             </span>
           ) : (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              isWarranty ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            }`}>
               Valid
             </span>
           )}
         </div>
         <p
           className={`text-sm font-bold font-mono ${
-            isPast ? 'text-rose-600 font-black' : isDueSoon ? 'text-amber-700 font-black' : 'text-slate-900'
+            isWarranty
+              ? isPast
+                ? 'text-black font-black'
+                : 'text-blue-600 font-black'
+              : isPast
+              ? 'text-rose-600 font-black'
+              : isDueSoon
+              ? 'text-amber-700 font-black'
+              : 'text-slate-900'
           }`}
         >
           {formatDate(date)}
@@ -605,19 +616,19 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({ vehicle, onCl
 
           <div
             className={`p-3 rounded-lg border ${
-              isWarrantyRed ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-100'
+              isWarrantyExpired ? 'bg-slate-50 border-slate-200' : 'bg-blue-50/50 border-blue-200'
             }`}
           >
             <span
               className={`font-bold uppercase tracking-wider block ${
-                isWarrantyRed ? 'text-rose-700' : 'text-slate-500'
+                isWarrantyExpired ? 'text-black' : 'text-blue-600'
               }`}
             >
               Warranty Expiry
             </span>
             <span
               className={`text-sm font-black font-mono mt-1 block ${
-                isWarrantyRed ? 'text-rose-700' : 'text-slate-800'
+                isWarrantyExpired ? 'text-black' : 'text-blue-600'
               }`}
             >
               {warrantyEndDate ? formatDate(warrantyEndDate) : 'N/A'}

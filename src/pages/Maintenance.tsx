@@ -18,7 +18,7 @@ import MaintenanceCommunicationModal from '../components/maintenance/Maintenance
 import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal'; 
 import { startOfDay, differenceInCalendarDays, format, parseISO } from 'date-fns'; 
 import { exportMaintenanceLogs } from '../utils/MaintenanceExport';
-import { MaintenanceLog, Vehicle, Customer } from '../types'; 
+import { MaintenanceLog, Vehicle, Customer, isOffRoadAccidentLog } from '../types'; 
 import { generateAndUploadDocument, generateBulkDocuments, getCompanyDetails, generateMaintenanceInvoiceDocument } from '../utils/documentGenerator'; 
 import { MaintenanceDocument, MaintenanceBulkDocument } from '../components/pdf/documents';
 import { saveAs } from 'file-saver';
@@ -26,12 +26,14 @@ import toast from 'react-hot-toast';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
+import ManageCategoriesModal from '../components/finance/ManageCategoriesModal';
 import maintenanceCategoryService from '../services/maintenanceCategory.service';
 import { useCustomers } from '../hooks/useCustomers'; 
 import { useRentals } from '../hooks/useRentals';
 import { updateDoc, doc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase'; 
 import FormField from '../components/ui/FormField';
+import { checkVehicleStatus, updateVehicleStatus } from '../utils/vehicleStatusManager';
 
 const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
@@ -68,10 +70,16 @@ const Maintenance: React.FC = () => {
     setVehicleFilter,
     paymentStatusFilter,
     setPaymentStatusFilter,
+    roadConditionFilter,
+    setRoadConditionFilter,
     dateRange,
     setDateRange,
     filteredLogs,
   } = useMaintenanceFilters(logs, vehiclesMap);
+
+  const offRoadAccidentCount = React.useMemo(() => {
+    return logs.filter(l => isOffRoadAccidentLog(l)).length;
+  }, [logs]);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedLog, setSelectedLog] = useState<MaintenanceLog | null>(null);
@@ -84,8 +92,6 @@ const Maintenance: React.FC = () => {
   const [showCatModal, setShowCatModal] = useState(false);
   const [maintCategories, setMaintCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
-  const [editCat, setEditCat] = useState<{ id: string; name: string } | null>(null);
-  const [catName, setCatName] = useState<string>('');
 
   const [payLog, setPayLog] = useState<MaintenanceLog | null>(null);
   const [commModal, setCommModal] = useState<{
@@ -99,68 +105,14 @@ const Maintenance: React.FC = () => {
   const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
   const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
   
-  const loadCategories = useCallback(() => {
-    setLoadingCats(true);
-    maintenanceCategoryService
-      .getAll()
-      .then((docs) => setMaintCategories(docs))
-      .catch((err) => {
-        console.error('Failed to load maintenance categories:', err);
-        toast.error('Could not load maintenance categories');
-      })
-      .finally(() => setLoadingCats(false));
-  }, []);
-
   useEffect(() => {
-    loadCategories();
-  }, [loadCategories]);
-
-  const openCatForm = (cat?: { id: string; name: string }) => {
-    if (cat) {
-      setEditCat(cat);
-      setCatName(cat.name);
-    } else {
-      setEditCat(null);
-      setCatName('');
-    }
-    setShowCatModal(true);
-  };
-
-  const handleCatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!catName.trim()) {
-      toast.error('Category name cannot be empty');
-      return;
-    }
-    try {
-      if (editCat) {
-        await maintenanceCategoryService.update(editCat.id, { name: catName.trim() });
-        toast.success('Category updated');
-      } else {
-        await maintenanceCategoryService.create({ name: catName.trim() });
-        toast.success('Category created');
-      }
-      setShowCatModal(false);
-      setEditCat(null);
-      setCatName('');
-      loadCategories();
-    } catch (err) {
-      console.error('Error saving maintenance category:', err);
-      toast.error('Failed to save maintenance category');
-    }
-  };
-
-  const handleCatDelete = async (catId: string) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
-    try {
-      await maintenanceCategoryService.delete(catId);
-      setMaintCategories((prev) => prev.filter((c) => c.id !== catId));
-      toast.success('Category deleted');
-    } catch (err) {
-      console.error('Error deleting maintenance category:', err);
-      toast.error('Failed to delete maintenance category');
-    }
-  };
+    setLoadingCats(true);
+    const unsub = maintenanceCategoryService.subscribe((cats) => {
+      setMaintCategories(cats);
+      setLoadingCats(false);
+    });
+    return () => unsub();
+  }, []);
 
   const handleDelete = useCallback(
     (log: MaintenanceLog) => {
@@ -176,10 +128,16 @@ const Maintenance: React.FC = () => {
   const orderedLogs = React.useMemo(() => {
     const now = startOfDay(new Date());
     const priority = (log: MaintenanceLog) => {
-      if (log.status === 'scheduled') return 0;
-      if (log.status === 'in-progress') return 1;
-      if (log.status === 'completed') return 2;
-      return 3;
+      const s = (log.status || '').toLowerCase();
+      if (isOffRoadAccidentLog(log) || s === 'off-road' || s === 'off road (vor)' || s === 'vor') return -1; // Highest priority: Off-Road (VOR)
+      if (s === 'scheduled') return 0;
+      if (s === 'in-progress') return 1;
+      if (s === 'workshop') return 2;
+      if (s === 'parts-backorder' || s === 'awaiting-parts') return 3;
+      if (s === 'bodywork') return 4;
+      if (s === 'pending') return 5;
+      if (s === 'completed') return 6;
+      return 7;
     };
     return [...filteredLogs].sort((a, b) => {
       const pa = priority(a);
@@ -290,8 +248,43 @@ const Maintenance: React.FC = () => {
         updatedAt: new Date(),
         updatedBy: user?.id
       };
+      if (newStatus === 'completed' && !log.completedDate) {
+        updates.completedDate = new Date();
+      }
+      if (newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)') {
+        updates.isOffRoad = true;
+        updates.isNonDrivable = true;
+        updates.roadCondition = 'OFF ROAD (VOR)';
+        updates.statusDisplay = 'OFF ROAD (VOR)';
+      }
       await updateDoc(doc(db, 'maintenanceLogs', log.id), updates);
-      toast.success(`Status updated to ${newStatus}`);
+
+      // Sync vehicle availability:
+      // The vehicle is unavailable until the maintenance is marked completed
+      if (log.vehicleId) {
+        if (newStatus === 'completed' || newStatus === 'cancelled') {
+          await checkVehicleStatus(log.vehicleId);
+        } else {
+          const reason = newStatus === 'parts-backorder'
+            ? 'Awaiting parts backorder'
+            : newStatus === 'workshop'
+            ? 'In workshop'
+            : newStatus === 'bodywork'
+            ? 'In bodywork'
+            : newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)' || isOffRoadAccidentLog(log)
+            ? 'Off-road non-drivable due to accident repair'
+            : newStatus === 'pending'
+            ? 'Pending maintenance authorization'
+            : newStatus === 'inspection'
+            ? 'Vehicle in inspection / MOT'
+            : 'In maintenance';
+          await updateVehicleStatus(log.vehicleId, 'maintenance', reason);
+        }
+      }
+
+      toast.success(newStatus === 'completed'
+        ? 'Status updated to completed. Vehicle is now available for hire.'
+        : `Status updated to ${newStatus}`);
     } catch (e) {
       console.error(e);
       toast.error('Failed to update status');
@@ -335,7 +328,13 @@ const Maintenance: React.FC = () => {
             status: 'completed',
             updatedAt: new Date()
          });
-         toast.success('Maintenance marked as completed!');
+
+         // Restore vehicle availability once maintenance/repair is completed
+         if (log.vehicleId) {
+            await checkVehicleStatus(log.vehicleId);
+         }
+
+         toast.success('Maintenance marked as completed! Vehicle is now available for hire.');
          onClose();
       } catch (err) {
          toast.error('Failed to complete maintenance');
@@ -432,16 +431,18 @@ const Maintenance: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5">
 
       <MaintenanceSummaryCards 
         logs={logs} 
         activeStatusFilter={statusFilter}
         onSelectStatusFilter={setStatusFilter}
+        activeRoadConditionFilter={roadConditionFilter}
+        onSelectRoadConditionFilter={setRoadConditionFilter}
       />
 
       {/* Header & Actions */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 shadow-xs text-[#0F172A]">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-3.5 sm:p-4 shadow-xs text-[#0F172A]">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 sm:gap-4">
           <div className="flex items-center space-x-3 shrink-0">
             <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shadow-xs">
@@ -558,6 +559,9 @@ const Maintenance: React.FC = () => {
         vehicles={vehicles}
         paymentStatusFilter={paymentStatusFilter}
         onPaymentStatusFilterChange={setPaymentStatusFilter}
+        roadConditionFilter={roadConditionFilter}
+        onRoadConditionFilterChange={setRoadConditionFilter}
+        offRoadAccidentCount={offRoadAccidentCount}
         categories={maintCategories.map((c) => c.name)}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
@@ -577,7 +581,12 @@ const Maintenance: React.FC = () => {
           onPay={setPayLog}
           onComplete={handleCompleteMaintenance}
           onGenerateInvoice={handleGenerateInvoice}
-          onStatusChange={handleStatusChange} 
+          onStatusChange={handleStatusChange}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          roadConditionFilter={roadConditionFilter}
+          onRoadConditionFilterChange={setRoadConditionFilter}
+          offRoadAccidentCount={offRoadAccidentCount}
         />
       </div>
 
@@ -664,72 +673,17 @@ const Maintenance: React.FC = () => {
         {completingLog && <CompleteMaintenanceModalContent log={completingLog} onClose={() => setCompletingLog(null)} />}
       </Modal>
 
-      {/* Category Modal */}
+      {/* Connected System Categories Modal */}
       <Modal
         isOpen={showCatModal}
-        onClose={() => {
-          setShowCatModal(false);
-          setEditCat(null);
-          setCatName('');
-        }}
-        title={editCat ? 'Edit Category' : 'Add Category'}
-        size="md"
+        onClose={() => setShowCatModal(false)}
+        title="Manage Categories"
+        size="lg"
       >
-        <form onSubmit={handleCatSubmit} className="flex items-center space-x-2 mb-4">
-          <input
-            type="text"
-            value={catName}
-            onChange={(e) => setCatName(e.target.value)}
-            placeholder="Category name"
-            required
-            className="flex-1 border border-gray-300 rounded-md p-2 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            {editCat ? 'Update' : 'Add'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setShowCatModal(false);
-              setEditCat(null);
-              setCatName('');
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-        </form>
-
-        <div className="max-h-56 overflow-y-auto">
-          {loadingCats ? (
-            <div className="text-gray-500 text-sm">Loading…</div>
-          ) : (
-            <ul className="space-y-2">
-              {maintCategories.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex justify-between items-center border-b pb-1"
-                >
-                  <span className="text-gray-700">{c.name}</span>
-                  <div className="space-x-2">
-                    <button onClick={() => openCatForm(c)}>
-                      <Edit2 className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
-                    </button>
-                    <button onClick={() => handleCatDelete(c.id)}>
-                      <Trash2 className="h-4 w-4 text-red-600 hover:text-red-800" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-              {maintCategories.length === 0 && (
-                <li className="text-gray-500 text-sm">No categories found.</li>
-              )}
-            </ul>
-          )}
-        </div>
+        <ManageCategoriesModal
+          onClose={() => setShowCatModal(false)}
+          onCategoriesChanged={setMaintCategories}
+        />
       </Modal>
 
       {commModal.isOpen && (

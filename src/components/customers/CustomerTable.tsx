@@ -2,7 +2,7 @@
 import React from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Customer } from '../../types/customer';
-import { Eye, Edit, Trash2, FileText, File, Tag, Send, Inbox } from 'lucide-react'; // [NEW] Added Inbox
+import { Eye, Edit, Trash2, FileText, File, Tag, Send, Inbox, ShieldAlert } from 'lucide-react'; // [NEW] Added Inbox
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired } from '../../types/customer';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -10,6 +10,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { CustomerAvatar } from './CustomerAvatar';
+import { queryHighRiskDriver } from '../../services/highRiskService';
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -93,6 +94,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       accessorKey: 'name',
       cell: ({ row }: any) => {
         const c = row.original;
+        const riskCheck = queryHighRiskDriver(c.name);
         return (
           <div className="flex items-center gap-2.5 py-0.5">
             <CustomerAvatar
@@ -106,9 +108,24 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
               showStatusDot={true}
             />
             <div className="min-w-0">
-              <span className="font-semibold text-gray-900 text-sm block truncate max-w-[190px]" title={c.name}>
-                {c.name}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-semibold text-gray-900 text-sm block truncate max-w-[190px]" title={c.name}>
+                  {c.name}
+                </span>
+                {riskCheck.isMatch && riskCheck.match && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                      riskCheck.match.riskLevel === 'High Risk'
+                        ? 'bg-red-100 text-red-700 border border-red-300'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
+                    }`}
+                    title={`High Risk Registry Alert: ${riskCheck.match.riskLevel} (${riskCheck.match.category})`}
+                  >
+                    <ShieldAlert className="w-2.5 h-2.5 text-red-600" />
+                    <span>{riskCheck.match.riskLevel === 'High Risk' ? 'High Risk' : 'Caution'}</span>
+                  </span>
+                )}
+              </div>
               {c.email && (
                 <span className="text-[11px] text-gray-500 block truncate max-w-[190px]" title={c.email}>
                   {c.email}

@@ -79,17 +79,66 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
   // Helper for status badge with exact corresponding table colors
   const renderDetailsStatusBadge = (status: string) => {
     const s = (status || '').toLowerCase().trim();
+    if (s === 'off-road' || s === 'off-road (vor)' || s === 'off road (vor)' || s === 'vor' || isOffRoadAccidentLog(log)) {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 shadow-xs">
+          🚨 OFF ROAD (VOR)
+        </span>
+      );
+    }
     if (s === 'in-progress' || s === 'in progress') {
       return (
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shadow-xs">
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-950 border border-orange-300 shadow-xs">
           ● In Progress
+        </span>
+      );
+    }
+    if (s === 'workshop') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 shadow-xs">
+          🏢 In Workshop
+        </span>
+      );
+    }
+    if (s === 'parts-backorder' || s === 'awaiting-parts') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-950 border border-amber-300 shadow-xs">
+          📦 Awaiting Parts
+        </span>
+      );
+    }
+    if (s === 'bodywork') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-xs">
+          🛡️ Bodywork
+        </span>
+      );
+    }
+    if (s === 'pending' || s === 'awaiting-approval') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-yellow-100 text-yellow-900 border border-yellow-300 shadow-xs">
+          ⏳ Pending Approval
+        </span>
+      );
+    }
+    if (s === 'inspection' || s === 'diagnostic') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 shadow-xs">
+          🔍 Inspection / MOT
         </span>
       );
     }
     if (s === 'completed') {
       return (
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-xs">
           ✓ Completed
+        </span>
+      );
+    }
+    if (s === 'cancelled') {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-300 shadow-xs">
+          ✕ Cancelled
         </span>
       );
     }

@@ -1,44 +1,21 @@
 // src/services/maintenanceCategory.service.ts
+// Connected to the system-wide unified categories service (Finance, Invoices & Maintenance)
 
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  doc,
-  deleteDoc,
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { unifiedCategoryService } from './unifiedCategory.service';
 import { Category } from '../types/category';
 
-const COL = 'maintenanceCategories';
-
-export async function getAll(): Promise<Category[]> {
-  const snap = await getDocs(collection(db, COL));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
-}
-
-export async function create(payload: { name: string }): Promise<Category> {
-  const ref = await addDoc(collection(db, COL), { name: payload.name });
-  return { id: ref.id, name: payload.name };
-}
-
-export async function update(
-  id: string,
-  payload: { name: string }
-): Promise<void> {
-  const ref = doc(db, COL, id);
-  await updateDoc(ref, { name: payload.name });
-}
-
-export async function remove(id: string): Promise<void> {
-  const ref = doc(db, COL, id);
-  await deleteDoc(ref);
-}
+export const getAll = async (): Promise<Category[]> => unifiedCategoryService.getAll();
+export const create = async (payload: { name: string }): Promise<Category> => unifiedCategoryService.create(payload);
+export const createBulk = async (names: string[]): Promise<Category[]> => unifiedCategoryService.createBulk(names);
+export const update = async (id: string, payload: { name: string }): Promise<void> => unifiedCategoryService.update(id, payload);
+export const remove = async (id: string): Promise<void> => unifiedCategoryService.delete(id);
+export const subscribe = (callback: (categories: Category[]) => void) => unifiedCategoryService.subscribe(callback);
 
 export default {
   getAll,
   create,
+  createBulk,
   update,
   delete: remove,
+  subscribe,
 };

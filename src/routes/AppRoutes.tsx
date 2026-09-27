@@ -7,6 +7,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import { lazyLoad } from './lazyLoad';
 import ForgotPassword from '../pages/members/ForgotPassword';
 import ResetPassword from '../pages/members/ResetPassword';
+import HighRiskPage from '../pages/HighRiskPage';
 import { ROUTES } from '.';
 // Spinner for Suspense boundaries
 const spinner = (
@@ -240,6 +241,32 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* ─────────── High Risk Registry (Inside System Layout) ─────────── */}
+      <Route
+        path="/high-risk"
+        element={
+          <ProtectedRoute requiredPermission={{ module: 'highRisk', action: 'view' }}>
+            <Layout>
+              <HighRiskPage embedded />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/highrisk"
+        element={
+          <ProtectedRoute requiredPermission={{ module: 'highRisk', action: 'view' }}>
+            <Layout>
+              <HighRiskPage embedded />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ─────────── Public External Partner Link ─────────── */}
+      <Route path="/partner" element={<HighRiskPage />} />
+      <Route path="/partner-search" element={<HighRiskPage />} />
 
       <Route
         path="/chat"

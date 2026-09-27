@@ -48,6 +48,7 @@ export const ROUTES = {
   SHARE: '/share',
   VD_INVOICE: '/claims/vd-invoice',
   WAITING: '/waiting',
+  HIGH_RISK: '/high-risk',
 } as const;
 
 // Export route permissions mapping
@@ -84,6 +85,7 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.BULK_EMAIL]: { module: 'bulkEmail', action: 'view' },
   [ROUTES.COMPANY_MANAGERS]: { module: 'users', action: 'view' },
   [ROUTES.SHARE]: { module: 'share', action: 'view' },
+  [ROUTES.HIGH_RISK]: { module: 'highRisk', action: 'view' },
 } as const;
 
 // Export route metadata
@@ -106,6 +108,7 @@ export const ROUTE_METADATA = {
 
   [ROUTES.PRODUCTS]: { title: 'Products', icon: 'Box' },
   [ROUTES.WAITING]: { title: 'Waiting List', icon: 'Clock' },
+  [ROUTES.HIGH_RISK]: { title: 'High Risk', icon: 'ShieldAlert' },
   [ROUTES.FINANCE]:  { title: 'Finance', icon: 'DollarSign' },
   [ROUTES.INVOICES]: { title: 'Invoices', icon: 'FileText' },
   [ROUTES.PETTY_CASH]: { title: 'AIE Petty Cash', icon: 'DollarSign' },
@@ -125,7 +128,7 @@ export const ROUTE_METADATA = {
   [ROUTES.TODO]: { title: 'To-Do' },
   [ROUTES.BULK_EMAIL]: { title: 'Bulk Email', icon: 'Mail' },
   [ROUTES.COMPANY_MANAGERS]: { title: 'Company Managers', icon: 'Users' },
-  [ROUTES.SHARE]: { title: 'Share', icon: 'Share2' },
+  [ROUTES.SHARE]: { title: 'Share System', icon: 'Share2' },
 } as const;
 
 // Export route utilities

@@ -77,6 +77,8 @@ export interface Permission {
   reminder?: boolean;
   mondayAutoEmail?: boolean; // Monday auto email toggle / dispatch
   bulkEmailScheduler?: boolean; // Bulk Email Scheduler access toggle
+  scheduler?: boolean;       // Scheduler Preferences access
+  toggleGlobal?: boolean;    // Toggle Global Automation
   whatsapp?: boolean;        // WhatsApp sender/action
   email?: boolean;           // Email sender/action
   template?: boolean;        // Template change/management
@@ -127,6 +129,7 @@ export interface RolePermissions {
   todo: Permission;
   settings: Permission;
   automation: Permission; 
+  highRisk: Permission;
   memberProfile: Permission;
   memberRentals: Permission;
   memberTransactions: Permission;
@@ -136,6 +139,7 @@ export interface RolePermissions {
 // ------------------------- TEMPLATES TO ENSURE ALL KEYS RENDER -------------------------
 
 const BASE_DASHBOARD = { view: false };
+const BASE_HIGH_RISK = { view: false, create: false, update: false, delete: false, cards: false, export: false };
 const BASE_VEHICLES = { view: false, create: false, update: false, delete: false, cards: false, mileage: false, recordPayment: false, export: false, owner: false, syncStatus: false, sale: false, copyId: false, singleDoc: false, mileageHistoryView: false, mileageHistoryEdit: false, mileageHistoryDelete: false, groups: false, departments: false, assign: false, recordsPermission: false };
 const BASE_UTILISATION = { view: false, export: true, singleDoc: true };
 const BASE_MAINTENANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, tableStatus: false, complete: false, completed: false, singleDoc: false, categories: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
@@ -146,22 +150,22 @@ const BASE_VD_FINANCE = { view: false, create: false, update: false, delete: fal
 const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: false, cards: false, singleDoc: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
 const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
 const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false };
-const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, share: false, categories: false, reoccurring: false, singleDoc: false };
+const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, categories: false, reoccurring: false, singleDoc: false, export: false };
 const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, accounts: false, categories: false, groups: false, departments: false, recordsPermission: false, reoccurring: false, assign: false, singleDoc: false };
 const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false, showCompletedPaid: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
 const BASE_VAT_RECORD = { view: false, create: false, update: false, delete: false, cards: false, export: false, groups: false, categories: false, reoccurring: false, state: false, singleDoc: false };
-const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, share: false, export: false, import: false, categories: false, reoccurring: false, singleDoc: false };
+const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, reoccurring: false, singleDoc: false };
 const BASE_MEMBERS = { view: false, create: false, update: false, delete: false, cards: false, assign: false, signatureReq: false, singleDoc: false, groupMessaging: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
-const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false, groupMessaging: false };
-const BASE_PRODUCTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, categories: false };
-const BASE_COMMUNICATION = { view: false, send: false, clearHistory: false, targetFinance: false, targetRental: false, targetMaintenance: false, targetInvoice: false, targetClaim: false, targetCustom: false };
+const BASE_CUSTOMERS = { view: false, create: false, update: false, delete: false, cards: false, export: false, groupMessaging: false, whatsapp: false, email: false, send: false, template: false, reminder: false };
+const BASE_PRODUCTS = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false };
+const BASE_COMMUNICATION = { view: false, send: false, delete: false, template: false, clearHistory: false, targetFinance: false, targetRental: false, targetMaintenance: false, targetInvoice: false, targetClaim: false, targetCustom: false };
 const BASE_WAITING = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false, quickContact: false, reminder: false };
 const BASE_COMPANY = { view: false, create: false, update: false, delete: false, cards: false };
 const BASE_TRASH = { view: false, cards: false, restore: false, deletePermanently: false };
-const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false };
+const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false, share: false };
 const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false };
 const BASE_SETTINGS = { view: false, update: false };
-const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false }; 
+const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false, mondayAutoEmail: false, scheduler: false, toggleGlobal: false, templateCreate: false, templateEdit: false, templateDelete: false }; 
 const BASE_PORTAL = { view: false, update: false };
 
 // ------------------------- DEFAULTS -------------------------
@@ -186,19 +190,20 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, export: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, showCompletedPaid: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, templateDelete: true, reminderTemplate: true, messageTemplate: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, delete: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
-    share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, share: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true },
     members: { ...BASE_MEMBERS, view: true, create: true, update: true, delete: true, cards: true, assign: true, signatureReq: true, singleDoc: true, groupMessaging: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, templateDelete: true, reminderTemplate: true, messageTemplate: true },
-    customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true, groupMessaging: true },
+    customers: { ...BASE_CUSTOMERS, view: true, create: true, update: true, delete: true, cards: true, export: true, groupMessaging: true, whatsapp: true, email: true, send: true, template: true, reminder: true },
     products: { ...BASE_PRODUCTS, view: true, create: true, update: true, delete: true, cards: true, export: true, categories: true },
     whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
     bulkEmail: { ...BASE_COMMUNICATION, view: true, send: true, clearHistory: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
     waiting: { ...BASE_WAITING, view: true, create: true, update: true, delete: true, export: true, categories: true, groups: true, quickContact: true, reminder: true },
     company: { ...BASE_COMPANY, view: true, create: true, update: true, delete: true, cards: true },
     trash: { ...BASE_TRASH, view: true, cards: true, restore: true, deletePermanently: true },
-    users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true },
+    users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true, share: true },
     todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true, categories: true, groups: true },
     settings: { ...BASE_SETTINGS, view: true, update: true },
     automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true }, 
+    highRisk: { ...BASE_HIGH_RISK, view: true, create: true, update: true, delete: true, cards: true, export: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -224,19 +229,20 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     finance: { ...BASE_FINANCE, view: true, cards: true, export: true, singleDoc: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, cards: true, export: true, singleDoc: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, showCompletedPaid: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, templateDelete: true, reminderTemplate: true, messageTemplate: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, cards: true, export: true, singleDoc: true },
-    share: { ...BASE_SHARE, view: true, create: true, cards: true, share: true, export: true, import: true, singleDoc: true },
+    share: { ...BASE_SHARE, view: true, create: true, cards: true, export: true, import: true, singleDoc: true },
     members: { ...BASE_MEMBERS, view: true, create: true, cards: true, singleDoc: true, groupMessaging: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, templateDelete: true, reminderTemplate: true, messageTemplate: true },
-    customers: { ...BASE_CUSTOMERS, view: true, cards: true, export: true, groupMessaging: true },
+    customers: { ...BASE_CUSTOMERS, view: true, create: true, cards: true, export: true, groupMessaging: true, whatsapp: true, email: true, send: true, template: true, reminder: true },
     products: { ...BASE_PRODUCTS, view: true, cards: true, export: true },
     whatsapp: { ...BASE_COMMUNICATION, view: true, send: true, targetFinance: true, targetRental: true, targetMaintenance: true, targetInvoice: true, targetClaim: true, targetCustom: true },
     bulkEmail: { ...BASE_COMMUNICATION },
     waiting: { ...BASE_WAITING, view: true, create: true, export: true, quickContact: true, reminder: true },
     company: { ...BASE_COMPANY, view: true, update: true, cards: true },
-    trash: { ...BASE_TRASH, view: true, cards: true },
-    users: { ...BASE_USERS },
+    trash: { ...BASE_TRASH, view: true, cards: true, restore: true, deletePermanently: true },
+    users: { ...BASE_USERS, view: true, create: true, update: true, cards: true, share: true },
     todo: { ...BASE_TODO, view: true, create: true, export: true, categories: true, groups: true },
     settings: { ...BASE_SETTINGS, view: true },
     automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true },
+    highRisk: { ...BASE_HIGH_RISK, view: true, create: true, update: true, delete: true, cards: true, export: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -275,6 +281,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS, view: true },
     automation: { ...BASE_AUTOMATION }, 
+    highRisk: { ...BASE_HIGH_RISK, view: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -313,6 +320,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
     automation: { ...BASE_AUTOMATION }, 
+    highRisk: { ...BASE_HIGH_RISK, view: true, create: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -351,6 +359,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
     automation: { ...BASE_AUTOMATION }, 
+    highRisk: { ...BASE_HIGH_RISK, view: true },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -389,6 +398,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     todo: { ...BASE_TODO },
     settings: { ...BASE_SETTINGS },
     automation: { ...BASE_AUTOMATION },
+    highRisk: { ...BASE_HIGH_RISK, view: false },
     memberProfile: { ...BASE_PORTAL },
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
@@ -427,6 +437,7 @@ export const BASE_PERMISSIONS_BY_MODULE: Record<keyof RolePermissions, Permissio
   todo: BASE_TODO,
   settings: BASE_SETTINGS,
   automation: BASE_AUTOMATION,
+  highRisk: BASE_HIGH_RISK,
   memberProfile: BASE_PORTAL,
   memberRentals: BASE_PORTAL,
   memberTransactions: BASE_PORTAL,
@@ -436,6 +447,123 @@ export const BASE_PERMISSIONS_BY_MODULE: Record<keyof RolePermissions, Permissio
 export function getDefaultPermissions(role: Role): RolePermissions {
   return DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['member'];
 }
+
+// Complete catalog of action bar permissions required by each module's UI
+export const MODULE_ACTION_BAR_CATALOG: Record<keyof RolePermissions, Array<keyof Permission>> = {
+  dashboard: ['view'],
+  vehicles: [
+    'view', 'create', 'update', 'delete', 'cards', 'mileage', 'export', 'owner',
+    'syncStatus', 'sale', 'copyId', 'singleDoc', 'mileageHistoryView', 'mileageHistoryEdit',
+    'mileageHistoryDelete', 'groups', 'departments', 'assign', 'recordsPermission'
+  ],
+  utilisation: ['view', 'export', 'singleDoc'],
+  maintenance: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'tableStatus',
+    'complete', 'completed', 'singleDoc', 'categories', 'whatsapp', 'email', 'send',
+    'reminder', 'mondayAutoEmail', 'template', 'templateCreate', 'templateEdit', 'templateDelete',
+    'reminderTemplate', 'messageTemplate'
+  ],
+  rentals: [
+    'view', 'create', 'update', 'delete', 'cards', 'daily', 'weekly', 'claim',
+    'export', 'syncStatus', 'singleDoc', 'availableVehicles', 'completion', 'discount',
+    'note', 'recordPayment', 'viewPayment', 'editPayment', 'deletePayment', 'reminder',
+    'mondayAutoEmail', 'bulkEmailScheduler', 'whatsapp', 'email', 'send', 'template',
+    'templateCreate', 'templateEdit', 'templateDelete', 'reminderTemplate', 'messageTemplate'
+  ],
+  accidents: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'singleDoc',
+    'state', 'driverRisk', 'renewalAnalysis'
+  ],
+  claims: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'state', 'note',
+    'singleDoc', 'progressview', 'progressedit', 'groups', 'departments', 'assign',
+    'recordsPermission', 'email', 'whatsapp', 'send', 'reminder', 'mondayAutoEmail',
+    'template', 'templateCreate', 'templateEdit', 'templateDelete', 'reminderTemplate', 'messageTemplate'
+  ],
+  vdFinance: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'import', 'categories',
+    'groups', 'departments', 'assign', 'recordsPermission', 'singleDoc', 'recordPayment'
+  ],
+  vdInvoice: [
+    'view', 'create', 'update', 'delete', 'cards', 'singleDoc', 'whatsapp', 'email',
+    'send', 'reminder', 'mondayAutoEmail', 'template', 'templateCreate', 'templateEdit',
+    'templateDelete', 'reminderTemplate', 'messageTemplate'
+  ],
+  driverPay: [
+    'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'export',
+    'lock', 'unlock', 'singleDoc', 'period', 'whatsapp', 'email', 'send',
+    'reminder', 'mondayAutoEmail', 'template', 'templateCreate', 'templateEdit',
+    'templateDelete', 'reminderTemplate', 'messageTemplate'
+  ],
+  pettyCash: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'import',
+    'categories', 'groups', 'singleDoc'
+  ],
+  aiePettyCash: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'import',
+    'categories', 'groups', 'singleDoc'
+  ],
+  incomeExpense: [
+    'view', 'create', 'update', 'delete', 'cards', 'categories',
+    'reoccurring', 'singleDoc', 'export'
+  ],
+  skylineIncomeExpense: [
+    'view', 'create', 'update', 'delete', 'cards', 'categories',
+    'reoccurring', 'singleDoc', 'export'
+  ],
+  finance: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'accounts',
+    'categories', 'groups', 'departments', 'reoccurring', 'assign', 'recordsPermission', 'singleDoc'
+  ],
+  invoices: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'categories',
+    'groups', 'departments', 'assign', 'recordsPermission', 'singleDoc', 'showCompletedPaid',
+    'whatsapp', 'email', 'send', 'reminder', 'mondayAutoEmail', 'template', 'templateCreate',
+    'templateEdit', 'templateDelete', 'reminderTemplate', 'messageTemplate'
+  ],
+  vatRecord: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'groups',
+    'categories', 'reoccurring', 'state', 'singleDoc'
+  ],
+  share: [
+    'view', 'create', 'update', 'delete', 'cards', 'export',
+    'import', 'categories', 'reoccurring', 'singleDoc'
+  ],
+  members: [
+    'view', 'create', 'update', 'delete', 'cards', 'assign', 'signatureReq',
+    'singleDoc', 'groupMessaging', 'whatsapp', 'email', 'send', 'reminder',
+    'mondayAutoEmail', 'template', 'templateCreate', 'templateEdit', 'templateDelete',
+    'reminderTemplate', 'messageTemplate'
+  ],
+  customers: [
+    'view', 'create', 'update', 'delete', 'cards', 'export', 'groupMessaging',
+    'whatsapp', 'email', 'send', 'template', 'reminder'
+  ],
+  products: ['view', 'create', 'update', 'delete', 'cards', 'export', 'import', 'categories'],
+  whatsapp: [
+    'view', 'delete', 'template', 'send', 'clearHistory', 'targetFinance', 'targetRental',
+    'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom'
+  ],
+  bulkEmail: [
+    'view', 'delete', 'template', 'send', 'clearHistory', 'targetFinance', 'targetRental',
+    'targetMaintenance', 'targetInvoice', 'targetClaim', 'targetCustom'
+  ],
+  waiting: ['view', 'create', 'update', 'delete', 'export', 'categories', 'groups', 'quickContact', 'reminder'],
+  company: ['view', 'create', 'update', 'delete', 'cards'],
+  trash: ['view', 'cards', 'restore', 'deletePermanently'],
+  users: ['view', 'create', 'update', 'delete', 'cards', 'share'],
+  todo: ['view', 'create', 'update', 'delete', 'export', 'categories', 'groups'],
+  settings: ['view', 'update'],
+  automation: [
+    'view', 'create', 'update', 'delete', 'mondayAutoEmail', 'scheduler',
+    'toggleGlobal', 'templateCreate', 'templateEdit', 'templateDelete'
+  ],
+  highRisk: ['view', 'create', 'update', 'delete', 'cards', 'export'],
+  memberProfile: ['view', 'update'],
+  memberRentals: ['view', 'update'],
+  memberTransactions: ['view', 'update'],
+  memberInvoices: ['view', 'update'],
+};
 
 export function normalizePermissions(
   role: Role,

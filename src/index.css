@@ -281,7 +281,7 @@
   .bg-white label,
   .bg-gray-50 label,
   .bg-gray-100 label,
-  form label:not(.attachment-item):not(.attachment-title):not(.attachment-label):not([data-attachment-item]):not([data-attachment-box]),
+  body:not(.dark) form:not(.modal-navy):not(.dark-form):not([class*="bg-[#1"]):not([class*="bg-[#0"]):not([class*="bg-slate-900"]):not([class*="bg-slate-950"]) label:not(.attachment-item):not(.attachment-title):not(.attachment-label):not([data-attachment-item]):not([data-attachment-box]):not(.text-white):not([class*="text-white"]):not([class*="text-slate-"]):not([class*="text-gray-"]):not([class*="text-amber-"]):not([class*="text-red-"]):not([class*="text-emerald-"]),
   label.filter-label,
   .search-filter-label {
     color: #1E2238;
@@ -297,6 +297,7 @@
   /* Dark navy container labels override to white */
   .modal-navy label,
   .modal-navy .searchable-select-label,
+  .modal-navy .form-label,
   .bg-\[\#16192B\] label,
   .bg-\[\#1E2238\] label,
   .bg-\[\#0F111A\] label,
@@ -307,6 +308,14 @@
   .bg-\[\#1E1E2D\] label,
   .bg-\[\#161622\] label,
   .bg-\[\#13131A\] label,
+  .bg-\[\#111a33\] label,
+  .bg-\[\#0b132b\] label,
+  .bg-\[\#0a0f1d\] label,
+  .bg-\[\#0c1427\] label,
+  .high-risk-label,
+  [data-high-risk] label,
+  label.text-white,
+  label[class*="text-white"],
   .dark-navy-card label,
   .bg-\[\#16192B\] .searchable-select-label,
   .bg-\[\#1E2238\] .searchable-select-label,
@@ -316,7 +325,7 @@
   .bg-\[\#0f1022\] .searchable-select-label,
   .dark-navy-card .searchable-select-label {
     color: #FFFFFF !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
   }
 
   /* Dark Navy Container Text and Heading Contrast Rules */
@@ -632,22 +641,32 @@
     color: #94a3b8;
   }
 
-  /* Dark inputs on dark containers */
-  .bg-\[\#16192B\] input, .bg-\[\#16192B\] select, .bg-\[\#16192B\] textarea,
-  .bg-\[\#1E2238\] input, .bg-\[\#1E2238\] select, .bg-\[\#1E2238\] textarea,
-  .bg-\[\#0F111A\] input, .bg-\[\#0F111A\] select, .bg-\[\#0F111A\] textarea,
-  .bg-\[\#0f1022\] input, .bg-\[\#0f1022\] select, .bg-\[\#0f1022\] textarea,
-  .dark-navy-card input, .dark-navy-card select, .dark-navy-card textarea {
+  /* Dark inputs on dark containers (except explicitly styled light/white inputs) */
+  .bg-\[\#16192B\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .bg-\[\#16192B\] select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#16192B\] textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#1E2238\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .bg-\[\#1E2238\] select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#1E2238\] textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#0F111A\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .bg-\[\#0F111A\] select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#0F111A\] textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#0f1022\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .bg-\[\#0f1022\] select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .bg-\[\#0f1022\] textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .dark-navy-card input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .dark-navy-card select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .dark-navy-card textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]) {
     background-color: #0F111A !important;
     color: #ffffff !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     color-scheme: dark;
   }
-  .bg-\[\#16192B\] input::placeholder,
-  .bg-\[\#1E2238\] input::placeholder,
-  .bg-\[\#0F111A\] input::placeholder,
-  .bg-\[\#0f1022\] input::placeholder,
-  .dark-navy-card input::placeholder {
+  .bg-\[\#16192B\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input)::placeholder,
+  .bg-\[\#1E2238\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input)::placeholder,
+  .bg-\[\#0F111A\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input)::placeholder,
+  .bg-\[\#0f1022\] input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input)::placeholder,
+  .dark-navy-card input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input)::placeholder {
     color: #94a3b8 !important;
   }
 }
@@ -786,21 +805,59 @@
   .user-role-modal .btn-white-text * {
     color: #FFFFFF !important;
   }
-  .modal-navy .form-input,
-  .modal-navy .form-select,
-  .modal-navy .form-textarea,
-  .modal-navy input:not([type="checkbox"]):not([type="radio"]),
-  .modal-navy textarea,
-  .modal-navy select {
+  .modal-navy .form-input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .modal-navy .form-select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .modal-navy .form-textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .modal-navy input:not([type="checkbox"]):not([type="radio"]):not(.bg-white):not([class*="bg-white"]):not([data-light-input]):not(.search-input-white):not(.high-risk-input),
+  .modal-navy textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]),
+  .modal-navy select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]) {
     background-color: #0F111A !important;
     border-color: #2B314E !important;
     color: #FFFFFF !important;
   }
-  .modal-navy input:focus,
-  .modal-navy textarea:focus,
-  .modal-navy select:focus {
+  .modal-navy input:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):focus,
+  .modal-navy textarea:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):focus,
+  .modal-navy select:not(.bg-white):not([class*="bg-white"]):not([data-light-input]):focus {
     border-color: #3b82f6 !important;
     outline: none !important;
+  }
+
+  /* ==========================================================================
+     HIGH RISK PAGE & MODAL INPUTS: PURE WHITE BACKGROUND, SOLID BLACK TEXT
+     ========================================================================== */
+  .search-input-white,
+  .high-risk-input,
+  input[data-light-input="true"],
+  select[data-light-input="true"],
+  textarea[data-light-input="true"],
+  .modal-navy input.bg-white,
+  .modal-navy input[class*="bg-white"],
+  .modal-navy select.bg-white,
+  .modal-navy select[class*="bg-white"],
+  .modal-navy textarea.bg-white,
+  .modal-navy textarea[class*="bg-white"],
+  .dark-form input.bg-white,
+  .dark-form select.bg-white,
+  .dark-form textarea.bg-white,
+  [data-high-risk] input,
+  [data-high-risk] select,
+  [data-high-risk] textarea {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    border-color: #cbd5e1 !important;
+    color-scheme: light !important;
+  }
+
+  .search-input-white::placeholder,
+  .high-risk-input::placeholder,
+  input[data-light-input="true"]::placeholder,
+  .modal-navy input.bg-white::placeholder,
+  .modal-navy input[class*="bg-white"]::placeholder,
+  .dark-form input.bg-white::placeholder {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
   }
   .modal-navy label,
   .modal-navy .form-label,

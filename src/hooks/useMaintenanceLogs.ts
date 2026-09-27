@@ -6,6 +6,26 @@ import { db } from '../lib/firebase';
 import { MaintenanceLog } from '../types';
 import { useAuth } from '../context/AuthContext'; 
 
+function safeToDate(val: any): Date | undefined {
+  if (!val) return undefined;
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      return !isNaN(d.getTime()) ? d : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  if (val instanceof Date) {
+    return !isNaN(val.getTime()) ? val : undefined;
+  }
+  if (typeof val === 'string' || typeof val === 'number') {
+    const d = new Date(val);
+    return !isNaN(d.getTime()) ? d : undefined;
+  }
+  return undefined;
+}
+
 export const useMaintenanceLogs = (vehicleId?: string) => {
   const { user } = useAuth(); 
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
@@ -30,35 +50,27 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
         snapshot.forEach((doc) => {
           const data = doc.data();
 
-          // ✅ SECURITY RULE Note: The strict company filter has been moved to 
-          // `useMaintenanceFilters.ts` to intelligently cross-check against assigned vehicles.
-          
-          // Ensure all Timestamp fields are converted to JS Date objects
-          const date = data.date ? data.date.toDate() : undefined;
-          const nextServiceDate = data.nextServiceDate ? data.nextServiceDate.toDate() : undefined;
-          
-          // Handle potential missing dates during conversion
-          if (!date) {
-            console.warn(`Maintenance log ${doc.id} missing 'date' field.`);
-            return; // Skip this log if the primary date is missing
-          }
+          // Ensure all Timestamp, Date, or string fields are safely converted to JS Date objects
+          const date = safeToDate(data.date) || safeToDate(data.createdAt) || new Date();
+          const nextServiceDate = safeToDate(data.nextServiceDate);
 
           logsData.push({
             id: doc.id,
             ...data,
             date: date,
             nextServiceDate: nextServiceDate,
-            createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
-            updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
-            invoiceDate: data.invoiceDate ? data.invoiceDate.toDate() : undefined,
-            invoiceDueDate: data.invoiceDueDate ? data.invoiceDueDate.toDate() : undefined,
-            completedDate: data.completedDate ? data.completedDate.toDate() : undefined,
+            createdAt: safeToDate(data.createdAt),
+            updatedAt: safeToDate(data.updatedAt),
+            invoiceDate: safeToDate(data.invoiceDate),
+            invoiceDueDate: safeToDate(data.invoiceDueDate),
+            completedDate: safeToDate(data.completedDate),
           } as MaintenanceLog);
         });
         setLogs(logsData);
         setLoading(false);
       },
       (err) => {
+        console.error('Error fetching maintenance logs:', err);
         setError(err.message);
         setLoading(false);
       }

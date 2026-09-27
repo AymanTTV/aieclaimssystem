@@ -1,7 +1,7 @@
 // src/services/product.service.ts
 import {
   collection, getDocs, addDoc, updateDoc, doc, deleteDoc, getDoc,
-  serverTimestamp,
+  serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -158,4 +158,56 @@ export async function remove(id: string): Promise<void> {
   await deleteDoc(doc(db, COL, id));
 }
 
-export default { getAll, getById, create, update, delete: remove };
+/**
+ * Bulk create products safely without altering or removing existing products.
+ * Handles Firestore 500-op batch limits by chunking.
+ */
+export async function bulkCreate(products: Partial<Product>[]): Promise<number> {
+  if (products.length === 0) return 0;
+
+  const CHUNK_SIZE = 450;
+  let createdCount = 0;
+
+  for (let i = 0; i < products.length; i += CHUNK_SIZE) {
+    const chunk = products.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    for (const p of chunk) {
+      const docRef = doc(collection(db, COL));
+      const retailPrice = Number(p.retailPrice ?? 0);
+      const discount = Number(p.discount ?? 0);
+      const quantity = Number(p.quantity ?? 0);
+      const totalValue =
+        p.totalValue !== undefined
+          ? Number(p.totalValue)
+          : computeTotalValue({ quantity, retailPrice, discount });
+
+      const toSave: any = {
+        partNumber: (p.partNumber ?? '').trim(),
+        name: (p.name ?? '').trim(),
+        category: p.category ?? '',
+        binLocation: p.binLocation ?? '',
+        quantity,
+        retailPrice,
+        price: retailPrice,
+        discount,
+        totalValue,
+        vehicleId: p.vehicleId ?? '',
+        vehicleName: p.vehicleName ?? '',
+        imageUrl: p.imageUrl ?? '',
+        description: p.description ?? '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      batch.set(docRef, toSave);
+      createdCount++;
+    }
+
+    await batch.commit();
+  }
+
+  return createdCount;
+}
+
+export default { getAll, getById, create, update, delete: remove, bulkCreate };

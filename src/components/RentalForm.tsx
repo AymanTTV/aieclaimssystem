@@ -12,8 +12,9 @@ import SignaturePad from '../ui/SignaturePad';
 import { addWeeks, nextMonday, isMonday, format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
-import { Search, Car } from 'lucide-react';
+import { Search, Car, ShieldAlert } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
+import { queryHighRiskDriver } from '../../services/highRiskService';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -395,53 +396,99 @@ const handleRentalTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         {/* Customer Search Results */}
         {showCustomerResults && (
           <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-            {filteredCustomers.map(customer => (
-              <div
-                key={customer.id}
-                className="cursor-pointer hover:bg-gray-100 px-4 py-2"
-                onClick={() => {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    customerId: customer.id,
-                    signature: customer.signature || ''
-                  }));
-                  setCustomerSearchQuery(customer.name);
-                  setShowCustomerResults(false);
-                }}
-              >
-                <div className="font-medium">{customer.name}</div>
-                <div className="text-sm text-gray-500">
-                  {customer.mobile} - {customer.email}
+            {filteredCustomers.map(customer => {
+              const risk = queryHighRiskDriver(customer.name);
+              return (
+                <div
+                  key={customer.id}
+                  className="cursor-pointer hover:bg-gray-100 px-4 py-2"
+                  onClick={() => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      customerId: customer.id,
+                      signature: customer.signature || ''
+                    }));
+                    setCustomerSearchQuery(customer.name);
+                    setShowCustomerResults(false);
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-gray-900">{customer.name}</div>
+                    {risk.isMatch && risk.match && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                        risk.match.riskLevel === 'High Risk'
+                          ? 'bg-red-100 text-red-700 border border-red-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}>
+                        <ShieldAlert className="w-3 h-3 text-red-600" />
+                        <span>{risk.match.riskLevel}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {customer.mobile} - {customer.email}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* Selected Customer Details */}
-        {selectedCustomer && (
-          <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900">Selected Customer</h4>
-            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Name:</span>
-                <span className="ml-2">{selectedCustomer.name}</span>
+        {selectedCustomer && (() => {
+          const selectedRisk = queryHighRiskDriver(selectedCustomer.name);
+          return (
+            <div className={`mt-2 p-4 rounded-lg border ${
+              selectedRisk.isMatch && selectedRisk.match
+                ? 'bg-red-50 border-red-300'
+                : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-900">Selected Customer</h4>
+                {selectedRisk.isMatch && selectedRisk.match && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 text-white font-black text-xs uppercase tracking-wider shadow-xs">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>HIGH RISK REGISTRY MATCH</span>
+                  </span>
+                )}
               </div>
-              <div>
-                <span className="text-gray-500">Mobile:</span>
-                <span className="ml-2">{selectedCustomer.mobile}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Email:</span>
-                <span className="ml-2">{selectedCustomer.email}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">License Expiry:</span>
-                <span className="ml-2">{format(selectedCustomer.licenseExpiry, 'dd/MM/yyyy')}</span>
+
+              {selectedRisk.isMatch && selectedRisk.match && (
+                <div className="mt-2 p-3 rounded-lg bg-red-100/80 border border-red-300 text-xs text-red-900 space-y-1">
+                  <div className="font-black text-red-800 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>WARNING: This driver has an active adverse record in the High Risk Registry!</span>
+                  </div>
+                  <p className="text-[11px] text-red-700">
+                    Category: <strong>{selectedRisk.match.category}</strong> • Details: {selectedRisk.match.categoryDetails || 'Adverse Fleet History'} • Severity: <strong>{selectedRisk.match.riskLevel}</strong>
+                  </p>
+                  <p className="text-[10px] text-red-600 font-bold uppercase tracking-wide">
+                    Fleet policy: Supervisor override required prior to vehicle handover.
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Name:</span>
+                  <span className="ml-2 font-semibold text-gray-900">{selectedCustomer.name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Mobile:</span>
+                  <span className="ml-2">{selectedCustomer.mobile}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Email:</span>
+                  <span className="ml-2">{selectedCustomer.email}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">License Expiry:</span>
+                  <span className="ml-2">{selectedCustomer.licenseExpiry ? format(selectedCustomer.licenseExpiry, 'dd/MM/yyyy') : 'N/A'}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

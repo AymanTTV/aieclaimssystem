@@ -104,12 +104,14 @@ export const MaintenanceCommunicationModal: React.FC<
     if (context && effLog && effLog.id === log?.id) return context;
     if (!effLog) return null;
     const vMap: Record<string, Vehicle> = {};
-    (vehicles || []).forEach((v) => {
-      if (v.id) vMap[v.id] = v;
+    const vList: any[] = Array.isArray(vehicles) ? vehicles : vehicles ? Object.values(vehicles) : [];
+    vList.forEach((v) => {
+      if (v?.id) vMap[v.id] = v;
     });
     const cMap: Record<string, Customer> = {};
-    (customers || []).forEach((c) => {
-      if (c.id) cMap[c.id] = c;
+    const cList: any[] = Array.isArray(customers) ? customers : customers ? Object.values(customers) : [];
+    cList.forEach((c) => {
+      if (c?.id) cMap[c.id] = c;
     });
     return resolveMaintenanceContext(effLog, vMap, cMap, [], rentals || []);
   }, [context, effLog, log, vehicles, customers, rentals]);

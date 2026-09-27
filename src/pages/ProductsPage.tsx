@@ -16,12 +16,15 @@ import { useAuth } from '../context/AuthContext';
 import { useVehicles } from '../hooks/useVehicles';
 import productService from '../services/product.service';
 import categoryService from '../services/category.service';
-import { X, Edit2, Trash2, Eye, Box, Download, Car, Search, Package, Layers, AlertCircle } from 'lucide-react';
+import { X, Edit2, Trash2, Eye, Box, Download, Upload, Car, Search, Package, Layers, AlertCircle, Globe, Sparkles, Database } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { handleProductExport } from '../utils/productHelpers';
 import FormField from '../components/ui/FormField';
 import SearchableSelect from '../components/ui/SearchableSelect'; // Added Import
+import ProductImportModal from '../components/products/ProductImportModal';
+import onlineProductSearchService, { OnlineProductResult } from '../services/onlineProductSearch.service';
+import OnlineProductSearchResults from '../components/products/OnlineProductSearchResults';
 
 const Spinner: React.FC = () => (
   <div className="flex items-center justify-center h-64">
@@ -72,16 +75,59 @@ const ProductsPage: React.FC = () => {
   const [editCat, setEditCat] = useState<Category | null>(null);
   const [catName, setCatName] = useState('');
 
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // Online search state
+  const [searchScope, setSearchScope] = useState<'database' | 'online' | 'all'>('database');
+  const [onlineResults, setOnlineResults] = useState<OnlineProductResult[]>([]);
+  const [webSources, setWebSources] = useState<{ title: string; url: string }[]>([]);
+  const [onlineLoading, setOnlineLoading] = useState(false);
+  const [lastSearchedOnlineQuery, setLastSearchedOnlineQuery] = useState('');
+
+  const executeOnlineSearch = async (queryOverride?: string) => {
+    const q = (queryOverride !== undefined ? queryOverride : searchTerm).trim();
+    if (!q) {
+      toast('Please enter a part number, product name, or vehicle to search online', { icon: 'ℹ️' });
+      return;
+    }
+    setOnlineLoading(true);
+    setLastSearchedOnlineQuery(q);
+    try {
+      const selectedCat = categories.find((c) => c.id === filterCat)?.name;
+      const resp = await onlineProductSearchService.searchOnlineProducts(q, {
+        category: selectedCat,
+      });
+      setOnlineResults(resp.results);
+      setWebSources(resp.webSources || []);
+      if (resp.results.length > 0) {
+        toast.success(`Found ${resp.results.length} online automotive parts`);
+      }
+    } catch (err: any) {
+      console.error('Online search error:', err);
+      toast.error('Failed to fetch online search results');
+    } finally {
+      setOnlineLoading(false);
+    }
+  };
+
+  const refreshProductsAndCategories = async () => {
+    try {
+      const [cats, prods] = await Promise.all([
+        categoryService.getAll(),
+        productService.getAll(),
+      ]);
+      setCategories(cats);
+      setProducts(prods);
+    } catch (err) {
+      console.error('Failed to reload products:', err);
+    }
+  };
+
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const [cats, prods] = await Promise.all([
-          categoryService.getAll(),
-          productService.getAll(),
-        ]);
-        setCategories(cats);
-        setProducts(prods);
+        await refreshProductsAndCategories();
       } catch (err) {
         console.error(err);
         toast.error('Failed to load data');
@@ -128,7 +174,7 @@ const ProductsPage: React.FC = () => {
     return { totalCount, totalStock, outOfStock, totalCats };
   }, [products, categories]);
 
-  const openProductForm = (prod?: Product) => {
+  const openProductForm = (prod?: Product, initialData?: Partial<Product>) => {
     startTransition(() => {
       if (prod) {
         setEditProduct(prod);
@@ -143,6 +189,29 @@ const ProductsPage: React.FC = () => {
           description: prod.description ?? '',
           vehicleId: prod.vehicleId ?? '',
           vehicleName: prod.vehicleName ?? '',
+        });
+      } else if (initialData) {
+        // Resolve category if matching by name
+        let matchedCatId = initialData.category || '';
+        const found = categories.find(
+          (c) =>
+            c.id.toLowerCase() === (initialData.category || '').toLowerCase() ||
+            c.name.toLowerCase() === (initialData.category || '').toLowerCase()
+        );
+        if (found) matchedCatId = found.id;
+
+        setEditProduct(null);
+        setForm({
+          partNumber: initialData.partNumber || '',
+          name: initialData.name || '',
+          category: matchedCatId,
+          binLocation: initialData.binLocation || 'Aisle 1',
+          quantity: initialData.quantity !== undefined ? initialData.quantity : 1,
+          retailPrice: initialData.retailPrice !== undefined ? initialData.retailPrice : 0,
+          discount: initialData.discount !== undefined ? initialData.discount : 0,
+          description: initialData.description || '',
+          vehicleId: initialData.vehicleId || '',
+          vehicleName: initialData.vehicleName || '',
         });
       } else {
         setEditProduct(null);
@@ -296,6 +365,15 @@ const ProductsPage: React.FC = () => {
               Manage Categories
             </button>
           )}
+          {(can('products', 'import') || can('products', 'create')) && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center px-3.5 py-2.5 border border-emerald-200 rounded-xl shadow-xs text-sm font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors cursor-pointer"
+            >
+              <Upload className="h-4 w-4 mr-1.5 text-emerald-700" />
+              Import
+            </button>
+          )}
           {can('products', 'export') && (
             <button
               onClick={() => handleProductExport(products, categories)}
@@ -361,21 +439,129 @@ const ProductsPage: React.FC = () => {
         </div>
       )}
 
-      {/* FILTER & SEARCH BAR */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A]">
+      {/* FILTER & SEARCH BAR WITH DATABASE & ONLINE SCOPE */}
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-xs p-4 sm:p-5 text-[#0F172A] space-y-4">
+        {/* SCOPE TABS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setSearchScope('database')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                searchScope === 'database'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5 text-blue-600" />
+              Database Inventory ({filtered.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchScope('online');
+                if (searchTerm.trim() && onlineResults.length === 0 && !onlineLoading) {
+                  executeOnlineSearch(searchTerm);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                searchScope === 'online'
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-blue-700'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-600" />
+              Online Auto Parts
+              {onlineResults.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full text-[10px] font-mono">
+                  {onlineResults.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchScope('all');
+                if (searchTerm.trim() && onlineResults.length === 0 && !onlineLoading) {
+                  executeOnlineSearch(searchTerm);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                searchScope === 'all'
+                  ? 'bg-white text-purple-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-purple-700'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-purple-600" />
+              Combined View
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+              Search local database & live online market catalogs
+            </span>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
             <label className="block text-xs font-bold uppercase tracking-wider text-[#64748B] mb-1.5">
-              Search Products
+              {searchScope === 'online'
+                ? 'Search Online Auto Parts & Market Catalogs'
+                : searchScope === 'all'
+                ? 'Search Inventory & Online Catalogs'
+                : 'Search Inventory Products'}
             </label>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 absolute left-3.5 text-[#94A3B8] pointer-events-none" />
               <input
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
-                placeholder="Search by Part Number, Product Name, Bin Location…"
+                className="w-full pl-10 pr-28 py-2.5 rounded-xl border-[1.5px] border-[#CBD5E1] bg-white text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm shadow-xs transition-all"
+                placeholder={
+                  searchScope === 'online'
+                    ? 'Search part name, OEM number (e.g. 0986479042), vehicle model…'
+                    : 'Search by Part Number, Product Name, Bin Location…'
+                }
                 value={searchTerm}
                 onChange={handleSearch}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (searchScope === 'database') {
+                      executeOnlineSearch(searchTerm);
+                      setSearchScope('online');
+                    } else {
+                      executeOnlineSearch(searchTerm);
+                    }
+                  }
+                }}
               />
+              <div className="absolute right-1.5 flex items-center gap-1">
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    executeOnlineSearch(searchTerm);
+                    if (searchScope === 'database') setSearchScope('online');
+                  }}
+                  disabled={onlineLoading || !searchTerm.trim()}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
+                  title="Search Online Catalogs"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Online</span>
+                </button>
+              </div>
             </div>
           </div>
           <div className="w-full sm:w-64">
@@ -388,111 +574,182 @@ const ProductsPage: React.FC = () => {
               onChange={handleFilter}
             >
               <option value="">All Categories</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </div>
         </div>
+
+        {/* HELPFUL BANNER WHEN 0 DB RESULTS */}
+        {searchScope === 'database' && filtered.length === 0 && searchTerm.trim() && !loading && (
+          <div className="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span>
+                No matching items in your local database for &ldquo;<strong>{searchTerm}</strong>&rdquo;.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchScope('online');
+                executeOnlineSearch(searchTerm);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Search Online Auto Catalogs for &ldquo;{searchTerm}&rdquo; →
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded shadow overflow-auto">
-        <Suspense fallback={<div className="p-8 text-center">{isPending ? 'Updating…' : 'Loading…'}</div>}>
-          <LazyDataTable
-            data={filtered}
-            onRowClick={openDetail}
-            columns={[
-              {
-                header: 'Image',
-                cell: ({ row }) =>
-                  row.original.imageUrl ? (
-                    <img
-                      src={row.original.imageUrl}
-                      className="h-10 w-10 object-cover rounded"
-                      alt=""
-                    />
-                  ) : (
-                    <Box className="h-8 w-8 text-gray-400" />
-                  ),
-              },
-              { header: 'Part Number', cell: ({ row }) => row.original.partNumber },
-              { header: 'Product Name', cell: ({ row }) => row.original.name },
-              {
-                header: 'Assigned Vehicle',
-                cell: ({ row }) => row.original.vehicleName ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      <Car className="w-3 h-3 mr-1" /> {row.original.vehicleName}
-                    </span>
-                ) : <span className="text-gray-400">-</span>
-              },
-              {
-                header: 'Category',
-                cell: ({ row }) => getCategoryName(row.original.category),
-              },
-              { header: 'Bin / Location', cell: ({ row }) => row.original.binLocation ?? '—' },
-              { header: 'QTY', cell: ({ row }) => String(row.original.quantity ?? 0) },
-              {
-                header: 'Retail Price',
-                cell: ({ row }) => `£${(row.original.retailPrice ?? 0).toFixed(2)}`,
-              },
-              {
-                header: 'Discount (£)',
-                cell: ({ row }) => `£${Number(row.original.discount ?? 0).toFixed(2)}`,
-              },
-              {
-                header: 'Total Value',
-                cell: ({ row }) => {
-                  const qty = Number(row.original.quantity ?? 0);
-                  const price = Number(row.original.retailPrice ?? 0);
-                  const disc = Number(row.original.discount ?? 0); 
-                  const total = qty * price - disc;
-                  return `£${Math.max(total, 0).toFixed(2)}`;
-                },
-              },
-              {
-                header: 'Actions',
-                cell: ({ row }) => (
-                  <div className="flex space-x-2">
-                    {can('products', 'update') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openProductForm(row.original);
-                        }}
-                        title="Edit"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                    )}
-                    {can('products', 'delete') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          confirmDeleteProduct(row.original);
-                        }}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </button>
-                    )}
-                    {can('products', 'view') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDetail(row.original);
-                        }}
-                        title="View"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ),
-              },
-            ]}
+      {/* DATABASE PRODUCTS TABLE VIEW */}
+      {(searchScope === 'database' || searchScope === 'all') && (
+        <div className="space-y-2">
+          {searchScope === 'all' && (
+            <div className="flex items-center gap-2 pt-2 px-1">
+              <Database className="w-4 h-4 text-blue-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Database Inventory Matches ({filtered.length})
+              </h3>
+            </div>
+          )}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <Suspense fallback={<div className="p-8 text-center">{isPending ? 'Updating…' : 'Loading…'}</div>}>
+              <LazyDataTable
+                data={filtered}
+                onRowClick={openDetail}
+                columns={[
+                  {
+                    header: 'Image',
+                    cell: ({ row }) =>
+                      row.original.imageUrl ? (
+                        <img
+                          src={row.original.imageUrl}
+                          className="h-10 w-10 object-cover rounded"
+                          alt=""
+                        />
+                      ) : (
+                        <Box className="h-8 w-8 text-gray-400" />
+                      ),
+                  },
+                  { header: 'Part Number', cell: ({ row }) => row.original.partNumber },
+                  { header: 'Product Name', cell: ({ row }) => row.original.name },
+                  {
+                    header: 'Assigned Vehicle',
+                    cell: ({ row }) =>
+                      row.original.vehicleName ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <Car className="w-3 h-3 mr-1" /> {row.original.vehicleName}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      ),
+                  },
+                  {
+                    header: 'Category',
+                    cell: ({ row }) => getCategoryName(row.original.category),
+                  },
+                  { header: 'Bin / Location', cell: ({ row }) => row.original.binLocation ?? '—' },
+                  { header: 'QTY', cell: ({ row }) => String(row.original.quantity ?? 0) },
+                  {
+                    header: 'Retail Price',
+                    cell: ({ row }) => `£${(row.original.retailPrice ?? 0).toFixed(2)}`,
+                  },
+                  {
+                    header: 'Discount (£)',
+                    cell: ({ row }) => `£${Number(row.original.discount ?? 0).toFixed(2)}`,
+                  },
+                  {
+                    header: 'Total Value',
+                    cell: ({ row }) => {
+                      const qty = Number(row.original.quantity ?? 0);
+                      const price = Number(row.original.retailPrice ?? 0);
+                      const disc = Number(row.original.discount ?? 0);
+                      const total = qty * price - disc;
+                      return `£${Math.max(total, 0).toFixed(2)}`;
+                    },
+                  },
+                  {
+                    header: 'Actions',
+                    cell: ({ row }) => (
+                      <div className="flex space-x-2">
+                        {can('products', 'update') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProductForm(row.original);
+                            }}
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {can('products', 'delete') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmDeleteProduct(row.original);
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </button>
+                        )}
+                        {can('products', 'view') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDetail(row.original);
+                            }}
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
+
+      {/* ONLINE AUTO PARTS RESULTS VIEW */}
+      {(searchScope === 'online' || searchScope === 'all') && (
+        <div className="space-y-2 pt-2">
+          {searchScope === 'all' && (
+            <div className="flex items-center gap-2 pt-4 px-1 border-t border-slate-200">
+              <Globe className="w-4 h-4 text-blue-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Online Market Catalogs & Suppliers
+              </h3>
+            </div>
+          )}
+          <OnlineProductSearchResults
+            query={searchTerm || lastSearchedOnlineQuery}
+            results={onlineResults}
+            webSources={webSources}
+            loading={onlineLoading}
+            existingProducts={products}
+            onAddToInventory={(initialData) => openProductForm(undefined, initialData)}
+            onViewExistingProduct={(productId) => {
+              const p = products.find((prod) => prod.id === productId);
+              if (p) openDetail(p);
+            }}
+            onSearchQueryChange={(q) => {
+              setSearchTerm(q);
+              executeOnlineSearch(q);
+            }}
           />
-        </Suspense>
-      </div>
+        </div>
+      )}
 
       <Modal
         isOpen={showProductModal}
@@ -807,6 +1064,16 @@ const ProductsPage: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Product Import Modal with Zero-Risk Duplicate Protection */}
+      <ProductImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        existingProducts={products}
+        categories={categories}
+        vehicles={vehicles}
+        onImportComplete={refreshProductsAndCategories}
+      />
     </div>
   );
 };

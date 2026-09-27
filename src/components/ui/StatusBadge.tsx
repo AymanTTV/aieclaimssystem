@@ -30,6 +30,35 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'in-progress':
       case 'maintenance':
         return 'bg-orange-100 text-orange-950 border border-orange-300 font-semibold';
+      case 'workshop':
+        return 'bg-purple-100 text-purple-900 border border-purple-300 font-semibold';
+      case 'parts-backorder':
+      case 'parts backorder':
+      case 'awaiting-parts':
+      case 'awaiting parts':
+      case 'backorder':
+        return 'bg-amber-100 text-amber-950 border border-amber-300 font-bold';
+      case 'bodywork':
+        return 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-semibold';
+      case 'off-road':
+      case 'off road':
+      case 'off-road (vor)':
+      case 'off road (vor)':
+      case 'vor':
+      case 'off-road-accident':
+        return 'bg-rose-100 text-rose-800 border border-rose-300 font-bold';
+      case 'pending':
+      case 'awaiting-approval':
+      case 'awaiting approval':
+        return 'bg-yellow-100 text-yellow-900 border border-yellow-300 font-semibold';
+      case 'inspection':
+      case 'diagnostic':
+        return 'bg-sky-100 text-sky-900 border border-sky-300 font-semibold';
+      case 'in-transit':
+      case 'in transit':
+      case 'recovery':
+      case 'breakdown':
+        return 'bg-red-100 text-red-900 border border-red-300 font-bold';
       case 'completed':
         return 'bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD] font-semibold';
       case 'claim':
@@ -48,7 +77,8 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'partially_paid':
       case 'partially paid':
         return 'bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] font-semibold';
-      case 'pending':
+      case 'payment_pending':
+      case 'payment-pending':
         return 'bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] font-medium';
       case 'overdue':
         return 'bg-[#FEE2E2] text-[#B91C1C] border border-[#FCA5A5] font-bold';
@@ -75,8 +105,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'credit hire':
       case 'hire':
         return 'bg-white text-black border border-gray-300 font-bold';
-      case 'recovery':
-        return 'bg-white text-black border border-gray-300 font-bold';
       case 'storage':
         return 'bg-white text-black border border-gray-300 font-bold';
       
@@ -88,6 +116,17 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
   const colorClass = getStatusColor(status);
   const isWhite = colorClass.includes('bg-white') || colorClass.includes('bg-gray-100');
 
+  const getDisplayLabel = (val: string): string => {
+    const s = String(val).toLowerCase();
+    if (s === 'parts-backorder' || s === 'parts backorder' || s === 'backorder' || s === 'awaiting-parts' || s === 'awaiting parts') return 'Awaiting Parts';
+    if (s === 'workshop') return 'In Workshop';
+    if (s === 'off-road' || s === 'off road' || s === 'off-road (vor)' || s === 'off road (vor)' || s === 'vor' || s === 'off-road-accident') return 'OFF ROAD (VOR)';
+    if (s === 'pending' || s === 'awaiting-approval' || s === 'awaiting approval') return 'Pending Approval';
+    if (s === 'inspection' || s === 'diagnostic') return 'Inspection / MOT';
+    if (s === 'in-transit' || s === 'in transit' || s === 'recovery') return 'In Transit';
+    return String(val).replace(/[_-]/g, ' ');
+  };
+
   return (
     <span
       className={clsx(
@@ -96,7 +135,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
         className
       )}
     >
-      {String(status).replace(/[_-]/g, ' ')}
+      {getDisplayLabel(status)}
     </span>
   );
 };

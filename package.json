@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 3000",
+    "dev": "tsx server.ts",
+    "start": "node server.ts",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -15,6 +16,7 @@
     "@emoji-mart/react": "^1.1.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@google/genai": "^2.24.0",
     "@hookform/resolvers": "^3.3.4",
     "@mui/icons-material": "^7.1.1",
     "@mui/material": "^7.1.1",
@@ -29,6 +31,7 @@
     "dotenv": "^16.4.5",
     "emailjs-com": "^3.2.0",
     "emoji-mart": "^5.5.2",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "firebase": "^10.14.1",
     "jspdf": "^2.5.1",
@@ -50,12 +53,14 @@
     "react-signature-canvas": "^1.0.6",
     "recharts": "^2.15.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
     "uuid": "^11.0.5",
     "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@types/express": "^5.0.6",
     "@types/file-saver": "^2.0.7",
     "@types/lodash": "^4.17.20",
     "@types/react": "^18.3.5",

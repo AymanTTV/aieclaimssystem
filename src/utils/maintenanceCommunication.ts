@@ -55,6 +55,13 @@ export interface ResolvedMaintenanceContext {
   remainingAmount?: string;
   invoiceNumber?: string;
   maintenanceStatus?: string;
+
+  // Extended Service & Maintenance Metrics
+  lastServiceMileage?: string;
+  lastServiceDate?: string;
+  serviceMileageRequired?: string;
+  completedDate?: string;
+  nextServiceDate?: string;
 }
 
 export interface MaintenanceTemplateOption {
@@ -100,8 +107,38 @@ export function parseMaintenanceDate(dateVal?: any): Date | null {
   if (dateVal instanceof Date) {
     return isNaN(dateVal.getTime()) ? null : dateVal;
   }
-  if (typeof dateVal === 'string' || typeof dateVal === 'number') {
+  if (typeof dateVal === 'number') {
     const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    if (!trimmed) return null;
+
+    // Handle UK DD/MM/YYYY or DD-MM-YYYY (with optional time)
+    const ukMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (ukMatch) {
+      const day = parseInt(ukMatch[1], 10);
+      const month = parseInt(ukMatch[2], 10) - 1;
+      const year = parseInt(ukMatch[3], 10);
+      const hours = ukMatch[4] ? parseInt(ukMatch[4], 10) : 0;
+      const minutes = ukMatch[5] ? parseInt(ukMatch[5], 10) : 0;
+      const seconds = ukMatch[6] ? parseInt(ukMatch[6], 10) : 0;
+      const d = new Date(year, month, day, hours, minutes, seconds);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Handle YYYY-MM-DD (avoid UTC midnight shifting the day)
+    const isoDateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoDateOnlyMatch) {
+      const year = parseInt(isoDateOnlyMatch[1], 10);
+      const month = parseInt(isoDateOnlyMatch[2], 10) - 1;
+      const day = parseInt(isoDateOnlyMatch[3], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const d = new Date(trimmed);
     return isNaN(d.getTime()) ? null : d;
   }
   return null;
@@ -205,32 +242,77 @@ export function resolveMaintenanceContext(
   const logDesc = typeof log.description === 'string' ? log.description.trim() : '';
   const additionalNotes = logNotes || logDesc || '';
 
-  const currentMileage = typeof log.currentMileage === 'number' ? log.currentMileage : undefined;
-  const nextServiceMileage = typeof log.nextServiceMileage === 'number' ? log.nextServiceMileage : undefined;
-  const partsRequired =
-    log.parts && log.parts.length > 0
-      ? log.parts.map((p) => p.name).filter(Boolean).join(', ')
-      : '';
-
   // Vehicle resolution
-  const vehicleObj = log.vehicleId
-    ? vehiclesMap[log.vehicleId]
-    : Object.values(vehiclesMap).find(
-        (v) =>
-          v.registrationNumber &&
+  const vehicleObj =
+    (log.vehicleId ? vehiclesMap[log.vehicleId] : undefined) ||
+    Object.values(vehiclesMap).find(
+      (v) =>
+        (log.vehicleId && v.id === log.vehicleId) ||
+        (v.registrationNumber &&
           log.vehicleDetails?.registrationNumber &&
           v.registrationNumber.trim().toUpperCase() ===
-            log.vehicleDetails.registrationNumber.trim().toUpperCase()
-      );
+            log.vehicleDetails.registrationNumber.trim().toUpperCase()) ||
+        (v.registrationNumber &&
+          (log as any).registrationNumber &&
+          v.registrationNumber.trim().toUpperCase() ===
+            String((log as any).registrationNumber).trim().toUpperCase())
+    );
   const vehicleId = vehicleObj?.id || log.vehicleId || '';
   const vehicleReg =
     log.vehicleDetails?.registrationNumber ||
+    (log as any).registrationNumber ||
     vehicleObj?.registrationNumber ||
     'N/A';
   const vehicleMakeModel =
     `${log.vehicleDetails?.make || vehicleObj?.make || ''} ${
       log.vehicleDetails?.model || vehicleObj?.model || ''
     }`.trim() || 'Fleet Vehicle';
+
+  const currentMileageNum = typeof log.currentMileage === 'number'
+    ? log.currentMileage
+    : typeof (log as any).mileage === 'number'
+    ? (log as any).mileage
+    : vehicleObj?.mileage;
+
+  const currentMileage = currentMileageNum;
+
+  const nextServiceMileageNum = typeof log.nextServiceMileage === 'number'
+    ? log.nextServiceMileage
+    : typeof vehicleObj?.nextServiceMileage === 'number'
+    ? vehicleObj.nextServiceMileage
+    : undefined;
+
+  const nextServiceMileage = nextServiceMileageNum;
+
+  const lastServiceMileageVal =
+    vehicleObj?.mileage !== undefined
+      ? String(vehicleObj.mileage)
+      : (vehicleObj as any)?.lastServiceMileage !== undefined
+      ? String((vehicleObj as any).lastServiceMileage)
+      : (vehicleObj as any)?.lastServiceMileageDone !== undefined
+      ? String((vehicleObj as any).lastServiceMileageDone)
+      : currentMileageNum !== undefined
+      ? String(currentMileageNum)
+      : 'N/A';
+
+  const lastServiceDateVal = formatDisplayDate(
+    (vehicleObj as any)?.lastMaintenance || (vehicleObj as any)?.lastServiceDate || log.date
+  );
+
+  const serviceMileageRequiredVal =
+    vehicleObj?.serviceInterval !== undefined
+      ? String(vehicleObj.serviceInterval)
+      : (vehicleObj as any)?.serviceInterval !== undefined
+      ? String((vehicleObj as any).serviceInterval)
+      : 'N/A';
+
+  const nextServiceDateVal = formatDisplayDate(log.nextServiceDate || vehicleObj?.nextMaintenance);
+  const completedDateVal = formatDisplayDate(log.completedDate);
+
+  const partsRequired =
+    log.parts && log.parts.length > 0
+      ? log.parts.map((p) => p.name).filter(Boolean).join(', ')
+      : '';
 
   // 1. DYNAMIC DRIVER LOOKUP FROM ACTIVE RENTAL
   // Automatically look up the active rental associated with the maintenance record's vehicle_id
@@ -344,6 +426,11 @@ export function resolveMaintenanceContext(
     remainingAmount: typeof (log as any).remainingAmount === 'number' ? `£${(log as any).remainingAmount.toFixed(2)}` : '£0.00',
     invoiceNumber: (log as any).invoiceNumber || (log as any).invoiceRef || orderNumber,
     maintenanceStatus: log.status || 'Scheduled',
+    lastServiceMileage: lastServiceMileageVal,
+    lastServiceDate: lastServiceDateVal,
+    serviceMileageRequired: serviceMileageRequiredVal,
+    nextServiceDate: nextServiceDateVal,
+    completedDate: completedDateVal,
     vehicleId,
     vehicleReg,
     vehicleMakeModel,
@@ -551,9 +638,29 @@ export function replaceMaintenancePlaceholders(
     '[Current Mileage]': ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A',
     '{mileage}': ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A',
     '{current_mileage}': ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A',
+    '[Last Service Mileage]': ctx.lastServiceMileage || (ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A'),
+    '[Last Service Mileage Done]': ctx.lastServiceMileage || (ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A'),
+    '{last_service_mileage}': ctx.lastServiceMileage || (ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A'),
+    '{last_service_Mileage}': ctx.lastServiceMileage || (ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A'),
+    '[Last Service Date]': ctx.lastServiceDate || ctx.scheduledDate || 'N/A',
+    '{last_service_date}': ctx.lastServiceDate || ctx.scheduledDate || 'N/A',
+    '{last_service_Date}': ctx.lastServiceDate || ctx.scheduledDate || 'N/A',
+    '{service_date}': ctx.scheduledDate,
+    '[Service Date]': ctx.scheduledDate,
+    '{last_maintenance}': ctx.lastServiceDate || 'N/A',
+    '[Last Maintenance]': ctx.lastServiceDate || 'N/A',
+    '{next_maintenance}': ctx.nextServiceDate || 'N/A',
+    '[Next Maintenance]': ctx.nextServiceDate || 'N/A',
+    '{service_mileage_required}': ctx.serviceMileageRequired || 'N/A',
+    '[Service Mileage Required]': ctx.serviceMileageRequired || 'N/A',
     '[NextMileage]': ctx.nextServiceMileage !== undefined ? String(ctx.nextServiceMileage) : 'N/A',
     '[Next Service Mileage]': ctx.nextServiceMileage !== undefined ? String(ctx.nextServiceMileage) : 'N/A',
     '{next_mileage}': ctx.nextServiceMileage !== undefined ? String(ctx.nextServiceMileage) : 'N/A',
+    '{next_service_mileage}': ctx.nextServiceMileage !== undefined ? String(ctx.nextServiceMileage) : 'N/A',
+    '{next_service_date}': ctx.nextServiceDate || 'N/A',
+    '[Next Service Date]': ctx.nextServiceDate || 'N/A',
+    '{completed_date}': ctx.completedDate || 'N/A',
+    '[Completed Date]': ctx.completedDate || 'N/A',
     '[Part(s) Required]': ctx.partsRequired || 'Standard service parts',
     '[Parts Required]': ctx.partsRequired || 'Standard service parts',
     '{parts_required}': ctx.partsRequired || 'Standard service parts',
@@ -577,7 +684,13 @@ export function replaceMaintenancePlaceholders(
     .replace(/\{scheduled[_\s-]?time\}|\{appointment[_\s-]?time\}|\{time\}/gi, ctx.scheduledTime)
     .replace(/\[(?:scheduled\s+time|appointment\s+time|time)\]/gi, ctx.scheduledTime)
     .replace(/\{scheduled[_\s-]?date\}|\{appointment[_\s-]?date\}|\{date\}/gi, ctx.scheduledDate)
-    .replace(/\[(?:scheduled\s+date|maintenance\s+date|appointment\s+date|the\s+maintenance\s+date|date)\]/gi, ctx.scheduledDate);
+    .replace(/\[(?:scheduled\s+date|maintenance\s+date|appointment\s+date|the\s+maintenance\s+date|date)\]/gi, ctx.scheduledDate)
+    .replace(/\{last[_\s-]?service[_\s-]?mileage(?:[_\s-]?done)?\}|\[last\s+service\s+mileage(?:\s+done)?\]/gi, ctx.lastServiceMileage || (ctx.currentMileage !== undefined ? String(ctx.currentMileage) : 'N/A'))
+    .replace(/\{last[_\s-]?service[_\s-]?date\}|\[last\s+service\s+date\]/gi, ctx.lastServiceDate || ctx.scheduledDate || 'N/A')
+    .replace(/\{service[_\s-]?mileage[_\s-]?required\}|\[service\s+mileage\s+required\]/gi, ctx.serviceMileageRequired || 'N/A')
+    .replace(/\{next[_\s-]?service[_\s-]?mileage\}|\[next\s+service\s+mileage\]/gi, ctx.nextServiceMileage !== undefined ? String(ctx.nextServiceMileage) : 'N/A')
+    .replace(/\{next[_\s-]?service[_\s-]?date\}|\[next\s+service\s+date\]/gi, ctx.nextServiceDate || 'N/A')
+    .replace(/\{completed[_\s-]?date\}|\[completed\s+date\]/gi, ctx.completedDate || 'N/A');
 
   return content;
 }

@@ -26,7 +26,7 @@ export const sendWhatsAppCloudText = onCall(
     secrets: [WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID],
     cors: true,
   },
-  async (request) => {
+  async (request: any) => {
     const data = (request.data ?? {}) as { to?: string; body?: string };
 
     const toInput = (data.to ?? '').toString().trim();

@@ -12,6 +12,7 @@ import { generateAndUploadDocument, getCompanyDetails } from '../../utils/docume
 import { InvoiceDocument } from '../pdf/documents';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import productService from '../../services/product.service';
+import unifiedCategoryService from '../../services/unifiedCategory.service';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -125,18 +126,9 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
   });
 
   useEffect(() => {
-    const fetchCats = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'invoiceCategories'));
-        const fetched: string[] = [];
-        snap.forEach(s => fetched.push((s.data() as any).name));
-        fetched.sort((a, b) => a.localeCompare(b));
-        setCategories(fetched);
-      } catch (err) {
-        toast.error('Failed to load categories');
-      }
-    };
-    fetchCats();
+    const unsub = unifiedCategoryService.subscribe((cats) => {
+      setCategories(cats.map((c) => c.name));
+    });
 
     if (financeAccounts.length === 0) {
         (async () => {
@@ -166,6 +158,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         console.error('Error fetching products');
       }
     })();
+
+    return () => unsub();
   }, []); 
 
   useEffect(() => {

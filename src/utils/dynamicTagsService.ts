@@ -269,6 +269,33 @@ export const SYSTEM_DYNAMIC_TAGS: DynamicTag[] = [
     sampleValue: '10/11/2026',
     isSystem: true,
   },
+  {
+    id: 'sys_vehicle_last_service_mileage',
+    tag: '{last_service_mileage}',
+    label: 'Last Service Mileage Done',
+    category: 'vehicle',
+    description: 'Vehicle last service mileage recorded',
+    sampleValue: '48,150',
+    isSystem: true,
+  },
+  {
+    id: 'sys_vehicle_last_service_date',
+    tag: '{last_service_date}',
+    label: 'Last Service Date',
+    category: 'vehicle',
+    description: 'Date vehicle was last serviced',
+    sampleValue: '10/08/2026',
+    isSystem: true,
+  },
+  {
+    id: 'sys_vehicle_service_mileage_required',
+    tag: '{service_mileage_required}',
+    label: 'Service Mileage Required',
+    category: 'vehicle',
+    description: 'Service interval mileage requirement',
+    sampleValue: '10,000',
+    isSystem: true,
+  },
 
   // ─── C. RENTAL PAGE TAGS ───
   {
@@ -721,6 +748,141 @@ export const SYSTEM_DYNAMIC_TAGS: DynamicTag[] = [
     category: 'maintenance',
     description: 'Odometer reading at time of service',
     sampleValue: '48,150',
+    isSystem: true,
+  },
+  {
+    id: 'sys_last_service_mileage',
+    tag: '{last_service_mileage}',
+    label: 'Last Service Mileage',
+    category: 'maintenance',
+    description: 'Odometer reading at last service done',
+    sampleValue: '38,150',
+    isSystem: true,
+  },
+  {
+    id: 'sys_last_service_date',
+    tag: '{last_service_date}',
+    label: 'Last Service Date',
+    category: 'maintenance',
+    description: 'Date the previous service was performed',
+    sampleValue: '10/08/2026',
+    isSystem: true,
+  },
+  {
+    id: 'sys_service_mileage_required',
+    tag: '{service_mileage_required}',
+    label: 'Service Mileage Required',
+    category: 'maintenance',
+    description: 'Interval mileage required between services',
+    sampleValue: '10,000',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_work_order_number',
+    tag: '{work_order_number}',
+    label: 'Work Order Number',
+    category: 'maintenance',
+    description: 'Official workshop work order number',
+    sampleValue: 'WO-2026-081',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_type',
+    tag: '{maintenance_type}',
+    label: 'Maintenance Type',
+    category: 'maintenance',
+    description: 'Category or nature of maintenance work',
+    sampleValue: 'Full Service',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_description',
+    tag: '{description}',
+    label: 'Maintenance Description',
+    category: 'maintenance',
+    description: 'Detailed description of the maintenance job',
+    sampleValue: 'Comprehensive engine and brake servicing',
+    isSystem: true,
+  },
+  {
+    id: 'sys_service_provider',
+    tag: '{service_provider}',
+    label: 'Service Provider',
+    category: 'maintenance',
+    description: 'Authorized service provider or contractor',
+    sampleValue: 'Apex Auto Services',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_net_amount',
+    tag: '{net_amount}',
+    label: 'Net Amount (Maintenance)',
+    category: 'maintenance',
+    description: 'Net maintenance cost before VAT',
+    sampleValue: '£233.33',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_vat_amount',
+    tag: '{vat_amount}',
+    label: 'VAT Amount (Maintenance)',
+    category: 'maintenance',
+    description: 'VAT amount applied to maintenance cost',
+    sampleValue: '£46.67',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_labor_cost',
+    tag: '{labor_cost}',
+    label: 'Labor Cost',
+    category: 'maintenance',
+    description: 'Workshop technician labor charge',
+    sampleValue: '£120.00',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_total_discount',
+    tag: '{total_discount}',
+    label: 'Total Discount',
+    category: 'maintenance',
+    description: 'Discount applied to the maintenance order',
+    sampleValue: '£0.00',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_balance_due',
+    tag: '{balance_due}',
+    label: 'Balance Due (Maintenance)',
+    category: 'maintenance',
+    description: 'Remaining amount due for maintenance work',
+    sampleValue: '£0.00',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_payment_status',
+    tag: '{payment_status}',
+    label: 'Payment Status (Maintenance)',
+    category: 'maintenance',
+    description: 'Payment status: paid, partially_paid, unpaid',
+    sampleValue: 'Paid',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_payment_method',
+    tag: '{payment_method}',
+    label: 'Payment Method (Maintenance)',
+    category: 'maintenance',
+    description: 'Method used to pay for service',
+    sampleValue: 'Bank Transfer',
+    isSystem: true,
+  },
+  {
+    id: 'sys_maintenance_payment_reference',
+    tag: '{payment_reference}',
+    label: 'Payment Reference (Maintenance)',
+    category: 'maintenance',
+    description: 'Transaction or receipt reference for maintenance payment',
+    sampleValue: 'REF-TXN-8812',
     isSystem: true,
   },
   {
@@ -1606,11 +1768,11 @@ export function substituteDynamicTags(
   const todayStr = format(now, 'dd MMM yyyy');
   const dateStr = format(now, 'dd/MM/yyyy');
 
-  const fullName = recipient?.name || 'Valued Customer';
-  const firstName = recipient?.firstName || (recipient?.name ? recipient.name.split(' ')[0] : 'Customer');
-  const companyName = recipient?.companyName || (recipient?.category === 'companies' ? recipient?.name : 'AIE Partner');
-  const email = recipient?.email || 'customer@example.com';
-  const mobile = recipient?.phone || '07552 553441';
+  const fullName = recipient?.name || recipient?.customer_name || recipient?.['Customer Name'] || 'Valued Customer';
+  const firstName = recipient?.firstName || (fullName ? fullName.split(' ')[0] : 'Customer');
+  const companyName = recipient?.companyName || recipient?.company_name || (recipient?.category === 'companies' ? fullName : 'AIE Partner');
+  const email = recipient?.email || recipient?.customer_email || 'customer@example.com';
+  const mobile = recipient?.phone || recipient?.mobile || recipient?.customer_phone || '07552 553441';
   const category = recipient?.category 
     ? (recipient.category === 'members' ? 'Member' : recipient.category === 'companies' ? 'Company' : 'Claim')
     : 'Member';
@@ -1630,14 +1792,51 @@ export function substituteDynamicTags(
     .replace(/\{today_date\}/gi, todayStr)
     .replace(/\{date\}/gi, dateStr);
 
-  // Substitute any custom dynamic tags found in dictionary
+  // Build a normalized lookup map of recipient properties
+  const recMap: Record<string, any> = {};
+  if (recipient) {
+    for (const [k, v] of Object.entries(recipient)) {
+      if (v !== undefined && v !== null) {
+        recMap[k] = v;
+        const lower = k.toLowerCase().trim();
+        recMap[lower] = v;
+        const snake = lower.replace(/\s+/g, '_');
+        recMap[snake] = v;
+        const noSpace = lower.replace(/[\s_-]+/g, '');
+        recMap[noSpace] = v;
+      }
+    }
+  }
+
+  // Substitute tags found in dictionary
   tagsDictionary.forEach((customTag) => {
     if (customTag.tag) {
-      const sample = recipient && recipient[customTag.label] 
-        ? String(recipient[customTag.label]) 
-        : customTag.sampleValue || 'Sample';
+      const rawKey = customTag.tag.replace(/[{}]/g, '').trim();
+      const lowerKey = rawKey.toLowerCase();
+      const noSpaceKey = lowerKey.replace(/[\s_-]+/g, '');
+      const labelLower = customTag.label ? customTag.label.toLowerCase().trim() : '';
+      const labelNoSpace = labelLower.replace(/[\s_-]+/g, '');
+
+      let resolvedVal: string | undefined = undefined;
+
+      if (recipient) {
+        if (recMap[rawKey] !== undefined) resolvedVal = String(recMap[rawKey]);
+        else if (recMap[lowerKey] !== undefined) resolvedVal = String(recMap[lowerKey]);
+        else if (recMap[noSpaceKey] !== undefined) resolvedVal = String(recMap[noSpaceKey]);
+        else if (customTag.label && recMap[customTag.label] !== undefined) resolvedVal = String(recMap[customTag.label]);
+        else if (labelLower && recMap[labelLower] !== undefined) resolvedVal = String(recMap[labelLower]);
+        else if (labelNoSpace && recMap[labelNoSpace] !== undefined) resolvedVal = String(recMap[labelNoSpace]);
+      }
+
+      const finalVal = resolvedVal !== undefined ? resolvedVal : (customTag.sampleValue || 'Sample');
       const escaped = customTag.tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      rendered = rendered.replace(new RegExp(escaped, 'gi'), sample);
+      rendered = rendered.replace(new RegExp(escaped, 'gi'), finalVal);
+
+      // Also replace bracketed [Label] or [Tag] version if present
+      if (customTag.label) {
+        const escapedLabel = customTag.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        rendered = rendered.replace(new RegExp(`\\[${escapedLabel}\\]`, 'gi'), finalVal);
+      }
     }
   });
 

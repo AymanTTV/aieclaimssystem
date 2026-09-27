@@ -12,6 +12,7 @@ import { useCustomers } from '../../hooks/useCustomers';
 import { useVehicles } from '../../hooks/useVehicles';
 import { Accident } from '../../types';
 import { calculateReportingTiming } from '../../utils/accidentCalculations';
+import { triggerAfterAccidentReportInsert, isVehicleNonDrivable } from '../../services/accidentMaintenanceSync';
 
 interface AccidentClaimFormProps {
   onClose: () => void;
@@ -69,6 +70,8 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose, accident
     insuranceCompany: accident?.insuranceCompany || '',
     policyNumber: accident?.policyNumber || '',
     policyExcess: accident?.policyExcess || '',
+    isDrivable: accident?.isDrivable !== undefined ? accident.isDrivable : true,
+    towYard: accident?.towYard || '',
     faultPartyName: accident?.faultPartyName || '',
     faultPartyAddress: accident?.faultPartyAddress || '',
     faultPartyPhone: accident?.faultPartyPhone || '',
@@ -300,8 +303,18 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose, accident
           updatedAt: new Date(),
         };
 
-        await addDoc(collection(db, 'accidents'), accidentData);
-        toast.success('Accident claim submitted successfully');
+        const docRef = await addDoc(collection(db, 'accidents'), accidentData);
+
+        // Execute automated workflow trigger for non-drivable VOR vehicle
+        if (isVehicleNonDrivable(formData.isDrivable)) {
+          await triggerAfterAccidentReportInsert(
+            docRef.id,
+            { ...accidentData, vehicleId: selectedVehicleId || accidentData.vehicleId },
+            user
+          );
+        } else {
+          toast.success('Accident claim submitted successfully');
+        }
       }
 
       onClose();
@@ -764,6 +777,86 @@ const AccidentClaimForm: React.FC<AccidentClaimFormProps> = ({ onClose, accident
             />
           </div>
         )}
+
+        {/* Vehicle Drivability Condition */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Is the vehicle drivable? <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Specify whether our fleet vehicle can still be safely driven or is off the road / non-drivable.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, isDrivable: true })}
+              className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                formData.isDrivable === true
+                  ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs ring-2 ring-emerald-300/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  formData.isDrivable === true ? 'border-emerald-600 bg-emerald-600' : 'border-slate-400'
+                }`}>
+                  {formData.isDrivable === true && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                </span>
+                <div>
+                  <span className="font-bold text-sm block">Yes - Drivable</span>
+                  <span className="text-[11px] text-slate-500">Vehicle is roadworthy & operational</span>
+                </div>
+              </div>
+              <span className="text-lg">🚗</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, isDrivable: false })}
+              className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                formData.isDrivable === false
+                  ? 'bg-rose-50 border-rose-500 text-rose-900 shadow-xs ring-2 ring-rose-300/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  formData.isDrivable === false ? 'border-rose-600 bg-rose-600' : 'border-slate-400'
+                }`}>
+                  {formData.isDrivable === false && <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
+                </span>
+                <div>
+                  <span className="font-bold text-sm block text-rose-900">No - Non-Drivable (VOR)</span>
+                  <span className="text-[11px] text-rose-600">Off-road, requires garage or recovery</span>
+                </div>
+              </div>
+              <span className="text-lg">🚨</span>
+            </button>
+          </div>
+
+          {formData.isDrivable === false && (
+            <div className="mt-3.5 pt-3.5 border-t border-rose-200/80 bg-rose-50/60 -mx-4 -mb-4 p-4 rounded-b-xl space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
+                <span>⚡ Automated Maintenance Workflow Enabled:</span>
+              </div>
+              <p className="text-[11px] text-rose-700">
+                Submitting this non-drivable accident report will automatically set the vehicle to <strong>OFF ROAD (VOR)</strong>, increment the <strong>OFF ROAD (VOR)</strong> card on the Maintenance Dashboard, and instantly generate a pre-filled <strong>Maintenance Ticket / Job Sheet</strong>.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Current Location / Tow Yard (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Copart Sandy / Recovery Impound / City Recovery Yard (defaults to accident location)"
+                  value={formData.towYard}
+                  onChange={(e) => setFormData({ ...formData, towYard: e.target.value })}
+                  className="block w-full px-3 py-2 text-xs bg-white border border-rose-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 shadow-2xs"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Fault Party Details */}

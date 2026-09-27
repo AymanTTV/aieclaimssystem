@@ -9,6 +9,20 @@ export interface MaintenancePayment {
   createdBy: string;
 }
 
+export type MaintenanceStatus =
+  | 'scheduled'
+  | 'in-progress'
+  | 'workshop'
+  | 'parts-backorder'
+  | 'awaiting-parts'
+  | 'bodywork'
+  | 'off-road'
+  | 'OFF ROAD (VOR)'
+  | 'pending'
+  | 'inspection'
+  | 'completed'
+  | 'cancelled';
+
 export interface MaintenanceLog {
   id: string;
   vehicleId?: string;
@@ -65,7 +79,7 @@ export interface MaintenanceLog {
   | 'taxi-meter'
   | 'car-wash'
   | 'full-valeting';
-  date: Date;
+  date?: Date | null;
   description: string;
   cost: number;
   // ✅ UPDATE: Add these new payment tracking fields
@@ -85,11 +99,22 @@ export interface MaintenanceLog {
   parts: Part[];
   laborCost: number;
   currentMileage: number;
-  nextServiceDate: Date;
+  nextServiceDate?: Date | null;
   nextServiceMileage: number;
   totalDiscount?: number;
-  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+  status: MaintenanceStatus;
   paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
+  // Off-road & accident repair tracking
+  isOffRoad?: boolean;
+  isNonDrivable?: boolean;
+  dueToAccident?: boolean;
+  accidentId?: string;
+  accidentRef?: string;
+  category?: string;
+  ticketCategory?: string;
+  roadCondition?: string;
+  statusDisplay?: string;
+  reportedBy?: string;
   notes?: string;
   createdBy: string;
   attachments?: Attachment[];
@@ -98,6 +123,23 @@ export interface MaintenanceLog {
     laborVAT: boolean;
   };
 }
+
+/** Helper to identify logs where vehicle is off the road / non-drivable due to accident */
+export const isOffRoadAccidentLog = (log: MaintenanceLog | any): boolean => {
+  if (!log) return false;
+  if (log.isNonDrivable && (log.dueToAccident || log.type === 'accident-repair' || log.isOffRoad)) return true;
+  if (log.isOffRoad && (log.dueToAccident || log.type === 'accident-repair' || log.isNonDrivable)) return true;
+  if (log.dueToAccident && (log.isNonDrivable || log.isOffRoad)) return true;
+  if (log.isNonDrivable) return true;
+  if (log.type === 'accident-repair' && log.isOffRoad !== false) return true;
+  if (log.ticketCategory === 'ACCIDENT DAMAGE' || log.category === 'ACCIDENT DAMAGE') return true;
+  if (log.roadCondition === 'OFF ROAD (VOR)' || log.statusDisplay === 'OFF ROAD (VOR)') return true;
+  const desc = `${log.description || ''} ${log.notes || ''} ${log.type || ''}`.toLowerCase();
+  if (desc.includes('accident') && (desc.includes('non-drivable') || desc.includes('nondrivable') || desc.includes('non drivable') || desc.includes('off road') || desc.includes('off-road') || desc.includes('vor'))) {
+    return true;
+  }
+  return false;
+};
 
 export interface Attachment {
   name: string;

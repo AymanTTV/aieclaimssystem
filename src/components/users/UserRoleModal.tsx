@@ -1,246 +1,525 @@
 // src/components/users/UserRoleModal.tsx
 import React, { useMemo, useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { DEFAULT_PERMISSIONS, normalizePermissions, type RolePermissions, type Permission } from '../../types/roles';
+import { 
+  normalizePermissions, 
+  type RolePermissions, 
+  type Permission, 
+  BASE_PERMISSIONS_BY_MODULE, 
+  MODULE_ACTION_BAR_CATALOG, 
+  DEFAULT_PERMISSIONS 
+} from '../../types/roles';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { SyncPermissionsModal } from './SyncPermissionsModal';
 import { 
-  ShieldCheck, 
   Search, 
-  ChevronDown, 
-  ChevronUp, 
-  CheckCircle2, 
-  XCircle, 
   CheckSquare, 
-  Square,
-  MessageCircle,
-  Mail,
-  Send,
-  Bell,
-  Lock,
+  X, 
+  Check, 
+  FileText, 
+  Zap, 
+  RefreshCw, 
+  ShieldCheck, 
+  TrendingUp, 
+  Folder, 
+  BarChart2, 
+  Mail, 
+  DollarSign, 
+  Wrench, 
+  Settings, 
+  Car, 
+  Activity, 
+  Key, 
+  AlertOctagon, 
+  Receipt, 
+  CreditCard, 
+  Wallet, 
+  Landmark, 
+  FileCheck, 
+  Share2, 
+  Users as UsersIcon, 
+  UserCheck, 
+  Building2, 
+  Package, 
+  Clock, 
+  MessageSquare, 
+  Trash2, 
+  User as UserIcon, 
+  SlidersHorizontal,
+  Upload,
+  Download,
+  Link,
+  Shield,
   ShieldAlert,
-  Calendar,
-  Sparkles,
-  FileEdit,
-  Trash2,
-  PlusCircle,
-  AlertTriangle
+  Layers,
+  ChevronRight,
+  Info
 } from 'lucide-react';
 
-interface UserRoleModalProps { 
-  user: User; 
+export interface UserRoleModalProps { 
+  user?: User | null; 
+  initialRole?: User['role'];
   onClose: () => void; 
 }
 
-type PermissionAction = keyof Permission;
+export type PermissionAction = keyof Permission;
 
-const FRIENDLY_LABELS: Partial<Record<PermissionAction, string>> = {
-  view: 'View', create: 'Create', update: 'Update', delete: 'Delete', recordPayment: 'Record Payment', cards: 'Summary Cards', share: 'Share',
-  mileage: 'Mileage', daily: 'Daily Rentals', weekly: 'Weekly Rentals', claim: 'Claim Rentals', export: 'Export', import: 'Import', send: 'Dispatch / Send Communications',
-  owner: 'Owner Data', lock: 'Lock Records', unlock: 'Unlock Records', syncStatus: 'Sync Status', sale: 'Process Sales', copyId: 'Copy IDs', singleDoc: 'Single Document Gen',
-  tableStatus: 'Edit Status in Table', complete: 'Complete Action', completed: 'View Completed Records', categories: 'Manage Categories', groups: 'Manage Groups',
-  departments: 'Departments', recordsPermission: 'Records Permission',
-  availableVehicles: 'View Available Vehicles', completion: 'Log Completion', discount: 'Apply Discounts', note: 'Manage Notes', state: 'Change State',
-  period: 'Manage Period', reoccurring: 'Manage Recurring', accounts: 'Manage Accounts', assign: 'Assign Records', signatureReq: 'Request Signatures',
-  clearHistory: 'Clear History', targetFinance: 'Target Finance', targetRental: 'Target Rental', targetMaintenance: 'Target Maintenance', targetInvoice: 'Target Invoice',
-  targetClaim: 'Target Claim', targetCustom: 'Target Custom', quickContact: 'Quick Contact', reminder: 'Send Reminders',
-  mondayAutoEmail: 'Monday Auto Email',
-  bulkEmailScheduler: 'Bulk Email Scheduler Access',
-  whatsapp: 'WhatsApp Send / Dispatch',
-  email: 'Email Send / Dispatch',
-  template: 'Select & Use Templates',
-  templateCreate: 'Create New Templates',
-  templateEdit: 'Edit Existing Templates',
-  templateDelete: 'Delete Templates (Protected)',
-  reminderTemplate: 'Reminder Templates Management',
-  messageTemplate: 'Message Templates Management',
-  driverRisk: 'Driver Risk Analysis', 
-  renewalAnalysis: 'Renewal Dossier Analysis', 
-  showCompletedPaid: 'Show Completed / Paid', 
-  groupMessaging: 'Group Messaging',
-  progressview: 'View Progress', 
-  progressedit: 'Edit Progress',
-  mileageHistoryView: 'View Mileage History', 
-  mileageHistoryEdit: 'Edit Mileage History', 
-  mileageHistoryDelete: 'Delete Mileage History',
-  viewPayment: 'View Payments', 
-  editPayment: 'Edit Payments', 
-  deletePayment: 'Delete Payments',
-  restore: 'Restore from Trash', 
-  deletePermanently: 'Delete Permanently',
+export const PAGE_DEFINITIONS: Record<keyof RolePermissions, { pageName: string; routePath: string; description: string }> = {
+  dashboard: { pageName: 'Dashboard', routePath: '/', description: 'Central analytics, fleet utilization KPIs, and executive summaries.' },
+  vehicles: { pageName: 'Vehicles', routePath: '/vehicles', description: 'Fleet vehicle inventory, specifications, mileage logs, and vehicle owner records.' },
+  utilisation: { pageName: 'Fleet Utilisation', routePath: '/utilisation', description: 'Fleet utilization metrics, active deployment tracking, and mileage statistics.' },
+  maintenance: { pageName: 'Maintenance', routePath: '/maintenance', description: 'Work orders, vehicle servicing, mechanical repairs, MOT schedules, and inspections.' },
+  rentals: { pageName: 'Rentals', routePath: '/rentals', description: 'Rental bookings, agreements, driver allocations, rate tariffs, and payment records.' },
+  accidents: { pageName: 'Accidents', routePath: '/accidents', description: 'Accident incident reports, claim initiations, underwriter dossiers, and vehicle damage logs.' },
+  claims: { pageName: 'Claims', routePath: '/claims', description: 'Insurance claims, legal handling, credit hire tracking, and progress management.' },
+  highRisk: { pageName: 'High Risk Registry', routePath: '/high-risk', description: 'Cross-fleet high-risk driver verification, risk scoring, adverse flags, and partner search.' },
+  vdFinance: { pageName: 'VD Finance', routePath: '/claims/vd-finance', description: 'Vehicle Damage financial accounts, ledger records, and recovery tracking.' },
+  vdInvoice: { pageName: 'VD Invoice', routePath: '/claims/vd-invoice', description: 'Vehicle Damage billing, credit hire invoices, and communication dispatches.' },
+  driverPay: { pageName: 'Driver Pay', routePath: '/skyline-caps/driver-pay', description: 'Driver earnings, period settlements, locked pay runs, and WhatsApp payslips.' },
+  pettyCash: { pageName: 'AIE Petty Cash', routePath: '/finance/petty-cash', description: 'Petty cash receipts, cash floats, branch expenses, and reconciliation.' },
+  aiePettyCash: { pageName: 'Skyline Petty Cash', routePath: '/skyline-caps/aie-petty-cash', description: 'Skyline caps petty cash registers, daily floats, and branch reconciliations.' },
+  incomeExpense: { pageName: 'AIE Income & Expense', routePath: '/income-expense', description: 'Operational income, expense vouchers, recurring items, and category allocations.' },
+  skylineIncomeExpense: { pageName: 'Skyline Income & Expense', routePath: '/skyline-caps/income-expense', description: 'Skyline business financial cash flow, recurring expense rules, and exports.' },
+  finance: { pageName: 'Finance', routePath: '/finance', description: 'Core finance ledger, chart of accounts, business intelligence, and accounting vouchers.' },
+  invoices: { pageName: 'Invoices', routePath: '/finance/invoices', description: 'Invoices register, billing schedules, payment receipts, and automated payment reminders.' },
+  vatRecord: { pageName: 'VAT Records', routePath: '/finance/vat-records', description: 'VAT compliance, tax breakdowns, recurring filings, and HMRC tax reports.' },
+  share: { pageName: 'Share System', routePath: '/share', description: 'Share System landing portal, public share link generation, social previews, and QR codes.' },
+  customers: { pageName: 'Customers', routePath: '/customers', description: 'Customer directory, contact details, corporate clients, and group messaging.' },
+  members: { pageName: 'Members Broadcast', routePath: '/members', description: 'Member accounts, broadcast dispatches, digital agreements, and driver profiles.' },
+  users: { pageName: 'Users', routePath: '/users', description: 'System user accounts, role definitions, access matrix, and security permissions.' },
+  company: { pageName: 'Company & Managers', routePath: '/company-managers', description: 'Corporate entity settings, branch details, and company manager allocations.' },
+  products: { pageName: 'Products', routePath: '/products', description: 'Product catalog, parts inventory, category pricing, and item master.' },
+  waiting: { pageName: 'Waiting List', routePath: '/waiting', description: 'Vehicle reservation waitlist, prospective customer queue, and reminder dispatches.' },
+  whatsapp: { pageName: 'WhatsApp Communication', routePath: '/whatsapp-communication', description: 'Unified WhatsApp communications, chat history, and template dispatching.' },
+  bulkEmail: { pageName: 'Bulk Email', routePath: '/bulk-email', description: 'Bulk email broadcasting, delivery logs, communication categories, and campaigns.' },
+  todo: { pageName: 'To-Do', routePath: '/todo', description: 'Task manager, administrative reminders, group assignments, and operational checklists.' },
+  trash: { pageName: 'Recycle Bin', routePath: '/trash', description: 'Soft-deleted entities, recovery tools, and permanent record purge controls.' },
+  settings: { pageName: 'System Settings', routePath: '/settings', description: 'Global organization parameters, security preferences, and environment configurations.' },
+  automation: { pageName: 'Automation Control', routePath: '/automation', description: 'Scheduled jobs, Monday Auto Email routines, dynamic tags, and scheduler controls.' },
+  memberProfile: { pageName: 'Member Profile', routePath: '/members/profile', description: 'Portal user personal profile, account credentials, and contact details.' },
+  memberRentals: { pageName: 'Member Rentals', routePath: '/members/rentals', description: 'Portal user active and past rental contracts and vehicle history.' },
+  memberTransactions: { pageName: 'Member Transactions', routePath: '/members/transactions', description: 'Portal user financial transaction register and payment receipts.' },
+  memberInvoices: { pageName: 'Member Invoices', routePath: '/members/invoices', description: 'Portal user invoices, billing balances, and statement downloads.' },
 };
 
-const ACTION_ORDER: PermissionAction[] = [
-  'view', 'create', 'update', 'delete', 'recordPayment', 'cards', 'share', 'mileage', 'daily', 'weekly', 'claim', 
-  'export', 'import', 'owner', 'lock', 'unlock', 'syncStatus', 'sale', 'copyId', 'singleDoc', 'tableStatus', 
-  'complete', 'completed', 'categories', 'groups', 'departments', 'recordsPermission', 'availableVehicles', 
-  'completion', 'discount', 'note', 'state', 'period', 'reoccurring', 'accounts', 'assign', 'signatureReq', 
-  'clearHistory', 'targetFinance', 'targetRental', 'targetMaintenance', 'targetInvoice', 'targetClaim', 
-  'targetCustom', 'quickContact', 'driverRisk', 'renewalAnalysis', 'showCompletedPaid', 'groupMessaging', 
-  'progressview', 'progressedit', 'mileageHistoryView', 'mileageHistoryEdit', 'mileageHistoryDelete', 
-  'viewPayment', 'editPayment', 'deletePayment', 'restore', 'deletePermanently',
-  // Communication
-  'whatsapp', 'email', 'send', 'reminder', 'mondayAutoEmail', 'bulkEmailScheduler',
-  // Template Management
-  'template', 'templateCreate', 'templateEdit', 'templateDelete', 'reminderTemplate', 'messageTemplate'
-];
-
-const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
-  dashboard: 'Dashboard', 
-  vehicles: 'Vehicles', 
-  utilisation: 'Utilisation', 
-  maintenance: 'Maintenance', 
-  rentals: 'Rentals', 
-  accidents: 'Accidents', 
-  claims: 'Claims', 
-  finance: 'Finance', 
-  invoices: 'Invoices', 
-  pettyCash: 'AiePettyCash', 
-  aiePettyCash: 'SkylinePettyCash', 
-  share: 'Share', 
-  driverPay: 'Driver Pay', 
-  vdFinance: 'VD Finance', 
-  vdInvoice: 'VD Invoice', 
-  users: 'Users', 
-  vatRecord: 'VAT Record', 
-  customers: 'Customers', 
-  company: 'Company & Managers', 
-  products: 'Products', 
-  incomeExpense: 'Income & Expense', 
-  skylineIncomeExpense: 'Skyline Income & Expense', 
-  members: 'Members (Admin Actions)', 
-  waiting: 'Waiting List', 
-  whatsapp: 'WhatsApp', 
-  bulkEmail: 'Bulk Email', 
-  trash: 'Recycle Bin', 
-  todo: 'Todo List', 
-  settings: 'Settings', 
-  memberProfile: 'Member — Profile', 
-  memberRentals: 'Member — Rentals', 
-  memberTransactions: 'Member — Transactions', 
-  memberInvoices: 'Member — Invoices',
-};
-
-const MODULE_ORDER: Array<keyof RolePermissions> = [
-  'rentals', 'claims', 'maintenance', 'invoices', 'vdInvoice', 'driverPay', 'members',
-  'dashboard', 'vehicles', 'utilisation', 'customers', 'finance', 'users', 'accidents', 
-  'pettyCash', 'aiePettyCash', 'share', 'vdFinance', 'vatRecord', 'company', 'products', 
-  'incomeExpense', 'skylineIncomeExpense', 'waiting', 'whatsapp', 'bulkEmail', 'todo', 
-  'trash', 'settings', 'memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices',
-];
-
-const COMMUNICATION_MODULES: Array<keyof RolePermissions> = [
-  'rentals',
-  'claims',
-  'maintenance',
-  'vdInvoice',
-  'driverPay',
-  'invoices',
-  'members',
-];
-
-const COMMUNICATION_ACTIONS: PermissionAction[] = [
-  'whatsapp',
-  'email',
-  'send',
-  'reminder',
-  'mondayAutoEmail',
-  'bulkEmailScheduler',
-];
-
-const TEMPLATE_ACTIONS: PermissionAction[] = [
-  'template',
-  'templateCreate',
-  'templateEdit',
-  'templateDelete',
-  'reminderTemplate',
-  'messageTemplate',
-];
-
-const FLEET_MODULES: Array<keyof RolePermissions> = [
-  'vehicles', 'utilisation', 'maintenance', 'rentals', 'accidents', 'claims'
-];
-
-const FINANCE_MODULES: Array<keyof RolePermissions> = [
-  'finance', 'invoices', 'vdFinance', 'vdInvoice', 'driverPay', 'pettyCash', 'aiePettyCash', 'incomeExpense', 'skylineIncomeExpense', 'vatRecord'
+export const MODULE_ORDER: Array<keyof RolePermissions> = [
+  'dashboard', 'vehicles', 'utilisation', 'maintenance', 'rentals', 'accidents', 'claims', 'highRisk',
+  'vdFinance', 'vdInvoice', 'driverPay', 'pettyCash', 'aiePettyCash', 'incomeExpense',
+  'skylineIncomeExpense', 'finance', 'invoices', 'vatRecord', 'share', 'customers',
+  'members', 'users', 'company', 'products', 'waiting', 'whatsapp', 'bulkEmail',
+  'todo', 'trash', 'settings', 'automation', 'memberProfile', 'memberRentals',
+  'memberTransactions', 'memberInvoices'
 ];
 
 const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = ['memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices'];
 const isMemberPortalKey = (k: keyof RolePermissions) => MEMBER_PORTAL_KEYS.includes(k);
-const labelFor = (k: keyof RolePermissions) => SECTION_TITLE_MAP[k] ?? String(k).replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim();
-const orderIndex = (k: PermissionAction) => { const i = ACTION_ORDER.indexOf(k); return i === -1 ? 999 : i; };
 
-const getActionLabel = (module: keyof RolePermissions, action: PermissionAction): string => {
-  const modTitle = labelFor(module);
-  if (action === 'whatsapp') return `WhatsApp Send (${modTitle})`;
-  if (action === 'email') return `Email Send (${modTitle})`;
-  if (action === 'send') return `Dispatch / Send (${modTitle})`;
-  if (action === 'reminder') return `Send Reminders (${modTitle})`;
-  if (action === 'mondayAutoEmail') return `Monday Auto Email (${modTitle})`;
-  if (action === 'bulkEmailScheduler') return `Bulk Email Scheduler (${modTitle})`;
-  if (action === 'template') return `Select & Use Templates (${modTitle})`;
-  if (action === 'templateCreate') return `Create Templates (${modTitle})`;
-  if (action === 'templateEdit') return `Edit Templates (${modTitle})`;
-  if (action === 'templateDelete') return `Delete Templates (${modTitle} - Protected)`;
-  if (action === 'reminderTemplate') return `Reminder Templates (${modTitle})`;
-  if (action === 'messageTemplate') return `Message Templates (${modTitle})`;
-  return FRIENDLY_LABELS[action] || action.charAt(0).toUpperCase() + action.slice(1);
+export const FRIENDLY_LABELS: Record<string, string> = {
+  view: 'View Page',
+  create: 'Create Record',
+  update: 'Edit / Update',
+  delete: 'Delete Record',
+  cards: 'Summary Cards',
+  complete: 'Complete Action',
+  completed: 'Completed Records',
+  completion: 'Mark Completion',
+  tableStatus: 'Table Status',
+  singleDoc: 'Single Document PDF',
+  signatureReq: 'Request Signatures',
+  copyId: 'Copy Record ID',
+  recordsPermission: 'Records Permissions',
+  import: 'Import (CSV/Excel)',
+  export: 'Export (PDF/Excel)',
+  share: 'Share System',
+  whatsapp: 'WhatsApp Dispatch',
+  email: 'Email Dispatch',
+  send: 'Dispatch / Send',
+  reminder: 'Send Reminders',
+  quickContact: 'Quick Contact',
+  clearHistory: 'Clear History',
+  recordPayment: 'Record Payment',
+  viewPayment: 'View Payments',
+  editPayment: 'Edit Payments',
+  deletePayment: 'Delete Payments',
+  accounts: 'Accounts Ledger',
+  period: 'Pay Period',
+  reoccurring: 'Recurring Rules',
+  discount: 'Apply Discounts',
+  showCompletedPaid: 'Show Paid / Completed',
+  mileage: 'Mileage Tracker',
+  mileageHistoryView: 'View Mileage History',
+  mileageHistoryEdit: 'Edit Mileage History',
+  mileageHistoryDelete: 'Delete Mileage History',
+  owner: 'Vehicle Owner',
+  daily: 'Daily Rentals',
+  weekly: 'Weekly Rentals',
+  claim: 'Claim Rentals',
+  availableVehicles: 'Available Vehicles',
+  sale: 'Process Sales',
+  syncStatus: 'Sync Status',
+  lock: 'Lock Records',
+  unlock: 'Unlock Records',
+  mondayAutoEmail: 'Monday Auto Email',
+  bulkEmailScheduler: 'Bulk Email Scheduler',
+  scheduler: 'Scheduler Preferences',
+  toggleGlobal: 'Toggle Global Automation',
+  template: 'Use Templates',
+  templateCreate: 'Create Template',
+  templateEdit: 'Edit Template',
+  templateDelete: 'Delete Template (Protected)',
+  reminderTemplate: 'Reminder Templates',
+  messageTemplate: 'Message Templates',
+  driverRisk: 'Driver Risk Analysis',
+  renewalAnalysis: 'Renewal Dossier',
+  groupMessaging: 'Group Messaging',
+  groups: 'Manage Groups',
+  departments: 'Manage Departments',
+  assign: 'Bulk Assign Records',
+  note: 'Internal Notes',
+  state: 'Change State',
+  progressview: 'View Progress Tracker',
+  progressedit: 'Edit Progress Tracker',
+  categories: 'Manage Categories',
+  restore: 'Restore Records',
+  deletePermanently: 'Delete Permanently',
+  targetFinance: 'Target Finance',
+  targetRental: 'Target Rental',
+  targetMaintenance: 'Target Maintenance',
+  targetInvoice: 'Target Invoice',
+  targetClaim: 'Target Claim',
+  targetCustom: 'Target Custom',
 };
 
-const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
+export const ACTION_DESCRIPTIONS: Record<string, string> = {
+  view: 'Allows navigating to and viewing this page and its data table.',
+  create: 'Allows creating new entries and saving new records.',
+  update: 'Allows modifying existing records and saving changes.',
+  delete: 'Allows deleting or archiving records from this module.',
+  cards: 'Displays top KPI statistics, metrics, and summary counters.',
+  complete: 'Allows marking items, repairs, or agreements as completed.',
+  completion: 'Allows transitioning active rentals or maintenance jobs to completed.',
+  tableStatus: 'Allows updating or filtering records by custom workflow statuses.',
+  singleDoc: 'Allows generating, printing, and downloading individual PDF contracts or invoices.',
+  signatureReq: 'Enables requesting digital electronic signatures on documents.',
+  copyId: 'Allows one-click copying of unique record identifier strings.',
+  recordsPermission: 'Restricts or opens confidential record security classifications.',
+  import: 'Allows uploading spreadsheets or CSV files to bulk-import data.',
+  export: 'Allows downloading tables as CSV, Excel, or PDF documents.',
+  share: 'Enables generating public share links, social previews, and QR codes.',
+  whatsapp: 'Allows dispatching direct WhatsApp notifications and documents.',
+  email: 'Allows dispatching emails and communication notices directly.',
+  send: 'Enables the main send and dispatch actions for communication channels.',
+  reminder: 'Allows triggering payment, servicing, or return reminders.',
+  quickContact: 'Enables one-click phone, email, or WhatsApp quick-contact buttons.',
+  clearHistory: 'Allows clearing or archiving dispatched communication history logs.',
+  recordPayment: 'Allows logging received or sent payment transactions.',
+  viewPayment: 'Allows inspecting payment logs, receipts, and allocation history.',
+  editPayment: 'Allows amending payment amounts, methods, or dates.',
+  deletePayment: 'Allows voiding or deleting recorded payment entries.',
+  accounts: 'Enables managing the chart of accounts, bank transfers, and ledgers.',
+  period: 'Allows filtering and generating settlements by specific pay periods.',
+  reoccurring: 'Allows creating and managing automated recurring billing schedules.',
+  discount: 'Allows entering promotional adjustments and line-item discounts.',
+  showCompletedPaid: 'Allows filtering or viewing archived paid/settled items.',
+  mileage: 'Enables recording and updating odometer mileage readings.',
+  mileageHistoryView: 'Allows reviewing complete audit trails of vehicle odometer readings.',
+  mileageHistoryEdit: 'Allows correcting previous mileage log entries.',
+  mileageHistoryDelete: 'Allows removing invalid mileage audit entries.',
+  owner: 'Allows configuring owner allocations and private vehicle owner records.',
+  daily: 'Allows managing short-term daily rental tariffs and bookings.',
+  weekly: 'Allows managing weekly rental rates and long-term allocations.',
+  claim: 'Allows creating replacement credit-hire rentals linked to claims.',
+  availableVehicles: 'Opens the vehicle availability matrix to locate unassigned cars.',
+  sale: 'Allows marking fleet vehicles as sold and processing sale proceeds.',
+  syncStatus: 'Enables manual resynchronization of status tags across linked files.',
+  lock: 'Allows locking financial pay runs to prevent any subsequent tampering.',
+  unlock: 'Allows managers to unlock previously finalized pay periods.',
+  mondayAutoEmail: 'Enables automatic Monday morning email dispatches and reminders.',
+  bulkEmailScheduler: 'Allows configuring scheduled bulk email campaigns and delivery windows.',
+  scheduler: 'Allows adjusting automated cron timers, day, and time triggers.',
+  toggleGlobal: 'Allows enabling or pausing global automated background workflows.',
+  template: 'Allows selecting and populating predefined message templates.',
+  templateCreate: 'Allows designing and saving new reusable communication templates.',
+  templateEdit: 'Allows modifying existing templates, subject lines, and tags.',
+  templateDelete: 'Protected action permitting the permanent deletion of templates.',
+  reminderTemplate: 'Allows managing specialized automated reminder template configurations.',
+  messageTemplate: 'Allows managing SMS and WhatsApp formatted message templates.',
+  driverRisk: 'Enables underwriting driver risk analysis scoring and dossiers.',
+  renewalAnalysis: 'Enables generating insurance renewal analysis portfolios.',
+  groupMessaging: 'Allows sending broadcast announcements to multiple recipients.',
+  groups: 'Allows managing corporate groups and grouping records.',
+  departments: 'Allows allocating records to corporate operational departments.',
+  assign: 'Allows bulk reassigning records to handlers, teams, or managers.',
+  note: 'Allows viewing, adding, and managing confidential internal record notes.',
+  state: 'Allows transitioning claims or transactions through workflow lifecycle states.',
+  progressview: 'Allows viewing the visual progress roadmap of insurance proceedings.',
+  progressedit: 'Allows advancing or updating milestone stages in the progress roadmap.',
+  categories: 'Allows creating and managing categorization taxonomies.',
+  restore: 'Allows restoring deleted items back to active state.',
+  deletePermanently: 'Permits permanently and irretrievably destroying archived items.',
+};
+
+export const getModuleIcon = (modKey: keyof RolePermissions, className: string = 'w-4 h-4') => {
+  switch (modKey) {
+    case 'dashboard': return <Activity className={`${className} text-blue-600`} />;
+    case 'vehicles': return <Car className={`${className} text-indigo-600`} />;
+    case 'utilisation': return <Activity className={`${className} text-teal-600`} />;
+    case 'maintenance': return <Wrench className={`${className} text-amber-600`} />;
+    case 'rentals': return <Key className={`${className} text-emerald-600`} />;
+    case 'accidents': return <AlertOctagon className={`${className} text-rose-600`} />;
+    case 'claims': return <FileText className={`${className} text-purple-600`} />;
+    case 'highRisk': return <ShieldAlert className={`${className} text-red-600`} />;
+    case 'vdFinance': return <DollarSign className={`${className} text-emerald-600`} />;
+    case 'vdInvoice': return <Receipt className={`${className} text-blue-600`} />;
+    case 'driverPay': return <CreditCard className={`${className} text-indigo-600`} />;
+    case 'pettyCash':
+    case 'aiePettyCash': return <Wallet className={`${className} text-amber-600`} />;
+    case 'incomeExpense':
+    case 'skylineIncomeExpense': return <TrendingUp className={`${className} text-emerald-600`} />;
+    case 'finance': return <Landmark className={`${className} text-blue-700`} />;
+    case 'invoices': return <FileCheck className={`${className} text-indigo-600`} />;
+    case 'vatRecord': return <Receipt className={`${className} text-rose-600`} />;
+    case 'share': return <Share2 className={`${className} text-[#423fbd]`} />;
+    case 'customers': return <UsersIcon className={`${className} text-teal-600`} />;
+    case 'members': return <UserCheck className={`${className} text-blue-600`} />;
+    case 'users': return <Shield className={`${className} text-indigo-600`} />;
+    case 'company': return <Building2 className={`${className} text-purple-600`} />;
+    case 'products': return <Package className={`${className} text-amber-600`} />;
+    case 'waiting': return <Clock className={`${className} text-rose-600`} />;
+    case 'whatsapp': return <MessageSquare className={`${className} text-emerald-600`} />;
+    case 'bulkEmail': return <Mail className={`${className} text-blue-600`} />;
+    case 'todo': return <CheckSquare className={`${className} text-indigo-600`} />;
+    case 'trash': return <Trash2 className={`${className} text-rose-600`} />;
+    case 'settings': return <Settings className={`${className} text-slate-600`} />;
+    case 'automation': return <Zap className={`${className} text-amber-600`} />;
+    case 'memberProfile': return <UserIcon className={`${className} text-blue-600`} />;
+    case 'memberRentals': return <Key className={`${className} text-emerald-600`} />;
+    case 'memberTransactions': return <CreditCard className={`${className} text-teal-600`} />;
+    case 'memberInvoices': return <Receipt className={`${className} text-indigo-600`} />;
+    default: return <SlidersHorizontal className={`${className} text-slate-600`} />;
+  }
+};
+
+export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole, onClose }) => {
   const { user: currentUser } = useAuth();
   const isManager = currentUser?.role === 'manager' || currentUser?.role === 'admin';
 
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<User['role']>(user.role);
-  const [filterTab, setFilterTab] = useState<'all' | 'comms' | 'fleet' | 'finance'>('all');
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [role, setRole] = useState<User['role']>(user?.role || initialRole || 'admin');
   
+  // Active selected module in the left sidebar
+  const [selectedModule, setSelectedModule] = useState<keyof RolePermissions>('vehicles');
+  
+  // Global search input for filtering/highlighting
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Sync Permissions modal state
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+  // Safe initial permissions
   const safeInitial: RolePermissions = useMemo(() => {
-    return normalizePermissions(user.role, user.permissions);
-  }, [user.permissions, user.role]);
-  
+    const targetRole = user?.role || initialRole || 'admin';
+    return normalizePermissions(targetRole, user?.permissions);
+  }, [user?.permissions, user?.role, initialRole]);
+
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(safeInitial);
-  const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const filteredAndSortedEntries = useMemo(() => {
-    const q = (query ?? '').trim().toLowerCase();
-    const entries = Object.entries(customPermissions || {}) as [keyof RolePermissions, any][];
-    
-    // Portal role filter
-    const roleFiltered = entries.filter(([key]) => {
+  // Overall statistics
+  const stats = useMemo(() => {
+    let totalGranted = 0;
+    let totalPossible = 0;
+    let totalPages = 0;
+    let activePages = 0;
+
+    Object.entries(customPermissions || {}).forEach(([modKey, modPerms]) => {
+      if (!modPerms) return;
+      if (role === 'member' && !isMemberPortalKey(modKey as keyof RolePermissions)) return;
+      if (role !== 'member' && isMemberPortalKey(modKey as keyof RolePermissions)) return;
+
+      totalPages++;
+      const actions = Object.entries(modPerms).filter(([actKey]) => !(actKey === 'share' && modKey !== 'users'));
+      let pageActiveCount = 0;
+
+      actions.forEach(([, val]) => {
+        totalPossible++;
+        if (val) {
+          totalGranted++;
+          pageActiveCount++;
+        }
+      });
+
+      if (pageActiveCount > 0) activePages++;
+    });
+
+    const percent = totalPossible > 0 ? Math.round((totalGranted / totalPossible) * 100) : 0;
+    return { totalGranted, totalPossible, totalPages, activePages, percent };
+  }, [customPermissions, role]);
+
+  // List of all applicable system page modules
+  const allModules = useMemo(() => {
+    return MODULE_ORDER.filter((key) => {
       if (role === 'member') return isMemberPortalKey(key);
-      return !isMemberPortalKey(key) || key === 'members';
+      return !isMemberPortalKey(key);
     });
+  }, [role]);
 
-    // Tab filter
-    const tabFiltered = roleFiltered.filter(([key]) => {
-      if (filterTab === 'comms') return COMMUNICATION_MODULES.includes(key);
-      if (filterTab === 'fleet') return FLEET_MODULES.includes(key);
-      if (filterTab === 'finance') return FINANCE_MODULES.includes(key);
-      return true;
+  // Toggle single action on a module
+  const toggleAction = (modKey: keyof RolePermissions, action: PermissionAction) => {
+    if (!isManager) {
+      toast.error('Only administrators and managers can alter permission states');
+      return;
+    }
+    setCustomPermissions((prev) => {
+      const currentVal = Boolean(prev[modKey]?.[action]);
+      const newVal = !currentVal;
+      const updatedModule = { ...prev[modKey], [action]: newVal };
+
+      // Keep bulkEmailScheduler and mondayAutoEmail synchronized for rentals
+      if (modKey === 'rentals') {
+        if (action === 'bulkEmailScheduler') updatedModule.mondayAutoEmail = newVal;
+        if (action === 'mondayAutoEmail') updatedModule.bulkEmailScheduler = newVal;
+      }
+
+      return { ...prev, [modKey]: updatedModule };
     });
+  };
 
-    // Search filter
-    const searchFiltered = !q ? tabFiltered : tabFiltered.filter(([key]) => labelFor(key).toLowerCase().includes(q));
-
-    return searchFiltered.sort(([moduleA], [moduleB]) => {
-        const indexA = MODULE_ORDER.indexOf(moduleA);
-        const indexB = MODULE_ORDER.indexOf(moduleB);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
+  // Quick action: Select All permissions for current module
+  const handleSelectAllModule = (modKey: keyof RolePermissions) => {
+    if (!isManager) return;
+    setCustomPermissions((prev) => {
+      const current = prev[modKey] || {};
+      const updated: Record<string, boolean> = {};
+      Object.keys(current).forEach((k) => {
+        updated[k] = true;
+      });
+      return { ...prev, [modKey]: updated as Permission };
     });
-  }, [customPermissions, role, query, filterTab]);
+    const pageName = PAGE_DEFINITIONS[modKey]?.pageName || String(modKey);
+    toast.success(`Enabled all permissions for ${pageName}`);
+  };
 
+  // Quick action: Read Only for current module
+  const handleReadOnlyModule = (modKey: keyof RolePermissions) => {
+    if (!isManager) return;
+    setCustomPermissions((prev) => {
+      const current = prev[modKey] || {};
+      const updated: Record<string, boolean> = {};
+      Object.keys(current).forEach((k) => {
+        // Read only allows view, summary cards, and singleDoc (if defined)
+        if (k === 'view' || k === 'cards' || k === 'singleDoc') {
+          updated[k] = true;
+        } else {
+          updated[k] = false;
+        }
+      });
+      return { ...prev, [modKey]: updated as Permission };
+    });
+    const pageName = PAGE_DEFINITIONS[modKey]?.pageName || String(modKey);
+    toast.success(`Set ${pageName} to Read-Only access`);
+  };
+
+  // Quick action: Clear All permissions for current module
+  const handleClearAllModule = (modKey: keyof RolePermissions) => {
+    if (!isManager) return;
+    setCustomPermissions((prev) => {
+      const current = prev[modKey] || {};
+      const updated: Record<string, boolean> = {};
+      Object.keys(current).forEach((k) => {
+        updated[k] = false;
+      });
+      return { ...prev, [modKey]: updated as Permission };
+    });
+    const pageName = PAGE_DEFINITIONS[modKey]?.pageName || String(modKey);
+    toast.success(`Cleared all permissions for ${pageName}`);
+  };
+
+  // Reset to default role template
+  const handleRoleTemplateChange = (newRole: User['role']) => {
+    setRole(newRole);
+    setCustomPermissions(normalizePermissions(newRole));
+    toast.success(`Switched role template to: ${newRole.toUpperCase()}`);
+  };
+
+  // 1-Click assign to role template in Firestore
+  const handleAssignToRole = async () => {
+    if (!isManager) return toast.error('Only managers/admins can modify role templates');
+    setRoleSaving(true);
+
+    try {
+      const batch = writeBatch(db);
+      let updatedUserCount = 0;
+
+      // 1. Save role template document in Firestore
+      const roleDocRef = doc(db, 'roleTemplates', role);
+      batch.set(roleDocRef, {
+        role,
+        permissions: customPermissions,
+        updatedAt: new Date(),
+        updatedBy: currentUser?.email || 'admin',
+      }, { merge: true });
+
+      // 2. Batch update all users assigned this role
+      const usersQuery = query(collection(db, 'users'), where('role', '==', role));
+      const usersSnap = await getDocs(usersQuery);
+      usersSnap.docs.forEach((uDoc) => {
+        batch.update(uDoc.ref, {
+          permissions: customPermissions,
+          updatedAt: new Date(),
+        });
+        updatedUserCount++;
+      });
+
+      // 3. If editing a specific user doc, ensure it is updated
+      if (user?.id) {
+        const userRef = doc(db, 'users', user.id);
+        batch.update(userRef, {
+          role,
+          permissions: customPermissions,
+          updatedAt: new Date(),
+        });
+        if (updatedUserCount === 0) updatedUserCount = 1;
+      }
+
+      await batch.commit();
+
+      toast.success(
+        `Role "${role.toUpperCase()}" assigned & synced to ${updatedUserCount} user account(s) in 1 click!`,
+        { duration: 5000 }
+      );
+
+      if (user?.id) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('Failed to assign permissions to role:', error);
+      toast.error('Failed to assign permissions: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
+  // Primary save handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isManager) return toast.error('Only managers/admins can modify user permissions');
+
+    if (!user?.id) {
+      await handleAssignToRole();
+      return;
+    }
+
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.id), { role, permissions: customPermissions, updatedAt: new Date() });
+      await updateDoc(doc(db, 'users', user.id), {
+        role,
+        permissions: customPermissions,
+        updatedAt: new Date(),
+      });
       toast.success('User permissions matrix updated successfully');
       onClose();
     } catch (error) {
@@ -251,627 +530,683 @@ const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, onClose }) => {
     }
   };
 
-  const toggleAction = (module: keyof RolePermissions, action: PermissionAction) => {
-    if (!isManager) return;
-    setCustomPermissions((prev) => {
-      const currentVal = Boolean(prev[module]?.[action]);
-      const newVal = !currentVal;
-      const updatedModule = { ...prev[module], [action]: newVal };
-
-      // Keep bulkEmailScheduler and mondayAutoEmail in sync for rentals
-      if (module === 'rentals') {
-        if (action === 'bulkEmailScheduler') {
-          updatedModule.mondayAutoEmail = newVal;
-        } else if (action === 'mondayAutoEmail') {
-          updatedModule.bulkEmailScheduler = newVal;
-        }
-      }
-
-      return { ...prev, [module]: updatedModule };
-    });
+  // Data for the active selected module
+  const activeModuleDef = PAGE_DEFINITIONS[selectedModule] || {
+    pageName: String(selectedModule),
+    routePath: `/${selectedModule}`,
+    description: 'System page access permissions.',
   };
 
-  const handleGlobalBulkToggle = (value: boolean) => {
-    if (!isManager) return;
-    setCustomPermissions((prev) => {
-      const next = { ...prev };
-      (Object.keys(next) as Array<keyof RolePermissions>).forEach((mk) => {
-        if (next[mk]) {
-          const mod = { ...next[mk] } as any;
-          Object.keys(mod).forEach((ak) => {
-            mod[ak] = value;
-          });
-          next[mk] = mod;
-        }
-      });
-      return next;
-    });
-    toast.success(value ? 'All modules and actions selected' : 'All permissions cleared');
-  };
-
-  const handleModuleBulkToggle = (moduleKey: keyof RolePermissions, value: boolean) => {
-    if (!isManager) return;
-    setCustomPermissions((prev) => {
-      const next = { ...prev };
-      const mod = { ...(next[moduleKey] || {}) } as any;
-      Object.keys(mod).forEach((ak) => {
-        mod[ak] = value;
-      });
-      next[moduleKey] = mod;
-      return next;
-    });
-  };
-
-  // Cross-module Communication Presets across all 7 modules
-  const handleBulkCommsPreset = (allowSend: boolean, allowTemplateManage: boolean, allowDelete: boolean) => {
-    if (!isManager) return;
-    setCustomPermissions((prev) => {
-      const next = { ...prev };
-      COMMUNICATION_MODULES.forEach((mk) => {
-        if (next[mk]) {
-          const mod = { ...next[mk] } as any;
-          mod.whatsapp = allowSend;
-          mod.email = allowSend;
-          mod.send = allowSend;
-          mod.reminder = allowSend;
-          mod.mondayAutoEmail = allowSend;
-          if (mk === 'rentals') {
-            mod.bulkEmailScheduler = allowSend;
-          }
-          mod.template = allowSend || allowTemplateManage;
-          mod.templateCreate = allowTemplateManage;
-          mod.templateEdit = allowTemplateManage;
-          mod.templateDelete = allowDelete;
-          mod.reminderTemplate = allowTemplateManage;
-          mod.messageTemplate = allowTemplateManage;
-          next[mk] = mod;
-        }
-      });
-      return next;
-    });
-
-    if (allowTemplateManage && allowDelete) {
-      toast.success('Full communication & template powers granted across all 7 modules');
-    } else if (allowSend && !allowTemplateManage) {
-      toast.success('Send-Only enabled for all 7 modules (Template editing & deletion locked)');
-    } else if (!allowSend && !allowTemplateManage) {
-      toast.success('All communications and templates cleared across 7 modules');
-    } else {
-      toast.success('Communication matrix adjusted');
+  const activeModulePerms = (customPermissions[selectedModule] || {}) as Record<string, boolean>;
+  // Remove the "Share System" action button/toggle from every single page except the User Management page ('users')
+  const activeModuleEntries = Object.entries(activeModulePerms).filter(([k]) => {
+    if (k === 'share' && selectedModule !== 'users') {
+      return false;
     }
-  };
+    return true;
+  });
+  const activeModuleGrantedCount = activeModuleEntries.filter(([, v]) => v).length;
+  const activeModuleTotalCount = activeModuleEntries.length;
 
-  // Module-specific preset
-  const handleModuleCommsPreset = (
-    moduleKey: keyof RolePermissions,
-    allowSend: boolean,
-    allowTemplateManage: boolean,
-    allowDelete: boolean
-  ) => {
-    if (!isManager) return;
-    setCustomPermissions((prev) => {
-      const next = { ...prev };
-      const mod = { ...(next[moduleKey] || {}) } as any;
-      mod.whatsapp = allowSend;
-      mod.email = allowSend;
-      mod.send = allowSend;
-      mod.reminder = allowSend;
-      mod.mondayAutoEmail = allowSend;
-      if (moduleKey === 'rentals') {
-        mod.bulkEmailScheduler = allowSend;
-      }
-      mod.template = allowSend || allowTemplateManage;
-      mod.templateCreate = allowTemplateManage;
-      mod.templateEdit = allowTemplateManage;
-      mod.templateDelete = allowDelete;
-      mod.reminderTemplate = allowTemplateManage;
-      mod.messageTemplate = allowTemplateManage;
-      next[moduleKey] = mod;
-      return next;
-    });
-    const modTitle = labelFor(moduleKey);
-    toast.success(`Updated ${modTitle} communication presets`);
-  };
+  // Categorize actions for the selected module into 4 structured sections:
+  // a. Core CRUD
+  const CORE_ACTION_KEYS = ['view', 'create', 'update', 'delete', 'cards', 'complete', 'completed', 'completion', 'tableStatus'];
+  // b. Document Permissions
+  const DOC_ACTION_KEYS = ['singleDoc', 'signatureReq', 'copyId', 'recordsPermission'];
+  // c. Data Transport & Sharing
+  const TRANSPORT_ACTION_KEYS = ['import', 'export', 'share', 'whatsapp', 'email', 'send', 'reminder', 'quickContact', 'clearHistory'];
 
-  const resetToRole = (newRole: User['role']) => {
-    setRole(newRole);
-    setCustomPermissions(normalizePermissions(newRole));
-  };
+  const coreActions = activeModuleEntries.filter(([k]) => CORE_ACTION_KEYS.includes(k));
+  const docActions = activeModuleEntries.filter(([k]) => DOC_ACTION_KEYS.includes(k));
+  const transportActions = activeModuleEntries.filter(([k]) => TRANSPORT_ACTION_KEYS.includes(k));
+  const customPageActions = activeModuleEntries.filter(([k]) => 
+    !CORE_ACTION_KEYS.includes(k) && 
+    !DOC_ACTION_KEYS.includes(k) && 
+    !TRANSPORT_ACTION_KEYS.includes(k)
+  );
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 h-full overflow-hidden bg-white text-slate-900 user-role-modal">
+    <div className="flex flex-col h-full bg-[#F8FAFC] text-slate-800 select-none overflow-hidden font-sans">
       
-      {/* HEADER CONTROLS (PINNED AT TOP) */}
-      <div className="shrink-0 p-5 sm:p-6 space-y-4 bg-white border-b border-gray-200">
+      {/* ════════════════════════════════════════════════════════════════════════════════
+          1. TOP GLOBAL HEADER (Role Selector, Search, Stats, User Badge, Close)
+         ════════════════════════════════════════════════════════════════════════════════ */}
+      <header className="shrink-0 bg-white border-b border-slate-200/90 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs z-10">
         
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-           <div>
-             <div className="flex items-center gap-2">
-               <ShieldCheck className="w-6 h-6 text-primary" />
-               <h2 className="text-xl font-black text-slate-900 tracking-tight">Access Control & Permissions Matrix</h2>
-             </div>
-             <p className="text-sm font-semibold text-slate-600 mt-0.5">
-               Fine-grained overrides for: <strong className="text-slate-900 font-black">{user.name}</strong> ({user.email})
-             </p>
-           </div>
-
-           <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-300 flex items-center gap-2 w-full sm:w-auto text-sm shadow-2xs">
-              <label className="font-black text-slate-900 py-1 pl-2 text-xs uppercase tracking-wider">Base Role:</label>
-              <select 
-                value={role} 
-                onChange={(e) => resetToRole(e.target.value as User['role'])} 
-                className="bg-white text-slate-900 border border-slate-300 rounded-lg shadow-2xs focus:ring-2 focus:ring-primary text-sm px-3 py-1 font-bold disabled:opacity-50 cursor-pointer" 
-                disabled={!isManager}
-              >
-                <option value="manager">Manager (Full Access)</option>
-                <option value="admin">Admin</option>
-                <option value="finance">Finance</option>
-                <option value="claims">Claims</option>
-                <option value="company">Company</option>
-                <option value="member">Member</option>
-              </select>
-           </div>
-        </div>
-
-        {/* Global Quick Action Toolbars */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
-          {/* Category Filter Tabs */}
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold overflow-x-auto max-w-full">
-            <button
-              type="button"
-              onClick={() => setFilterTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                filterTab === 'all' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Modules ({filteredAndSortedEntries.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('comms')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                filterTab === 'comms' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200'
-              }`}
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              WhatsApp, Email & Templates (7 Modules)
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('fleet')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                filterTab === 'fleet' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Fleet & Vehicles
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('finance')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                filterTab === 'finance' ? 'bg-white text-slate-900 shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Finance & Billing
-            </button>
+        {/* Left: Title & User Profile Summary */}
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-700 flex items-center justify-center text-white shadow-xs shrink-0">
+            <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
           </div>
-
-          {/* Quick Communication Presets across all 7 modules */}
-          {isManager && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-black text-slate-500 uppercase tracking-wider hidden sm:inline">7-Module Presets:</span>
-              <button
-                type="button"
-                onClick={() => handleBulkCommsPreset(true, false, false)}
-                title="Grant Send/Dispatch, WhatsApp, Email, Reminders & Monday Auto Email across all 7 modules, while locking template editing and deletion"
-                className="px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5 text-emerald-700" />
-                Allow Send Only (Lock Templates)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkCommsPreset(true, true, true)}
-                title="Grant full communication and template management including create, edit, and delete"
-                className="px-2.5 py-1.5 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-indigo-700" />
-                Full Communication & Templates
-              </button>
-              <button
-                type="button"
-                onClick={() => handleBulkCommsPreset(false, false, false)}
-                title="Deny all WhatsApp, Email, and Template permissions across the 7 modules"
-                className="px-2.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Lock className="w-3.5 h-3.5 text-slate-600" />
-                Lock All 7 Comms
-              </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate">
+                Access Permissions & Role Matrix
+              </h2>
+              {user ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide">
+                  Editing User
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-wide">
+                  Role Template
+                </span>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Search & Global Toggle */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search module name or specific capability (e.g., WhatsApp, Email, Monday, Template)..." 
-              value={query} 
-              onChange={(e) => setQuery(e.target.value)} 
-              className="w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 font-semibold placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary transition-colors shadow-2xs" 
-            />
+            <p className="text-xs text-slate-500 font-medium truncate">
+              {user ? (
+                <span>
+                  Target: <strong className="text-slate-800">{user.name}</strong> ({user.email})
+                </span>
+              ) : (
+                <span>Configure organizational permission templates across all 30 system modules</span>
+              )}
+            </p>
           </div>
-          {isManager && (
-            <div className="flex gap-2 w-full sm:w-auto shrink-0">
-              <button 
-                type="button" 
-                onClick={() => handleGlobalBulkToggle(true)} 
-                className="px-4 py-2 text-xs font-black text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <CheckSquare className="w-4 h-4 text-white stroke-[2.5]" /> Select All
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleGlobalBulkToggle(false)} 
-                className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Square className="w-4 h-4 text-white stroke-[2.5]" /> Clear All
-              </button>
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* ACCORDION LIST (SINGLE SCROLL CONTAINER) */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 bg-slate-50/70 custom-scrollbar">
-        {filteredAndSortedEntries.map(([module, permissions]) => {
-          const title = labelFor(module);
-          const isOpen = expanded[module as string] ?? (filterTab === 'comms' || filteredAndSortedEntries.length <= 4); 
-          const entries = Object.entries(permissions || {}) as [PermissionAction, boolean][];
+        {/* Center / Right: Role Template Selector, Global Search, Stats & Actions */}
+        <div className="flex items-center flex-wrap gap-2.5 ml-auto">
           
-          const isCommModule = COMMUNICATION_MODULES.includes(module);
-
-          // Group actions logically
-          const commActions = entries.filter(([action]) => COMMUNICATION_ACTIONS.includes(action));
-          const templateActions = entries.filter(([action]) => TEMPLATE_ACTIONS.includes(action));
-          const generalActions = entries.filter(([action]) => 
-            !COMMUNICATION_ACTIONS.includes(action) && !TEMPLATE_ACTIONS.includes(action)
-          ).sort((a, b) => orderIndex(a[0]) - orderIndex(b[0]));
-
-          const hasCommOrTemplate = commActions.length > 0 || templateActions.length > 0;
-
-          // Communication active counters
-          const activeCommCount = commActions.filter(([, v]) => v).length;
-          const activeTemplateCount = templateActions.filter(([, v]) => v).length;
-
-          return (
-            <div 
-              key={String(module)} 
-              className={`rounded-2xl border transition-all duration-200 ${
-                isOpen 
-                  ? 'border-primary/40 bg-white shadow-md' 
-                  : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
-              }`}
-            >
-              {/* Card Header Button */}
-              <button 
-                type="button" 
-                onClick={() => setExpanded((prev) => ({ ...prev, [module as string]: !isOpen }))} 
-                className="flex w-full items-center justify-between p-4 sm:p-4.5 focus:outline-none rounded-2xl cursor-pointer"
+          {/* Global Search Input */}
+          <div className="relative w-48 sm:w-60">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search permissions..."
+              className="w-full pl-9 pr-7 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-base font-black text-slate-900 tracking-tight">{title}</span>
-                  
-                  {/* Status badges */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {permissions?.view ? (
-                      <span className="inline-flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded-md text-[11px] uppercase font-black text-emerald-800 border border-emerald-300">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-700 stroke-[2.5]" /> View Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 px-2.5 py-0.5 rounded-md text-[11px] uppercase font-black text-slate-600 border border-slate-300">
-                        <XCircle className="h-3 w-3 text-slate-500 stroke-[2.5]" /> No View
-                      </span>
-                    )}
-
-                    {isCommModule && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
-                        activeCommCount > 0 
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
-                        <MessageCircle className="w-3 h-3" />
-                        Comms: {activeCommCount}/{commActions.length}
-                      </span>
-                    )}
-
-                    {isCommModule && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
-                        activeTemplateCount > 0 
-                          ? 'bg-indigo-50 text-indigo-800 border-indigo-300' 
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
-                        <FileEdit className="w-3 h-3" />
-                        Templates: {activeTemplateCount}/{templateActions.length}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className={`p-1.5 rounded-full transition-colors ${isOpen ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-700'}`}>
-                  {isOpen ? <ChevronUp className="h-5 w-5 stroke-[2.5]" /> : <ChevronDown className="h-5 w-5 stroke-[2.5]" />}
-                </div>
+                <X className="w-3.5 h-3.5" />
               </button>
+            )}
+          </div>
 
-              {/* Card Body */}
-              {isOpen && (
-                <div className="border-t border-slate-200 p-4 sm:p-5 bg-slate-50/70 rounded-b-2xl space-y-5">
-                  
-                  {/* Module Action Controls */}
-                  {isManager && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isCommModule && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleModuleCommsPreset(module, true, false, false)}
-                              className="text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <Send className="w-3 h-3 text-emerald-700" />
-                              Send Only (Lock Templates)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleModuleCommsPreset(module, true, true, true)}
-                              className="text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <ShieldAlert className="w-3 h-3 text-indigo-700" />
-                              Full Templates
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleModuleCommsPreset(module, false, false, false)}
-                              className="text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <Lock className="w-3 h-3 text-slate-500" />
-                              Lock Comms
-                            </button>
-                          </>
+          {/* Role Template Selector */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Role:</span>
+            <select
+              value={role}
+              disabled={!isManager}
+              onChange={(e) => handleRoleTemplateChange(e.target.value as User['role'])}
+              className="text-xs font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer uppercase"
+            >
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="finance">Finance</option>
+              <option value="claims">Claims</option>
+              <option value="company">Company</option>
+              <option value="member">Member</option>
+            </select>
+          </div>
+
+          {/* Live Permission Counters */}
+          <div className="hidden lg:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1">
+            <div className="text-[11px] font-medium text-slate-600">
+              Active: <strong className="font-bold text-indigo-600 font-mono">{stats.totalGranted}</strong> / {stats.totalPossible}
+            </div>
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            <div className="text-[11px] font-medium text-slate-600">
+              Pages: <strong className="font-bold text-emerald-600 font-mono">{stats.activePages}</strong> / {stats.totalPages}
+            </div>
+          </div>
+
+          {/* Audit / Cross-Check Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsSyncModalOpen(true)}
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+            title="Scan for missing schema definitions"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Audit</span>
+          </button>
+
+          {/* Close Modal Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer ml-1"
+            title="Close modal"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* ════════════════════════════════════════════════════════════════════════════════
+          2. MAIN STAGE: FULL-HEIGHT SINGLE-COLUMN SIDEBAR + EXPANDED MATRIX PANEL
+         ════════════════════════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        
+        {/* ── LEFT PANEL: SINGLE-COLUMN ALL MODULES SIDEBAR (Width: 22% - 25%) ── */}
+        <aside className="w-64 sm:w-72 lg:w-80 shrink-0 bg-white border-r border-slate-200 flex flex-col h-full z-0">
+          
+          {/* Sidebar Header: Clean title, count badge, NO top search/filter input */}
+          <div className="shrink-0 px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                ALL MODULES ({allModules.length})
+              </span>
+            </div>
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 font-mono">
+              {stats.activePages}/{allModules.length} Active
+            </span>
+          </div>
+
+          {/* Single-Column Module List: Compact rows with Page Icon, Name, Active Count Badge */}
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100/80">
+            {allModules.map((modKey) => {
+              const def = PAGE_DEFINITIONS[modKey] || { pageName: String(modKey), routePath: '' };
+              const isSelected = selectedModule === modKey;
+              const perms = (customPermissions[modKey] || {}) as Record<string, boolean>;
+              const validEntries = Object.entries(perms).filter(([k]) => !(k === 'share' && modKey !== 'users'));
+              const granted = validEntries.filter(([, v]) => v).length;
+              const total = validEntries.length;
+
+              // Check if query matches this module or its actions
+              const matchesSearch = normalizedQuery
+                ? def.pageName.toLowerCase().includes(normalizedQuery) ||
+                  String(modKey).toLowerCase().includes(normalizedQuery) ||
+                  validEntries.some(([k]) => {
+                    const label = FRIENDLY_LABELS[k] || k;
+                    return k.toLowerCase().includes(normalizedQuery) || label.toLowerCase().includes(normalizedQuery);
+                  })
+                : true;
+
+              if (!matchesSearch) return null;
+
+              return (
+                <button
+                  key={String(modKey)}
+                  type="button"
+                  onClick={() => setSelectedModule(modKey)}
+                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-2.5 transition-all cursor-pointer group ${
+                    isSelected
+                      ? 'bg-indigo-50/90 text-indigo-900 border-l-4 border-l-[#4F46E5] shadow-2xs font-bold'
+                      : 'text-slate-700 hover:bg-slate-50/90 hover:text-slate-900 border-l-4 border-l-transparent'
+                  }`}
+                >
+                  {/* Left: Icon & Module Name */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`shrink-0 transition-transform ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}>
+                      {getModuleIcon(modKey, 'w-4 h-4')}
+                    </span>
+                    <span className={`text-xs truncate ${isSelected ? 'font-black text-indigo-900' : 'font-semibold text-slate-800'}`}>
+                      {def.pageName}
+                    </span>
+                  </div>
+
+                  {/* Right: Active Count Badge */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md border ${
+                        isSelected
+                          ? 'bg-white text-indigo-700 border-indigo-200'
+                          : granted > 0
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-400 border-slate-200'
+                      }`}
+                    >
+                      {granted}/{total}
+                    </span>
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? 'text-indigo-600 translate-x-0.5' : 'text-slate-300 group-hover:text-slate-400'}`} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* ── RIGHT PANEL: EXPANDED ACTION MATRIX & PERMISSION CONTROLS (Width: 75% - 78%) ── */}
+        <main className="flex-1 min-h-0 overflow-y-auto bg-[#F8FAFC] p-4 sm:p-6 space-y-4">
+          
+          {/* Module Header Bar with Quick Action Controls */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            
+            {/* Title & Route Path */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                {getModuleIcon(selectedModule, 'w-5 h-5')}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight truncate">
+                    {activeModuleDef.pageName} Module
+                  </h3>
+                  <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                    {activeModuleDef.routePath}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mt-0.5 line-clamp-1">
+                  {activeModuleDef.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons: [Select All] | [Read Only] | [Clear All] */}
+            {isManager && (
+              <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleSelectAllModule(selectedModule)}
+                  className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title="Enable all permissions for this module"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReadOnlyModule(selectedModule)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title="Set module to view-only access"
+                >
+                  Read Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearAllModule(selectedModule)}
+                  className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title="Clear all permissions for this module"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SECTION A: ACTION BAR & CORE CRUD
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                  Action Bar & Core CRUD
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Standard records creation, modification, and deletion
+              </span>
+            </div>
+
+            {coreActions.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                {coreActions.map(([actionKey, isEnabled]) => {
+                  const label = FRIENDLY_LABELS[actionKey] || actionKey;
+                  const desc = ACTION_DESCRIPTIONS[actionKey] || '';
+                  const isHighlighted = normalizedQuery && (
+                    label.toLowerCase().includes(normalizedQuery) ||
+                    actionKey.toLowerCase().includes(normalizedQuery)
+                  );
+
+                  return (
+                    <div
+                      key={actionKey}
+                      onClick={() => toggleAction(selectedModule, actionKey as PermissionAction)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 select-none ${
+                        isEnabled
+                          ? 'bg-indigo-50/70 border-indigo-200 ring-1 ring-indigo-400/30'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                      } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs font-bold ${isEnabled ? 'text-indigo-950' : 'text-slate-800'}`}>
+                            {label}
+                          </span>
+                        </div>
+                        {desc && (
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-2 leading-tight">
+                            {desc}
+                          </p>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <button 
-                          type="button" 
-                          onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, true)} 
-                          className="text-xs font-black text-blue-700 hover:text-blue-900 underline flex items-center gap-1 cursor-pointer"
+                      {/* Custom Toggle Switch */}
+                      <div className="shrink-0 pt-0.5">
+                        <div
+                          className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
+                            isEnabled ? 'bg-indigo-600' : 'bg-slate-200'
+                          }`}
                         >
-                          Select All {title}
-                        </button>
-                        <span className="text-slate-300 font-bold">|</span>
-                        <button 
-                          type="button" 
-                          onClick={() => handleModuleBulkToggle(module as keyof RolePermissions, false)} 
-                          className="text-xs font-black text-rose-600 hover:text-rose-800 underline flex items-center gap-1 cursor-pointer"
-                        >
-                          Clear {title}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* SECTION 1: WHATSAPP, EMAIL & COMMUNICATIONS (IF PRESENT) */}
-                  {commActions.length > 0 && (
-                    <div className="space-y-2.5 bg-emerald-50/40 p-3.5 sm:p-4 rounded-xl border border-emerald-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
-                            <MessageCircle className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">
-                              WhatsApp, Email & Communication Permissions ({title})
-                            </h4>
-                            <p className="text-[11px] font-medium text-emerald-800">
-                              Authorize sending messages, generating client links, sending reminders, and Monday auto emails.
-                            </p>
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                              isEnabled ? 'translate-x-4 shadow-xs' : 'translate-x-0'
+                            }`}
+                          >
+                            {isEnabled && <Check className="w-2.5 h-2.5 text-indigo-600 stroke-[3]" />}
                           </div>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-2.5 pt-1">
-                        {commActions.map(([action, enabled]) => {
-                          const label = getActionLabel(module as keyof RolePermissions, action);
-                          const isSpecial = action === 'mondayAutoEmail' || action === 'bulkEmailScheduler';
-
-                          return (
-                            <button
-                              key={action} 
-                              type="button"
-                              disabled={!isManager}
-                              onClick={() => toggleAction(module as keyof RolePermissions, action)}
-                              className={`relative flex items-center justify-between w-full px-3 py-2.5 rounded-xl border-2 text-xs sm:text-sm transition-all focus:outline-none ${
-                                !isManager ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-2xs'
-                              } ${
-                                enabled 
-                                  ? 'bg-emerald-50 border-emerald-600 ring-2 ring-emerald-500/20 shadow-2xs' 
-                                  : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 text-left mr-2 min-w-0">
-                                {action === 'whatsapp' && <MessageCircle className={`w-4 h-4 shrink-0 ${enabled ? 'text-emerald-700' : 'text-slate-400'}`} />}
-                                {action === 'email' && <Mail className={`w-4 h-4 shrink-0 ${enabled ? 'text-emerald-700' : 'text-slate-400'}`} />}
-                                {action === 'send' && <Send className={`w-4 h-4 shrink-0 ${enabled ? 'text-emerald-700' : 'text-slate-400'}`} />}
-                                {action === 'reminder' && <Bell className={`w-4 h-4 shrink-0 ${enabled ? 'text-emerald-700' : 'text-slate-400'}`} />}
-                                {isSpecial && <Calendar className={`w-4 h-4 shrink-0 ${enabled ? 'text-emerald-700' : 'text-slate-400'}`} />}
-                                <span className="font-bold text-slate-900 tracking-tight truncate">{label}</span>
-                              </div>
-                              <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                enabled 
-                                  ? 'bg-emerald-600 border-emerald-600 text-white' 
-                                  : 'bg-white border-slate-300'
-                              }`}>
-                                {enabled && <CheckSquare className="h-3.5 w-3.5 text-white stroke-[2.5]" />}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic py-2">
+                No core CRUD actions configured for this module.
+              </p>
+            )}
+          </div>
 
-                  {/* SECTION 2: TEMPLATE MANAGEMENT (PROTECTED PERMISSIONS) */}
-                  {templateActions.length > 0 && (
-                    <div className="space-y-2.5 bg-indigo-50/40 p-3.5 sm:p-4 rounded-xl border border-indigo-200">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                            <ShieldAlert className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                              Template Management Permissions ({title})
-                              <span className="text-[10px] font-black bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded uppercase">
-                                Protected
-                              </span>
-                            </h4>
-                            <p className="text-[11px] font-medium text-indigo-800">
-                              Fine-grained authority: Only users granted these rights can create, edit, or delete communication templates.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-2.5 pt-1">
-                        {templateActions.map(([action, enabled]) => {
-                          const label = getActionLabel(module as keyof RolePermissions, action);
-                          const isDelete = action === 'templateDelete';
-
-                          return (
-                            <button
-                              key={action} 
-                              type="button"
-                              disabled={!isManager}
-                              onClick={() => toggleAction(module as keyof RolePermissions, action)}
-                              className={`relative flex items-center justify-between w-full px-3 py-2.5 rounded-xl border-2 text-xs sm:text-sm transition-all focus:outline-none ${
-                                !isManager ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-2xs'
-                              } ${
-                                enabled 
-                                  ? isDelete 
-                                    ? 'bg-rose-50 border-rose-600 ring-2 ring-rose-500/20 shadow-2xs' 
-                                    : 'bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20 shadow-2xs' 
-                                  : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 text-left mr-2 min-w-0">
-                                {isDelete ? (
-                                  <Trash2 className={`w-4 h-4 shrink-0 ${enabled ? 'text-rose-600' : 'text-slate-400'}`} />
-                                ) : action === 'templateCreate' ? (
-                                  <PlusCircle className={`w-4 h-4 shrink-0 ${enabled ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                ) : (
-                                  <FileEdit className={`w-4 h-4 shrink-0 ${enabled ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                )}
-                                <div className="min-w-0">
-                                  <span className="font-bold text-slate-900 tracking-tight block truncate">{label}</span>
-                                  {isDelete && (
-                                    <span className="text-[10px] font-extrabold text-rose-700 block">
-                                      Critical: Permanent Deletion
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                enabled 
-                                  ? isDelete ? 'bg-rose-600 border-rose-600 text-white' : 'bg-indigo-600 border-indigo-600 text-white' 
-                                  : 'bg-white border-slate-300'
-                              }`}>
-                                {enabled && <CheckSquare className="h-3.5 w-3.5 text-white stroke-[2.5]" />}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* SECTION 3: GENERAL MODULE PERMISSIONS */}
-                  {generalActions.length > 0 && (
-                    <div className="space-y-2">
-                      {hasCommOrTemplate && (
-                        <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider pt-1">
-                          General {title} Operations
-                        </h4>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
-                        {generalActions.map(([action, enabled]) => {
-                          if (module !== 'rentals' && (action === 'daily' || action === 'weekly' || action === 'claim')) return null;
-                          const label = getActionLabel(module as keyof RolePermissions, action);
-
-                          return (
-                            <button
-                              key={action} 
-                              type="button"
-                              disabled={!isManager}
-                              onClick={() => toggleAction(module as keyof RolePermissions, action)}
-                              className={`relative flex items-center justify-between w-full px-3 py-2.5 rounded-xl border-2 text-xs sm:text-sm transition-all focus:outline-none ${
-                                !isManager ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-2xs'
-                              } ${
-                                enabled 
-                                  ? 'bg-blue-50 border-blue-600 ring-2 ring-blue-500/20 shadow-2xs' 
-                                  : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                              }`}
-                            >
-                              <span className="font-bold text-slate-900 tracking-tight text-left mr-2 truncate">{label}</span>
-                              <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                enabled 
-                                  ? 'bg-blue-600 border-blue-600 text-white' 
-                                  : 'bg-white border-slate-300'
-                              }`}>
-                                {enabled && <CheckSquare className="h-3.5 w-3.5 text-white stroke-[2.5]" />}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              )}
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SECTION B: DOCUMENT PERMISSIONS (DOCS)
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" />
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                  Document Permissions (Docs)
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Single PDF generation, digital signature requests, and identifiers
+              </span>
             </div>
-          );
-        })}
+
+            {docActions.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                {docActions.map(([actionKey, isEnabled]) => {
+                  const label = FRIENDLY_LABELS[actionKey] || actionKey;
+                  const desc = ACTION_DESCRIPTIONS[actionKey] || '';
+                  const isHighlighted = normalizedQuery && (
+                    label.toLowerCase().includes(normalizedQuery) ||
+                    actionKey.toLowerCase().includes(normalizedQuery)
+                  );
+
+                  return (
+                    <div
+                      key={actionKey}
+                      onClick={() => toggleAction(selectedModule, actionKey as PermissionAction)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 select-none ${
+                        isEnabled
+                          ? 'bg-emerald-50/70 border-emerald-200 ring-1 ring-emerald-400/30'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                      } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
+                    >
+                      <div className="min-w-0">
+                        <span className={`text-xs font-bold ${isEnabled ? 'text-emerald-950' : 'text-slate-800'}`}>
+                          {label}
+                        </span>
+                        {desc && (
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-2 leading-tight">
+                            {desc}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Custom Toggle Switch */}
+                      <div className="shrink-0 pt-0.5">
+                        <div
+                          className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
+                            isEnabled ? 'bg-emerald-600' : 'bg-slate-200'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                              isEnabled ? 'translate-x-4 shadow-xs' : 'translate-x-0'
+                            }`}
+                          >
+                            {isEnabled && <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[3]" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic py-2">
+                No specialized document permissions are assigned to this page.
+              </p>
+            )}
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SECTION C: DATA TRANSPORT & SHARING
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-blue-600" />
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                  Data Transport & Sharing
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Import CSV, Export PDF/Excel, Share Link, and Communications
+              </span>
+            </div>
+
+            {transportActions.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                {transportActions.map(([actionKey, isEnabled]) => {
+                  const label = FRIENDLY_LABELS[actionKey] || actionKey;
+                  const desc = ACTION_DESCRIPTIONS[actionKey] || '';
+                  const isHighlighted = normalizedQuery && (
+                    label.toLowerCase().includes(normalizedQuery) ||
+                    actionKey.toLowerCase().includes(normalizedQuery)
+                  );
+
+                  return (
+                    <div
+                      key={actionKey}
+                      onClick={() => toggleAction(selectedModule, actionKey as PermissionAction)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 select-none ${
+                        isEnabled
+                          ? 'bg-blue-50/70 border-blue-200 ring-1 ring-blue-400/30'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                      } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
+                    >
+                      <div className="min-w-0">
+                        <span className={`text-xs font-bold ${isEnabled ? 'text-blue-950' : 'text-slate-800'}`}>
+                          {label}
+                        </span>
+                        {desc && (
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-2 leading-tight">
+                            {desc}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Custom Toggle Switch */}
+                      <div className="shrink-0 pt-0.5">
+                        <div
+                          className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
+                            isEnabled ? 'bg-blue-600' : 'bg-slate-200'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                              isEnabled ? 'translate-x-4 shadow-xs' : 'translate-x-0'
+                            }`}
+                          >
+                            {isEnabled && <Check className="w-2.5 h-2.5 text-blue-600 stroke-[3]" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic py-2">
+                No data transport or communications options are configured for this module.
+              </p>
+            )}
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SECTION D: PAGE-SPECIFIC ACTIONS
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                  Page-Specific Actions
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Tailored workflows, financial controls, and domain-specific operations
+              </span>
+            </div>
+
+            {customPageActions.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                {customPageActions.map(([actionKey, isEnabled]) => {
+                  const label = FRIENDLY_LABELS[actionKey] || actionKey;
+                  const desc = ACTION_DESCRIPTIONS[actionKey] || '';
+                  const isHighlighted = normalizedQuery && (
+                    label.toLowerCase().includes(normalizedQuery) ||
+                    actionKey.toLowerCase().includes(normalizedQuery)
+                  );
+
+                  return (
+                    <div
+                      key={actionKey}
+                      onClick={() => toggleAction(selectedModule, actionKey as PermissionAction)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2.5 select-none ${
+                        isEnabled
+                          ? 'bg-amber-50/70 border-amber-200 ring-1 ring-amber-400/30'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                      } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
+                    >
+                      <div className="min-w-0">
+                        <span className={`text-xs font-bold ${isEnabled ? 'text-amber-950' : 'text-slate-800'}`}>
+                          {label}
+                        </span>
+                        {desc && (
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-2 leading-tight">
+                            {desc}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Custom Toggle Switch */}
+                      <div className="shrink-0 pt-0.5">
+                        <div
+                          className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${
+                            isEnabled ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                              isEnabled ? 'translate-x-4 shadow-xs' : 'translate-x-0'
+                            }`}
+                          >
+                            {isEnabled && <Check className="w-2.5 h-2.5 text-amber-600 stroke-[3]" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <Info className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
+                <p className="text-xs text-slate-600 font-medium">
+                  All available actions for {activeModuleDef.pageName} are configured in the Core, Document, and Data Transport sections above.
+                </p>
+              </div>
+            )}
+          </div>
+
+        </main>
       </div>
 
-      {/* FOOTER (PINNED AT BOTTOM) */}
-      <div className="shrink-0 p-4 sm:p-5 bg-white border-t border-slate-200 rounded-b-2xl">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs font-semibold text-slate-500 text-center sm:text-left">
-            Permissions are synced live to user roles. Changes take effect on the user's next action.
-          </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-5 py-2.5 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors cursor-pointer text-sm"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={loading || !isManager} 
-              className="px-8 py-2.5 rounded-xl font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all disabled:opacity-50 cursor-pointer text-sm flex items-center gap-2"
-            >
-              <ShieldCheck className="w-4 h-4 text-white" />
-              {loading ? 'Saving Matrix...' : 'Save Permissions Matrix'}
-            </button>
-          </div>
+      {/* ════════════════════════════════════════════════════════════════════════════════
+          3. STICKY BOTTOM FOOTER (Summary Text, Cancel, 1-Click Role, Save)
+         ════════════════════════════════════════════════════════════════════════════════ */}
+      <footer className="shrink-0 bg-white border-t border-slate-200 px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md z-10">
+        
+        {/* Left: Dynamic Summary Text */}
+        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+          <Info className="w-4 h-4 text-slate-400 shrink-0" />
+          <span>
+            Permissions are grouped by application page and sync live to the user account upon saving.
+          </span>
         </div>
-      </div>
-    </form>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading || roleSaving}
+            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          
+          {isManager && (
+            <>
+              {/* 1-Click Assign to Role Template */}
+              <button
+                type="button"
+                onClick={handleAssignToRole}
+                disabled={loading || roleSaving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                title={`Assign these permissions directly to role: ${role.toUpperCase()}`}
+              >
+                {roleSaving ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
+                )}
+                <span>Assign to Role ({role.toUpperCase()}) in 1-Click</span>
+              </button>
+
+              {/* Primary Save Button */}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading || roleSaving}
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>Save Permissions Matrix</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </footer>
+
+      {/* SYNC PERMISSIONS CROSS-CHECK & AUDIT MODAL */}
+      <SyncPermissionsModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        activeRole={role}
+        user={user}
+        customPermissions={customPermissions}
+        onPermissionsSynced={(updated) => {
+          setCustomPermissions(updated);
+        }}
+      />
+    </div>
   );
 };
 

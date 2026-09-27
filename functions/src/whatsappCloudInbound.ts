@@ -16,7 +16,7 @@ const VERIFY_TOKEN = defineSecret('WA_VERIFY_TOKEN');
  */
 export const whatsappCloudInbound = onRequest(
   { region: 'europe-west2', secrets: [VERIFY_TOKEN] },
-  async (req, res): Promise<void> => {
+  async (req: any, res: any): Promise<void> => {
     // 1) Webhook verification
     if (req.method === 'GET') {
       const mode = req.query['hub.mode'];

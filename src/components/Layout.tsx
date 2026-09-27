@@ -27,6 +27,7 @@ import {
   Clock,
   MoreHorizontal,
   Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import MobileMenu from './navigation/MobileMenu';
@@ -117,6 +118,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.BULK_EMAIL]: Mail,
     [ROUTES.WHATSAPP]: MessageSquare,
     [ROUTES.AUTOMATION]: Zap,
+    [ROUTES.HIGH_RISK]: ShieldAlert,
     [ROUTES.COMPANY_MANAGERS]: Users,
     [ROUTES.WAITING]: Clock,
     '/members/dashboard': Home,
@@ -137,6 +139,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     [ROUTES.WAITING]: 'Waiting List',
     [ROUTES.TODO]: 'To-Do',
     [ROUTES.PRODUCTS]: 'Products',
+    [ROUTES.HIGH_RISK]: 'High Risk',
     [ROUTES.AUTOMATION]: 'Automation Control',
     '/members/dashboard': 'Dashboard',
     '/members/transactions': 'Transactions',
@@ -328,6 +331,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         href: '#',
         icon: MoreHorizontal,
         submenu: [
+          { name: 'High Risk', href: ROUTES.HIGH_RISK, icon: ShieldAlert, permission: resolvePerm(ROUTES.HIGH_RISK) },
           { name: resolveLabel(ROUTES.PRODUCTS), href: ROUTES.PRODUCTS, icon: resolveIcon(ROUTES.PRODUCTS), permission: resolvePerm(ROUTES.PRODUCTS) },
           { name: resolveLabel(ROUTES.WHATSAPP), href: ROUTES.WHATSAPP, icon: resolveIcon(ROUTES.WHATSAPP), permission: resolvePerm(ROUTES.WHATSAPP) ?? { module: 'whatsapp', action: 'view' } },
           { name: 'Automation Control', href: ROUTES.AUTOMATION, icon: Zap, permission: { module: 'settings', action: 'view' } },
@@ -491,17 +495,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* Share System Link Button */}
-              <button
-                type="button"
-                onClick={() => setShowShareModal(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-[#212049] bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 hover:border-[#423fbd] hover:text-[#423fbd] transition shadow-2xs cursor-pointer"
-                title="Share AIE Skyline System link with social preview card"
-              >
-                <Share2 className="w-3.5 h-3.5 text-[#423fbd]" />
-                <span>Share System</span>
-              </button>
-
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -567,7 +560,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           navigation={navigation}
           currentPath={location.pathname}
           unreadChatCount={unreadChatCount}
-          onOpenShare={() => setShowShareModal(true)}
         />
       )}
 

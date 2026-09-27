@@ -1,6 +1,6 @@
 // src/components/finance/FinanceHeader.tsx
 import React from 'react';
-import { Download, Plus, Search, FileText, Settings, Repeat, Upload } from 'lucide-react';
+import { Download, Plus, Search, FileText, Settings, Repeat, Upload, BarChart3 } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface FinanceHeaderProps {
@@ -20,12 +20,13 @@ interface FinanceHeaderProps {
   onManageDepartments: () => void;
   onManageAccounts: () => void;
   onAddRecurring: () => void;
+  onOpenBIReport?: () => void;
 }
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onSearch, onImport, onExport, onAddIncome, onAddExpense, onGeneratePDF,
   onManageGroups, onManageDepartments, onManageCategories, onManageAccounts,
-  onAddRecurring,
+  onAddRecurring, onOpenBIReport,
 }) => {
   const { can } = usePermissions();
 
@@ -64,6 +65,11 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
             {can('finance', 'categories') && (
                 <button onClick={onManageCategories} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
                     <Settings className="h-4 w-4 mr-2 text-[#64748B]" /> Categories
+                </button>
+            )}
+            {onOpenBIReport && (
+                <button onClick={onOpenBIReport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-indigo-200 rounded-xl shadow-xs text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer" title="Open Fleet Business Intelligence & Analytical Report">
+                    <BarChart3 className="h-4 w-4 mr-2 text-indigo-600" /> BI Report
                 </button>
             )}
         </div>

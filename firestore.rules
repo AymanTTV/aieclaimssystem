@@ -21,6 +21,10 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated();
     }
 
+    match /high_risk_drivers/{driverId} {
+      allow read, write: if true;
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || request.auth.uid == userId;

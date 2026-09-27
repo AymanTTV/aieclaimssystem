@@ -85,6 +85,14 @@ export function buildTVBoardItems(
     const isInProgress =
       rawStatus === 'in-progress' ||
       rawStatus === 'in progress' ||
+      rawStatus === 'workshop' ||
+      rawStatus === 'in workshop' ||
+      rawStatus === 'bodywork' ||
+      rawStatus === 'parts-backorder' ||
+      rawStatus === 'awaiting-parts' ||
+      rawStatus === 'off-road' ||
+      rawStatus === 'off road (vor)' ||
+      rawStatus === 'vor' ||
       rawStatus === 'active' ||
       rawStatus === 'ongoing' ||
       rawStatus === 'started';

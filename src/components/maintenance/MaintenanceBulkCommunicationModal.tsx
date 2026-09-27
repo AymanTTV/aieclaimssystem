@@ -155,7 +155,8 @@ export const MaintenanceBulkCommunicationModal: React.FC<
         vehiclesMap,
         customersMap,
         serviceCenters,
-        activeRentals
+        activeRentals,
+        selectedLogs
       );
 
       const recipientName = recipientType === 'driver' ? ctx.driverName : ctx.garageName;

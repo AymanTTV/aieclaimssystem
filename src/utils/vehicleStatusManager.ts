@@ -88,17 +88,48 @@ const deriveActiveStatuses = async (vehicleId: string): Promise<Vehicle['status'
     else if (r.status === 'scheduled') statuses.push('scheduled-rental');
   });
 
-  // Maintenance (in-progress/scheduled)
+  // Maintenance (active/workshop/off-road/scheduled/parts-backorder/bodywork/pending)
   const maintQ = query(
     collection(db, 'maintenanceLogs'),
     where('vehicleId', '==', vehicleId),
-    where('status', 'in', ['in-progress', 'scheduled'])
+    where('status', 'in', [
+      'in-progress',
+      'scheduled',
+      'workshop',
+      'parts-backorder',
+      'awaiting-parts',
+      'bodywork',
+      'off-road',
+      'OFF ROAD (VOR)',
+      'pending',
+      'inspection',
+    ])
   );
   const maintSnap = await getDocs(maintQ);
   maintSnap.forEach(d => {
     const m = d.data() as any;
-    if (m.status === 'in-progress') statuses.push('maintenance');
-    else if (m.status === 'scheduled') statuses.push('scheduled-maintenance');
+    const statusLower = (m.status || '').toLowerCase();
+    if (
+      statusLower === 'in-progress' ||
+      statusLower === 'workshop' ||
+      statusLower === 'parts-backorder' ||
+      statusLower === 'awaiting-parts' ||
+      statusLower === 'bodywork' ||
+      statusLower === 'off-road' ||
+      statusLower === 'off road (vor)' ||
+      statusLower === 'vor' ||
+      statusLower === 'pending' ||
+      statusLower === 'inspection'
+    ) {
+      statuses.push('maintenance');
+    } else if (statusLower === 'scheduled') {
+      // If vehicle is off the road or non-drivable due to accident, it is immediately unavailable (maintenance)
+      if (m.isOffRoad || m.isNonDrivable || m.dueToAccident || m.type === 'accident-repair') {
+        statuses.push('maintenance');
+      } else {
+        statuses.push('scheduled-maintenance');
+      }
+    }
   });
 
   return statuses;

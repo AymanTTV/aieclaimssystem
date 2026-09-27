@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceFilters.tsx
 import React, { useMemo } from 'react';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, AlertTriangle } from 'lucide-react';
 import { Vehicle } from '../../types';
 import SearchableSelect from '../ui/SearchableSelect';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -16,6 +16,9 @@ interface MaintenanceFiltersProps {
   onVehicleFilterChange: (vehicleId: string) => void;
   paymentStatusFilter: string;
   onPaymentStatusFilterChange: (status: string) => void;
+  roadConditionFilter?: string;
+  onRoadConditionFilterChange?: (condition: string) => void;
+  offRoadAccidentCount?: number;
   dateRange: { from: string; to: string };
   onDateRangeChange: (range: { from: string; to: string }) => void;
   vehicles: Vehicle[];
@@ -33,6 +36,9 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
   onVehicleFilterChange,
   paymentStatusFilter,
   onPaymentStatusFilterChange,
+  roadConditionFilter = 'all',
+  onRoadConditionFilterChange,
+  offRoadAccidentCount,
   dateRange,
   onDateRangeChange,
   vehicles,
@@ -45,7 +51,13 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
     const opts = [
       { id: 'all', label: 'All Status' },
       { id: 'scheduled', label: 'Scheduled' },
-      { id: 'in-progress', label: 'In Progress' }
+      { id: 'in-progress', label: 'In Progress' },
+      { id: 'workshop', label: 'In Workshop' },
+      { id: 'parts-backorder', label: 'Awaiting Parts' },
+      { id: 'bodywork', label: 'Bodywork' },
+      { id: 'off-road', label: 'OFF ROAD (VOR)' },
+      { id: 'pending', label: 'Pending Approval' },
+      { id: 'inspection', label: 'Inspection / MOT' },
     ];
     if (canViewCompleted) {
        opts.push({ id: 'completed', label: 'Completed' }, { id: 'cancelled', label: 'Cancelled' });
@@ -70,25 +82,47 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
     { id: 'partially_paid', label: 'Partially Paid' }
   ], []);
 
+  const roadConditionOptions = useMemo(() => [
+    { id: 'all', label: 'All Road Conditions' },
+    { id: 'off-road-accident', label: '🚨 Off-Road: Non-Drivable (Accident)' },
+    { id: 'all-off-road', label: '⚠️ All Off-Road / Non-Drivable' },
+    { id: 'drivable', label: '🚗 Drivable / Regular' },
+  ], []);
+
   const labelStyle = "block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1";
 
   return (
-    <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-xs border border-[#E2E8F0]">
-      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-[#64748B] mb-4 pb-2 border-b border-[#E2E8F0]">
-        <Filter className="w-4 h-4 text-blue-600" />
-        <span>Maintenance Filters</span>
+    <div className="bg-white p-3.5 sm:p-4 rounded-2xl shadow-xs border border-[#E2E8F0]">
+      <div className="flex flex-wrap items-center justify-between gap-2 font-bold text-xs uppercase tracking-wider text-[#64748B] mb-3 pb-2 border-b border-[#E2E8F0]">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-blue-600" />
+          <span>Maintenance Filters</span>
+        </div>
+
+        {(statusFilter !== 'all' || typeFilter !== 'all' || vehicleFilter !== 'all' || (paymentStatusFilter && paymentStatusFilter !== 'all') || (roadConditionFilter && roadConditionFilter !== 'all') || Boolean(dateRange.from) || Boolean(dateRange.to) || Boolean(searchQuery)) && (
+          <button
+            type="button"
+            onClick={() => {
+              onStatusFilterChange('all');
+              onTypeFilterChange('all');
+              onVehicleFilterChange('all');
+              onPaymentStatusFilterChange('all');
+              onRoadConditionFilterChange?.('all');
+              onDateRangeChange({ from: '', to: '' });
+              onSearchChange('');
+            }}
+            className="text-[11px] text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer"
+          >
+            Reset All Filters
+          </button>
+        )}
       </div>
 
-      {/* Grid Setup: 
-        Mobile: 1 column
-        Tablet (sm): 2 columns
-        Desktop (lg): 4 columns
-        This ensures perfectly balanced 2 lines on desktop.
-      */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      {/* Grid Setup - Balanced 4 columns on desktop, exactly 2 rows with no trailing gaps */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 items-end">
         
-        {/* Search - Takes 2 columns to balance the first row */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+        {/* Search */}
+        <div className="col-span-1">
            <label className={labelStyle}>Search</label>
            <div className="relative">
              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -100,7 +134,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
                data-lpignore="true"
                value={searchQuery}
                onChange={(e) => onSearchChange(e.target.value)}
-               placeholder="Search type, vehicle, reg, invoice, notes..."
+               placeholder="Search type, vehicle, reg, invoice..."
                className="block w-full pl-9 pr-3 py-2 bg-white text-[#0F172A] border-[1.5px] border-[#CBD5E1] rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-[#94A3B8] h-[42px]"
              />
            </div>
@@ -119,6 +153,17 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
 
         <div className="col-span-1">
            <SearchableSelect
+             label="Road Condition / Accident"
+             labelClassName={labelStyle}
+             options={roadConditionOptions}
+             value={roadConditionFilter}
+             onChange={(val) => onRoadConditionFilterChange?.(val || 'all')}
+             isClearable
+           />
+        </div>
+
+        <div className="col-span-1">
+           <SearchableSelect
              label="Type"
              labelClassName={labelStyle}
              options={typeOptions}
@@ -128,7 +173,7 @@ const MaintenanceFilters: React.FC<MaintenanceFiltersProps> = ({
            />
         </div>
 
-        <div className="col-span-1">
+        <div className={isCompany ? "col-span-1 sm:col-span-2 lg:col-span-2" : "col-span-1"}>
            <SearchableSelect
              label="Vehicle"
              labelClassName={labelStyle}

@@ -13,6 +13,7 @@ import { InvoiceLineItem, Invoice, Account } from '../../types';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import productService from '../../services/product.service';
+import unifiedCategoryService from '../../services/unifiedCategory.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
 import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2 } from 'lucide-react';
@@ -144,29 +145,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [pendingLineIndex, setPendingLineIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const snap = await getDocs(collection(db, 'invoiceCategories'));
-        const fetched: string[] = [];
-        snap.forEach(s => fetched.push((s.data() as any).name));
-        fetched.sort((a, b) => a.localeCompare(b));
-        setCategories(fetched);
-      } catch {
-        toast.error('Failed to load categories');
-      }
-    })();
+    const unsub = unifiedCategoryService.subscribe((cats) => {
+      setCategories(cats.map((c) => c.name));
+    });
 
     if (financeAccounts.length === 0) {
-        (async () => {
+      (async () => {
         try {
-            const snap = await getDocs(collection(db, 'accounts')); 
-            const accs: Account[] = [];
-            snap.forEach(doc => accs.push({ id: doc.id, ...doc.data() } as Account));
-            setFinanceAccounts(accs.sort((a, b) => a.name.localeCompare(b.name)));
+          const snap = await getDocs(collection(db, 'accounts')); 
+          const accs: Account[] = [];
+          snap.forEach(doc => accs.push({ id: doc.id, ...doc.data() } as Account));
+          setFinanceAccounts(accs.sort((a, b) => a.name.localeCompare(b.name)));
         } catch (e) {
-            console.error("Failed to load accounts", e);
+          console.error("Failed to load accounts", e);
         }
-        })();
+      })();
     }
 
     (async () => {
@@ -186,6 +179,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
         console.error('Error fetching products');
       }
     })();
+
+    return () => unsub();
   }, []);
 
   const handleProductCreated = (product: any) => {

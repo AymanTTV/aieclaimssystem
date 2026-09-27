@@ -1,5 +1,5 @@
 // src/utils/trashService.ts
-import { doc, writeBatch, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, writeBatch, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface TrashItem {
@@ -77,4 +77,27 @@ export const restoreFromTrash = async (trashDocId: string) => {
 
 export const permanentlyDelete = async (trashDocId: string) => {
   await deleteDoc(doc(db, 'trash', trashDocId));
+};
+
+export const emptyTrash = async (itemIds?: string[]): Promise<number> => {
+  const batchSize = 400;
+  let targetIds = itemIds;
+
+  if (!targetIds) {
+    const snap = await getDocs(collection(db, 'trash'));
+    targetIds = snap.docs.map((docSnap) => docSnap.id);
+  }
+
+  if (targetIds.length === 0) return 0;
+
+  for (let i = 0; i < targetIds.length; i += batchSize) {
+    const chunk = targetIds.slice(i, i + batchSize);
+    const batch = writeBatch(db);
+    chunk.forEach((id) => {
+      batch.delete(doc(db, 'trash', id));
+    });
+    await batch.commit();
+  }
+
+  return targetIds.length;
 };

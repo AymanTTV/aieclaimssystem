@@ -9,13 +9,14 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
   contentClassName?: string;
   subtitle?: string;
   className?: string;
   theme?: 'default' | 'navy';
   footer?: React.ReactNode;
   zIndex?: string;
+  hideHeader?: boolean;
 }
 
 export function Modal({
@@ -30,6 +31,7 @@ export function Modal({
   theme = 'default',
   footer,
   zIndex,
+  hideHeader = false,
 }: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isNavy = theme === 'navy';
@@ -81,12 +83,14 @@ export function Modal({
     xl: 'max-w-4xl',
     '2xl': 'max-w-6xl',
     '3xl': 'max-w-7xl',
+    full: 'w-[99vw] max-w-[99vw]',
   };
 
   const modalNode = (
     <div
       className={clsx(
-        'fixed inset-0 overflow-y-auto overflow-x-hidden flex items-center justify-center p-3 sm:p-4 md:p-6 text-center',
+        'fixed inset-0 overflow-y-auto overflow-x-hidden flex items-center justify-center text-center',
+        size === 'full' ? 'p-1 sm:p-2' : 'p-3 sm:p-4 md:p-6',
         zIndex || 'z-50'
       )}
     >
@@ -113,39 +117,41 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - anchored and pinned at top */}
-        <div
-          className={clsx(
-            'modal-header flex items-center justify-between px-6 py-4.5 border-b border-slate-200 shrink-0 rounded-t-2xl bg-slate-50',
-            isNavy && 'bg-[#16192B] border-[#2B314E] text-white'
-          )}
-        >
-          <div>
-            <h3
-              id="modal-title"
-              className={clsx(
-                'text-lg font-bold tracking-wide text-slate-900',
-                isNavy && 'text-white'
-              )}
-            >
-              {title}
-            </h3>
-            {subtitle && (
-              <p className={clsx('text-xs mt-0.5 text-slate-500 font-medium', isNavy && 'text-slate-400')}>{subtitle}</p>
-            )}
-          </div>
-          <button
-            type="button"
+        {!hideHeader && (
+          <div
             className={clsx(
-              'p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer ml-4',
-              isNavy && 'text-slate-400 hover:text-white hover:bg-white/10'
+              'modal-header flex items-center justify-between px-6 py-4.5 border-b border-slate-200 shrink-0 rounded-t-2xl bg-slate-50',
+              isNavy && 'bg-[#16192B] border-[#2B314E] text-white'
             )}
-            onClick={onClose}
-            title="Close modal"
-            aria-label="Close modal"
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+            <div>
+              <h3
+                id="modal-title"
+                className={clsx(
+                  'text-lg font-bold tracking-wide text-slate-900',
+                  isNavy && 'text-white'
+                )}
+              >
+                {title}
+              </h3>
+              {subtitle && (
+                <p className={clsx('text-xs mt-0.5 text-slate-500 font-medium', isNavy && 'text-slate-400')}>{subtitle}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              className={clsx(
+                'p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer ml-4',
+                isNavy && 'text-slate-400 hover:text-white hover:bg-white/10'
+              )}
+              onClick={onClose}
+              title="Close modal"
+              aria-label="Close modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        )}
 
         {/* Scrollable Content Body - User can scroll down smoothly */}
         <div

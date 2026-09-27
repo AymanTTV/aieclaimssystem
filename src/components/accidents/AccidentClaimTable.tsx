@@ -195,11 +195,23 @@ const AccidentClaimTable: React.FC<AccidentClaimTableProps> = ({
         const model = row.original.vehicleModel || '';
         const vModel = `${make} ${model}`.trim() || 'N/A';
         const vrn = row.original.regNo || row.original.vehicleVRN || 'N/A';
+        const isDrivable = row.original.isDrivable;
         return (
           <div className="space-y-1 py-1">
             <div className="font-semibold text-gray-900 text-sm">{vModel}</div>
-            <div className="text-xs font-mono font-semibold text-gray-700 bg-gray-100 inline-block px-2 py-0.5 rounded border border-gray-200">
-              VRN: {vrn}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-mono font-semibold text-gray-700 bg-gray-100 inline-block px-2 py-0.5 rounded border border-gray-200">
+                VRN: {vrn}
+              </span>
+              {isDrivable === false ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300" title="Vehicle is Non-Drivable (VOR)">
+                  VOR / Non-Drivable
+                </span>
+              ) : isDrivable === true ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300" title="Vehicle is Drivable">
+                  Drivable
+                </span>
+              ) : null}
             </div>
           </div>
         );

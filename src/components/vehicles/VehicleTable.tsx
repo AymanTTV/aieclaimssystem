@@ -8,7 +8,7 @@ import StatusBadge from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dateHelpers';
 import { isExpiringOrExpired, isServiceOverdue, isServiceDueSoon } from '../../utils/vehicleUtils';
-import { addDays } from 'date-fns';
+import { addDays, startOfDay } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -77,13 +77,10 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
   const allSelected = vehicles.length > 0 && selectedIds.size === vehicles.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
 
-  const checkWarrantyRed = (v: any): boolean => {
-    const currentMileage = v.mileage || 0;
-    if (currentMileage >= 150000) return true;
-    const wEnd = v.warrantyEndDate?.toDate ? v.warrantyEndDate.toDate() : (v.warrantyEndDate ? new Date(v.warrantyEndDate) : null);
-    if (!wEnd) return false;
-    if (wEnd.getTime() - Date.now() <= 14 * 24 * 60 * 60 * 1000) return true;
-    return false;
+  const isWarrantyExpired = (date: Date | null): boolean => {
+    if (!date || isNaN(date.getTime())) return false;
+    const today = startOfDay(new Date());
+    return startOfDay(date).getTime() < today.getTime();
   };
 
   const sortedVehicles = useMemo(() => {
@@ -313,7 +310,7 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
               {warrantyDate && (
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">Warranty:</span>
-                  <span className={checkWarrantyRed(vehicle) ? 'text-rose-600 font-bold' : 'text-slate-800 font-medium'}>
+                  <span className={isWarrantyExpired(warrantyDate) ? 'text-black font-bold' : 'text-blue-600 font-bold'}>
                     {formatDate(warrantyDate)}
                   </span>
                 </div>

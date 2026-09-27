@@ -493,6 +493,22 @@ const AccidentClaimView: React.FC<AccidentClaimViewProps> = ({ accident, onClose
                 <span className="text-xs text-slate-700 block mt-0.5">{accident.registeredKeeperAddress}</span>
               </div>
             )}
+
+            {/* Drivability Condition */}
+            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Vehicle Drivable?</span>
+              {accident.isDrivable === false ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                  <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+                  No - Non-Drivable (VOR)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  Yes - Drivable
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
