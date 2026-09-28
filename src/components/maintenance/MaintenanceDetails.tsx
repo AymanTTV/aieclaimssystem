@@ -1,6 +1,6 @@
 // src/components/maintenance/MaintenanceDetails.tsx
 import React, { useState, useEffect } from 'react';
-import { MaintenanceLog, Vehicle } from '../../types';
+import { MaintenanceLog, Vehicle, isOffRoadAccidentLog } from '../../types';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
 import { Wrench, DollarSign, FileText, Car, Layers, Paperclip, Calendar, Clock, MapPin, Receipt, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react';
