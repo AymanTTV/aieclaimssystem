@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { AccessDeniedProvider } from './context/AccessDeniedContext';
 import { FormatProvider } from './context/FormatContext';
 import AppRoutes from './routes';
 import { ToDoIcon } from './components/todo/ToDoIcon';
@@ -60,7 +61,9 @@ export default function App() {
         }}
       >
         <AuthProvider>
-          <AppInner />
+          <AccessDeniedProvider>
+            <AppInner />
+          </AccessDeniedProvider>
         </AuthProvider>
       </BrowserRouter>
     </FormatProvider>

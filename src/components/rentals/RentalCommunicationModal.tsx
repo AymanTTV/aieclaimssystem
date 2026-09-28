@@ -114,11 +114,11 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
-  const { can, isAdmin } = usePermissions();
-  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view');
-  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view');
-  const canUseTemplates = isAdmin || can('rentals', 'template') || can('rentals', 'view');
-  const canEditTemplates = isAdmin || can('rentals', 'templateEdit');
+  const { can, isManager } = usePermissions();
+  const canSendWhatsApp = isManager || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send');
+  const canSendEmail = isManager || can('rentals', 'email') || can('rentals', 'send');
+  const canUseTemplates = isManager || can('rentals', 'template');
+  const canEditTemplates = isManager || can('rentals', 'templateEdit');
   
   const [mode, setMode] = useState<'whatsapp' | 'email'>(initialMode);
   const [fetchedRentals, setFetchedRentals] = useState<Rental[]>([]);
@@ -703,6 +703,25 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         ? `${lastPaymentPaidStr} paid on ${datePaidStr} via ${lastPaymentMethodStr}${lastPaymentRefStr ? ` (Ref: ${lastPaymentRefStr})` : ''}`
         : (paid > 0 ? `${paidStr} paid via ${lastPaymentMethodStr}` : 'No payment recorded yet');
 
+      // Combined last payment amount and date
+      const lastPaymentAmountAndDate = lastPaymentItem
+        ? `${lastPaymentPaidStr} on ${datePaidStr}`
+        : (paid > 0 ? `${lastPaymentPaidStr} on ${datePaidStr}` : 'No payments recorded');
+
+      const lastPaymentDateAndAmount = lastPaymentItem
+        ? `${datePaidStr}: ${lastPaymentPaidStr}`
+        : (paid > 0 ? `${datePaidStr}: ${lastPaymentPaidStr}` : 'No payments recorded');
+
+      // List of payments showing amount and date
+      const lastPaymentsListStr = sortedPaymentsDesc.length > 0
+        ? sortedPaymentsDesc.map((p) => {
+            const pDate = formatDateValue(p.date || p.createdAt);
+            const pAmt = formatCurrency(p.amount || 0);
+            const pMethod = p.method ? ` (${formatPaymentMethodName(p.method)})` : '';
+            return `• ${pDate}: ${pAmt}${pMethod}`;
+          }).join('\n')
+        : (paid > 0 ? `• ${datePaidStr}: ${lastPaymentPaidStr}` : 'No payments recorded yet.');
+
       // VAT and Subtotal calculations
       const hasVAT = rental.includeVAT !== false;
       const netCost = hasVAT ? total / 1.2 : total;
@@ -819,18 +838,47 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         '[total overdue]': owingStr,
 
         // Payment History & Dates (explicit user request: last record Record Payment, paid date, amount, type of payment cash or card or bank transfer, statement, transection payment)
+        '{last_paid_amount}': lastPaymentPaidStr,
+        '{last_paid}': lastPaymentPaidStr,
+        '{latest_payment_amount}': lastPaymentPaidStr,
+        '{latest_paid_amount}': lastPaymentPaidStr,
         '{last_payment_paid}': lastPaymentPaidStr,
         '{last_payment_amount}': lastPaymentPaidStr,
         '{last_record_payment_amount}': lastPaymentPaidStr,
         '{last_record_amount}': lastPaymentPaidStr,
         '{last_payment}': lastPaymentPaidStr,
         '{amount_received}': lastPaymentPaidStr,
+        '[last paid amount]': lastPaymentPaidStr,
+        '[last paid]': lastPaymentPaidStr,
+        '[latest payment amount]': lastPaymentPaidStr,
+        '[latest paid amount]': lastPaymentPaidStr,
         '[last payment paid]': lastPaymentPaidStr,
         '[last payment amount]': lastPaymentPaidStr,
         '[last record payment amount]': lastPaymentPaidStr,
         '[last record amount]': lastPaymentPaidStr,
         '[last payment]': lastPaymentPaidStr,
         '[amount received]': lastPaymentPaidStr,
+
+        // Last Payment Amount and Date Combined
+        '{last_payment_amount_and_date}': lastPaymentAmountAndDate,
+        '{last_payment_date_and_amount}': lastPaymentDateAndAmount,
+        '{last_paid_amount_and_date}': lastPaymentAmountAndDate,
+        '[last payment amount and date]': lastPaymentAmountAndDate,
+        '[last payment date and amount]': lastPaymentDateAndAmount,
+        '[last paid amount and date]': lastPaymentAmountAndDate,
+
+        // List of last payment amount and date
+        '{last_payments_list}': lastPaymentsListStr,
+        '{payment_history_list}': lastPaymentsListStr,
+        '{payment_list}': lastPaymentsListStr,
+        '{list_of_last_payments}': lastPaymentsListStr,
+        '{last_payment_list}': lastPaymentsListStr,
+        '{payments_list}': lastPaymentsListStr,
+        '[last payments list]': lastPaymentsListStr,
+        '[payment history list]': lastPaymentsListStr,
+        '[payment list]': lastPaymentsListStr,
+        '[list of last payments]': lastPaymentsListStr,
+        '[last payment list]': lastPaymentsListStr,
 
         '{date_paid}': datePaidStr,
         '{the_date_paid}': datePaidStr,

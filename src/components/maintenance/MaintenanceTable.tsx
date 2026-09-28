@@ -421,7 +421,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         const isWorkshop = status === 'workshop';
         const isPartsBackorder = status === 'parts-backorder';
         const isBodywork = status === 'bodywork';
-        const isOffRoad = isOffRoadAccidentLog(row.original) || status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor';
+        const isOffRoad = (status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor') || (!status && isOffRoadAccidentLog(row.original));
         const isPending = status === 'pending';
         const isInspection = status === 'inspection';
         const isCompleted = status === 'completed';
@@ -572,7 +572,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
         const getSelectValue = (st: string) => {
           const val = String(st || '').toLowerCase().trim();
-          if (val === 'off-road' || val === 'off-road (vor)' || val === 'off road (vor)' || val === 'vor' || isAccidentOffRoad) return 'off-road';
+          if (val === 'off-road' || val === 'off-road (vor)' || val === 'off road (vor)' || val === 'vor') return 'off-road';
           if (val === 'parts-backorder' || val === 'awaiting-parts' || val === 'parts backorder') return 'parts-backorder';
           if (val === 'pending' || val === 'awaiting-approval') return 'pending';
           if (val === 'inspection' || val === 'diagnostic') return 'inspection';
@@ -581,6 +581,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           if (val === 'in-progress') return 'in-progress';
           if (val === 'completed') return 'completed';
           if (val === 'cancelled') return 'cancelled';
+          if (!val && isAccidentOffRoad) return 'off-road';
           return val || 'scheduled';
         };
 
@@ -829,7 +830,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     const { date, status } = row.original;
 
     // 0. Off-Road / VOR / Accident (highlight Rose)
-    const isOffRoad = isOffRoadAccidentLog(row.original) || status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor';
+    const isOffRoad = (status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor') || (!status && isOffRoadAccidentLog(row.original));
     if (isOffRoad && status !== 'completed' && status !== 'cancelled') {
       return '!bg-[#FFE4E6] hover:!bg-[#FECDD3] text-slate-900 [&>td]:!bg-[#FFE4E6] hover:[&>td]:!bg-[#FECDD3] [&>td]:!border-rose-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-rose-600 transition-colors duration-150';
     }

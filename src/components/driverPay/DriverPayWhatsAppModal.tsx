@@ -47,11 +47,11 @@ export const DriverPayWhatsAppModal: React.FC<DriverPayCommunicationModalProps> 
   onSuccess,
 }) => {
   const { user } = useAuth();
-  const { can, isAdmin } = usePermissions();
+  const { can, isManager } = usePermissions();
 
-  const canSendWhatsApp = isAdmin || can('driverPay', 'whatsapp') || can('driverPay', 'send');
-  const canSendEmail = isAdmin || can('driverPay', 'email') || can('driverPay', 'send');
-  const canUseTemplates = isAdmin || can('driverPay', 'template');
+  const canSendWhatsApp = isManager || can('driverPay', 'whatsapp') || can('driverPay', 'send');
+  const canSendEmail = isManager || can('driverPay', 'email') || can('driverPay', 'send');
+  const canUseTemplates = isManager || can('driverPay', 'template');
 
   const [channel, setChannel] = useState<'whatsapp' | 'email'>(initialChannel);
   const [selectedRecordId, setSelectedRecordId] = useState<string>(record?.id || '');

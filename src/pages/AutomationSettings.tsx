@@ -188,10 +188,18 @@ export const CATEGORIZED_TAGS: TagCategorySection[] = [
           '{owing_amount}',
           '{outstanding_balance}',
           '{last_paid_amount}',
+          '{last_payment_amount}',
+          '{last_payment_date}',
+          '{last_payment_amount_and_date}',
+          '{last_payments_list}',
+          '{payment_history_list}',
           '{payment_date}',
           '{payment_type}',
+          '{payment_method}',
+          '{payment_reference}',
           '{payment_status}',
           '{last_txn_summary}',
+          '{payment_statement}',
         ],
       },
       {
@@ -901,12 +909,12 @@ AIE Skyline Limited`,
 };
 
 export default function AutomationSettings() {
-  const { can, isAdmin } = usePermissions();
-  const canUpdate = isAdmin || can('automation', 'update') || can('automation', 'templateEdit') || can('whatsapp', 'template') || can('bulkEmail', 'template');
-  const canDelete = isAdmin || can('automation', 'delete') || can('automation', 'templateDelete') || can('whatsapp', 'delete') || can('bulkEmail', 'delete');
-  const canCreate = isAdmin || can('automation', 'create') || can('automation', 'templateCreate') || can('whatsapp', 'template') || can('bulkEmail', 'template');
-  const canToggleMondayAutoEmail = isAdmin || can('automation', 'mondayAutoEmail') || can('automation', 'toggleGlobal') || can('automation', 'update');
-  const canManageScheduler = isAdmin || can('automation', 'scheduler') || can('automation', 'update');
+  const { can } = usePermissions();
+  const canUpdate = can('automation', 'update') || can('automation', 'templateEdit') || can('whatsapp', 'template') || can('bulkEmail', 'template');
+  const canDelete = can('automation', 'delete') || can('automation', 'templateDelete') || can('whatsapp', 'delete') || can('bulkEmail', 'delete');
+  const canCreate = can('automation', 'create') || can('automation', 'templateCreate') || can('whatsapp', 'template') || can('bulkEmail', 'template');
+  const canToggleMondayAutoEmail = can('automation', 'mondayAutoEmail') || can('automation', 'toggleGlobal') || can('automation', 'update');
+  const canManageScheduler = can('automation', 'scheduler') || can('automation', 'update');
 
   // Top-Level Hub Mode: 'templates' (Message Templates Hub) or 'scheduler' (Automated Bulk Email Scheduler Hub)
   const [hubTab, setHubTab] = useState<'templates' | 'scheduler'>('templates');

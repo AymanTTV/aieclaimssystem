@@ -299,13 +299,15 @@ export const MemberCards: React.FC<MemberCardsProps> = ({
                       >
                         <Tag className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => sendSignatureRequest(customer)}
-                        className="p-1.5 rounded-lg hover:bg-white hover:text-emerald-600 hover:shadow-2xs transition"
-                        title="Send Signature Request (WhatsApp)"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
+                      {(can('customers', 'send') || can('customers', 'whatsapp')) && (
+                        <button
+                          onClick={() => sendSignatureRequest(customer)}
+                          className="p-1.5 rounded-lg hover:bg-white hover:text-emerald-600 hover:shadow-2xs transition"
+                          title="Send Signature Request (WhatsApp)"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => onUpdateBillCopy(customer)}
                         className={`p-1.5 rounded-lg hover:bg-white transition ${

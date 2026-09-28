@@ -26,11 +26,13 @@ import { ClipboardList, ShieldAlert } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { useVehicles } from '../hooks/useVehicles';
 import { Accident } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 
 const Accidents = () => {
+  const { can } = usePermissions();
   const { accidents, loading } = useAccidents();
   const { vehicles } = useVehicles();
   const { customers } = useCustomers();
@@ -169,20 +171,22 @@ const Accidents = () => {
               {displayedAccidents.length}
             </span>
           </button>
-          <button
-            onClick={() => setActiveTab('risk_analysis')}
-            className={`flex items-center space-x-2 py-2 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
-              activeTab === 'risk_analysis'
-                ? 'bg-white text-rose-900 shadow-xs ring-1 ring-rose-300'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ShieldAlert className="w-4 h-4 text-rose-600" />
-            <span>Driver Risk &amp; Renewal Analysis</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black uppercase tracking-wider">
-              18 Dec Renewal
-            </span>
-          </button>
+          {(can('accidents', 'driverRisk') || can('accidents', 'renewalAnalysis')) && (
+            <button
+              onClick={() => setActiveTab('risk_analysis')}
+              className={`flex items-center space-x-2 py-2 px-4 rounded-lg text-xs sm:text-sm font-bold transition ${
+                activeTab === 'risk_analysis'
+                  ? 'bg-white text-rose-900 shadow-xs ring-1 ring-rose-300'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-rose-600" />
+              <span>Driver Risk &amp; Renewal Analysis</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black uppercase tracking-wider">
+                18 Dec Renewal
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -122,7 +122,7 @@ const PersonalInjuryPage = () => {
           <p className="text-sm text-[#64748B] mt-0.5 font-medium">Claims registry, medical reports, and settlement progress.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {user?.role === 'manager' && (
+          {can('claims', 'export') && (
             <button
               onClick={handleExport}
               className="inline-flex items-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"

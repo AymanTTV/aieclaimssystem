@@ -326,7 +326,7 @@ const ClaimPermissionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
 
 const Claims: React.FC = () => {
-  const { can, isManager, isAdmin } = usePermissions(); 
+  const { can, isManager } = usePermissions(); 
   const { user } = useAuth();
   const { companyDetails } = useCompanyDetails();
 
@@ -511,7 +511,7 @@ const Claims: React.FC = () => {
     
     const claimAccess = (user as any)?.claimAccess;
     const hasCustomAccess = !!claimAccess && (claimAccess.start || claimAccess.end || (claimAccess.departments && claimAccess.departments.length > 0));
-    const isManagerOrAdmin = isManager || isAdmin;
+    const isManagerOrAdmin = false;
 
     // 0) search
     list = list.filter((c) => {
@@ -638,7 +638,7 @@ const Claims: React.FC = () => {
   }, [
     claims, searchQuery, showFilter, selectedProgresses, selectedTypes, selectedReasons, 
     selectedSubmitters, selectedAIEHandlers, selectedLegalHandlers, 
-    incidentDateStart, incidentDateEnd, user, isManager, isAdmin, 
+    incidentDateStart, incidentDateEnd, user, isManager, 
     selectedGroupFilters, selectedDepartmentFilters 
   ]);
 

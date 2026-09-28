@@ -143,7 +143,7 @@ export default function AppRoutes() {
 <Route
         path={ROUTES.TRASH}
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission={{ module: 'trash', action: 'view' }}>
             <Layout>
               <TrashPage />
             </Layout>
@@ -234,7 +234,7 @@ export default function AppRoutes() {
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission={{ module: 'dashboard', action: 'view' }}>
             <Layout>
               <Dashboard />
             </Layout>

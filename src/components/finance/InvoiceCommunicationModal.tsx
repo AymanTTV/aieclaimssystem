@@ -70,7 +70,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   const navigate = useNavigate();
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
-  const { can, isAdmin } = usePermissions();
+  const { can, isManager } = usePermissions();
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(propInvoice?.id || '');
 
@@ -91,12 +91,12 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
   }, [propInvoice, invoices, selectedInvoiceId]);
 
   const targetModule = moduleContext === 'vdInvoice' ? 'vdInvoice' : 'invoices';
-  const canSendWhatsApp = isAdmin || can(targetModule, 'whatsapp') || can(targetModule, 'send');
-  const canSendEmail = isAdmin || can(targetModule, 'email') || can(targetModule, 'send');
-  const canUseTemplates = isAdmin || can(targetModule, 'template');
-  const canEditTemplates = isAdmin || can(targetModule, 'templateEdit');
-  const canCreateTemplates = isAdmin || can(targetModule, 'templateCreate') || can(targetModule, 'templateEdit');
-  const canDeleteTemplates = isAdmin || can(targetModule, 'templateDelete');
+  const canSendWhatsApp = isManager || can(targetModule, 'whatsapp') || can(targetModule, 'send');
+  const canSendEmail = isManager || can(targetModule, 'email') || can(targetModule, 'send');
+  const canUseTemplates = isManager || can(targetModule, 'template');
+  const canEditTemplates = isManager || can(targetModule, 'templateEdit');
+  const canCreateTemplates = isManager || can(targetModule, 'templateCreate') || can(targetModule, 'templateEdit');
+  const canDeleteTemplates = isManager || can(targetModule, 'templateDelete');
   const [mode, setMode] = useState<'whatsapp' | 'email'>(initialMode);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);

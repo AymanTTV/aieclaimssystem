@@ -6,11 +6,15 @@ import {
   Share2,
   Users,
   Search,
-  Eye,
-  KeyRound,
-  Shield,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
 } from 'lucide-react';
-import { UserRole } from '../../types/highRiskDriver';
+import { HighRiskDriver } from '../../types/highRiskDriver';
+import { ExportHighRiskMenu } from './ExportHighRiskMenu';
+import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface HighRiskHeaderProps {
   activeTab: 'internal' | 'external';
@@ -18,19 +22,28 @@ interface HighRiskHeaderProps {
   databaseCount: number;
   onCopyPartnerLink: () => void;
   copied: boolean;
-  userRole: UserRole;
-  onRoleChange: (role: UserRole) => void;
+  onOpenImport?: () => void;
+  drivers?: HighRiskDriver[];
 }
 
 export const HighRiskHeader: React.FC<HighRiskHeaderProps> = ({
   activeTab,
   onTabChange,
-  databaseCount,
+  databaseCount: _databaseCount,
   onCopyPartnerLink,
   copied,
-  userRole,
-  onRoleChange,
+  onOpenImport,
+  drivers,
 }) => {
+  const { user } = useAuth();
+  const { can } = usePermissions();
+
+  const canCreate = can('highRisk', 'create');
+  const canUpdate = can('highRisk', 'update');
+  const canDelete = can('highRisk', 'delete');
+  const canExport = can('highRisk', 'export');
+  const canImport = can('highRisk', 'import');
+
   return (
     <header className="bg-[#0b132b] border-b border-slate-800 text-white shadow-md sticky top-0 z-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -58,53 +71,28 @@ export const HighRiskHeader: React.FC<HighRiskHeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Controls: Role Switcher & Share */}
+          {/* Right Controls: Import & Export only (Guarded by matrix permissions) */}
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-start lg:justify-end">
-            {/* User Role Switcher */}
-            <div className="flex items-center bg-[#070d1e] border border-slate-800 rounded-xl p-1 text-xs shadow-inner">
-              <span className="text-[11px] font-bold text-slate-400 px-2 flex items-center gap-1">
-                <Shield className="w-3.5 h-3.5 text-amber-400" />
-                Role:
-              </span>
+            {/* Import Records Button (Strict Matrix Guard: import === true) */}
+            {onOpenImport && canImport && (
               <button
                 type="button"
-                onClick={() => onRoleChange('staff')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition font-semibold cursor-pointer ${
-                  userRole === 'staff'
-                    ? 'bg-blue-600 text-white shadow-sm font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                }`}
-                title="Standard Staff: View only, reporting fleet names confidential"
+                onClick={onOpenImport}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition cursor-pointer"
+                title="Bulk import high risk drivers from CSV, Excel, or JSON"
               >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Standard Staff (View Only)</span>
+                <Upload className="w-3.5 h-3.5 text-white" />
+                <span>Import</span>
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={() => onRoleChange('manager')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition font-semibold cursor-pointer ${
-                  userRole === 'manager'
-                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                }`}
-                title="Authorized Manager: Full permissions (Add, Edit, Status Change, Delete, View Fleet)"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Authorized Manager (Admin)</span>
-              </button>
-            </div>
-
-            {/* Quick Share Link for Partners */}
-            <button
-              onClick={onCopyPartnerLink}
-              type="button"
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 shadow-xs transition cursor-pointer"
-              title="Copy direct link for External Partner Fleet Portal"
-            >
-              <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>{copied ? 'Link Copied!' : 'Share Partner Link'}</span>
-            </button>
+            {/* Export Records Menu (Strict Matrix Guard: export === true) */}
+            {drivers && canExport && (
+              <ExportHighRiskMenu
+                drivers={drivers}
+                compact={true}
+              />
+            )}
           </div>
         </div>
 

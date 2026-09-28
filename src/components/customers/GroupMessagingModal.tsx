@@ -67,10 +67,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
   claims = [],
   preselectedCustomerIds = [],
 }) => {
-  const { can, isAdmin, isManager } = usePermissions();
+  const { can, isManager } = usePermissions();
 
   const canSendWhatsApp =
-    isAdmin ||
     isManager ||
     can('customers', 'whatsapp') ||
     can('customers', 'send') ||
@@ -78,13 +77,9 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     can('members', 'whatsapp') ||
     can('members', 'send') ||
     can('members', 'groupMessaging') ||
-    can('whatsapp', 'send') ||
-    can('whatsapp', 'view') ||
-    can('customers', 'view') ||
-    can('members', 'view');
+    can('whatsapp', 'send');
 
   const canSendEmail =
-    isAdmin ||
     isManager ||
     can('customers', 'email') ||
     can('customers', 'send') ||
@@ -92,10 +87,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
     can('members', 'email') ||
     can('members', 'send') ||
     can('members', 'groupMessaging') ||
-    can('bulkEmail', 'send') ||
-    can('bulkEmail', 'view') ||
-    can('customers', 'view') ||
-    can('members', 'view');
+    can('bulkEmail', 'send');
 
   // Workflow step tabs in modal
   const [activeTab, setActiveTab] = useState<'template' | 'recipients' | 'dispatch'>('template');
@@ -462,7 +454,7 @@ export const GroupMessagingModal: React.FC<GroupMessagingModalProps> = ({
               <span className="font-semibold text-purple-700">Automation Control</span>. Template editing and tag modification are strictly restricted to the Central Hub.
             </span>
           </div>
-          {(isAdmin || isManager || can('automation', 'view')) && (
+          {(isManager || can('automation', 'view')) && (
             <a
               href="/automation"
               target="_blank"

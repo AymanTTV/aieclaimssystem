@@ -152,7 +152,7 @@ const TARGET_PERMISSIONS: Record<string, any> = {
 export default function WhatsappCommunication() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { can, isManager }  = usePermissions();
+  const { can }  = usePermissions();
 
   if (!can('whatsapp', 'view')) {
     return <Navigate to={ROUTES.DASHBOARD} replace />;
@@ -162,9 +162,9 @@ export default function WhatsappCommunication() {
     const allTabs: EmailType[] = ['finance', 'rental', 'maintenance', 'invoice', 'claim', 'driverPay', 'members', 'custom'];
     return allTabs.filter(type => {
       const permKey = TARGET_PERMISSIONS[type];
-      return permKey ? (can('whatsapp', permKey) || can('whatsapp', 'send') || isManager) : true;
+      return permKey ? (can('whatsapp', permKey) || can('whatsapp', 'send')) : true;
     });
-  }, [can, isManager]);
+  }, [can]);
 
   const [emailType, setEmailType] = useState<EmailType>(availableTabs[0] || 'custom');
   const [recipientFilter, setRecipientFilter] = useState<RecipientFilterType>('all');
@@ -417,8 +417,6 @@ export default function WhatsappCommunication() {
 
   const filteredRecipients = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-
-    if (!isManager && !q) return [];
 
     const matched: any[] = [];
 

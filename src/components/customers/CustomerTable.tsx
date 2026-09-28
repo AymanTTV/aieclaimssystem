@@ -207,7 +207,9 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
             <>
               <button onClick={(e) => { e.stopPropagation(); onEdit(row.original); }} className="text-gray-500 hover:text-blue-600" title="Edit"><Edit className="h-4 w-4" /></button>
               <button onClick={(e) => { e.stopPropagation(); onAssignType(row.original); }} className="text-gray-500 hover:text-green-600" title="Assign Type"><Tag className="h-4 w-4" /></button>
-              <button onClick={(e) => { e.stopPropagation(); sendSignatureRequest(row.original); }} className="text-gray-500 hover:text-green-600" title="Signature Request"><Send className="h-4 w-4" /></button>
+              {(can('customers', 'send') || can('customers', 'whatsapp')) && (
+                <button onClick={(e) => { e.stopPropagation(); sendSignatureRequest(row.original); }} className="text-gray-500 hover:text-green-600" title="Signature Request"><Send className="h-4 w-4" /></button>
+              )}
               {/* [NEW] Bill Copy Action Button */}
               <button onClick={(e) => { e.stopPropagation(); onUpdateBillCopy(row.original); }} className={`hover:text-orange-600 ${row.original.billCopyStatus === 'available' ? 'text-orange-500' : 'text-gray-500'}`} title="Office Bill Copy Status"><Inbox className="h-4 w-4" /></button>
             </>

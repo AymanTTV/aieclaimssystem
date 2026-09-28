@@ -65,6 +65,244 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    match /system_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /messageTemplates/{templateId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /roleTemplates/{role} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /accidents/{accidentId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /claims/{claimId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /invoiceCategories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vdFinance/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vdFinanceCategories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vdFinanceGroups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vdInvoices/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /driverPay/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /driverGroups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /pettyCash/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /aiePettyCash/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /incomeExpenses/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /skylineIncomeExpenses/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /accounts/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vatRecords/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vatCategories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vatGroups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /shares/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /shareholders/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /shareCategories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /transactions/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /trash/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /dynamicTags/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /emailHistory/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /emailLogs/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /messages/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /waiting_entries/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /waiting_categories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /waiting_groups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /claimDepartments/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /claimGroups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /financeDepartments/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /financeGroups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /vehicleDepartments/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /legalHandlers/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /serviceCenters/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /splits/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /transferHistory/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /presence/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /managers/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /todos/{todoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /todo_categories/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /todo_groups/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
     match /todos/{userId}/items/{itemId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
       allow read: if isAuthenticated() && isManager();

@@ -4,7 +4,9 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import type { RolePermissions } from '../types/roles';
-import { ROUTES } from '../routes';
+import { ROUTES, ROUTE_PERMISSIONS } from '../routes';
+import Layout from './Layout';
+import { AccessDeniedOverlay } from './common/AccessDeniedOverlay';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,23 +14,35 @@ interface ProtectedRouteProps {
     module: keyof RolePermissions;
     action: 'view' | 'create' | 'update' | 'delete';
   };
+  wrapInLayout?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  requiredPermission,
+  wrapInLayout = true,
+}) => {
   const { user, loading: authLoading } = useAuth();
-
-  // your usePermissions() might not have an explicit loading flag; guard defensively
-  const perms = usePermissions() as any;
-  const can = perms?.can ?? (() => true);
-  const permissionsLoading = Boolean(perms?.loading);
+  const perms = usePermissions();
+  const can = perms?.can ?? (() => false);
+  const permissionsLoading = Boolean((perms as any)?.loading);
 
   const location = useLocation();
   const inMemberArea = location.pathname.startsWith('/members');
 
+  // Automatically resolve route permission if not passed as an explicit prop
+  const effectivePermission = requiredPermission || (() => {
+    const pathname = location.pathname;
+    const matchingKey = Object.keys(ROUTE_PERMISSIONS).find(
+      key => pathname === key || (key !== '/' && pathname.startsWith(key))
+    ) as keyof typeof ROUTE_PERMISSIONS | undefined;
+    return matchingKey ? (ROUTE_PERMISSIONS[matchingKey] as { module: keyof RolePermissions; action: 'view' | 'create' | 'update' | 'delete' }) : undefined;
+  })();
+
   // 1) Wait for auth to resolve
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-screen bg-[#F8FAFC]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
@@ -55,22 +69,43 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
     return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
-  // 4) If a specific permission is required, check it
-  if (requiredPermission) {
+  // 4) If a specific permission is required (or mapped by route), strictly check explicit allow
+  if (effectivePermission) {
     if (permissionsLoading) {
       return (
-        <div className="flex justify-center items-center min-h-screen">
+        <div className="flex justify-center items-center min-h-screen bg-[#F8FAFC]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary" />
         </div>
       );
     }
-    const hasPermission = can(requiredPermission.module, requiredPermission.action);
+
+    const hasPermission = can(effectivePermission.module, effectivePermission.action);
+
+    // If permission is unticked, false, or missing -> Trigger Global Access Denied Overlay
+    // Completely prevents rendering of any underlying children/page content
     if (!hasPermission) {
-      return <Navigate to={ROUTES.DASHBOARD} replace />;
+      if (wrapInLayout && !inMemberArea) {
+        return (
+          <Layout>
+            <AccessDeniedOverlay
+              module={String(effectivePermission.module)}
+              action={effectivePermission.action}
+            />
+          </Layout>
+        );
+      }
+
+      return (
+        <AccessDeniedOverlay
+          module={String(effectivePermission.module)}
+          action={effectivePermission.action}
+          isStandalone={true}
+        />
+      );
     }
   }
 
-  // 5) Auth OK (+ permission OK if required)
+  // 5) Auth OK (+ explicit permission OK if required)
   return <>{children}</>;
 };
 

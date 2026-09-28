@@ -268,7 +268,7 @@ const TARGET_PERMISSIONS: Record<string, any> = {
 export default function BulkEmail() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { can, isManager } = usePermissions();
+  const { can } = usePermissions();
 
   // ─── PERMISSION CHECK ───────────────────────────────────────────
   if (!can('bulkEmail', 'view')) {
@@ -280,9 +280,9 @@ export default function BulkEmail() {
     const allTabs: EmailType[] = ['finance', 'rental', 'maintenance', 'invoice', 'claim', 'driverPay', 'members', 'custom'];
     return allTabs.filter(type => {
       const permKey = TARGET_PERMISSIONS[type];
-      return permKey ? (can('bulkEmail', permKey) || can('bulkEmail', 'send') || isManager) : true;
+      return permKey ? (can('bulkEmail', permKey) || can('bulkEmail', 'send')) : true;
     });
-  }, [can, isManager]);
+  }, [can]);
 
   // ─── STATE ──────────────────────────────────────────────────────
   const [emailType, setEmailType]                   = useState<EmailType>(availableTabs[0] || 'custom');
@@ -562,10 +562,6 @@ export default function BulkEmail() {
 
   const filteredRecipients = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-
-    if (!isManager && !q) {
-      return [];
-    }
 
     let allRecipients: any[] = [];
 

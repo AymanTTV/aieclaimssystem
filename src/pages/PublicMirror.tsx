@@ -38,6 +38,7 @@ import {
   Tv
 } from 'lucide-react';
 import WorkshopTVBoard from '../components/workshop/WorkshopTVBoard';
+import { WorkshopMirrorGuard } from '../components/maintenance/WorkshopMirrorGuard';
 import {
   startOfDay,
   endOfDay,
@@ -726,20 +727,23 @@ const PublicMirror: React.FC = () => {
   // If TV Auto-Rotation Board mode is active, render dedicated TV view
   if (viewMode === 'tv') {
     return (
-      <WorkshopTVBoard
-        jobs={unifiedJobs}
-        lastSyncTime={lastSyncTime}
-        onClose={() => setViewMode('dual')}
-      />
+      <WorkshopMirrorGuard permission="workshopTv" behavior="overlay" isStandalone={true}>
+        <WorkshopTVBoard
+          jobs={unifiedJobs}
+          lastSyncTime={lastSyncTime}
+          onClose={() => setViewMode('dual')}
+        />
+      </WorkshopMirrorGuard>
     );
   }
 
   return (
-    <div
-      className={`min-h-screen bg-[#0A0C14] text-white flex flex-col font-sans transition-all duration-300 w-full max-w-full overflow-x-hidden box-border public-mirror-root ${
-        isKioskMode ? 'p-2 sm:p-4 md:p-6' : 'p-3 sm:p-5 md:p-8'
-      }`}
-    >
+    <WorkshopMirrorGuard permission="publicMirror" behavior="overlay" isStandalone={true}>
+      <div
+        className={`min-h-screen bg-[#0A0C14] text-white flex flex-col font-sans transition-all duration-300 w-full max-w-full overflow-x-hidden box-border public-mirror-root ${
+          isKioskMode ? 'p-2 sm:p-4 md:p-6' : 'p-3 sm:p-5 md:p-8'
+        }`}
+      >
       {/* ─── LIVE HEADER BAR ─── */}
       <header className="bg-[#121524] border border-[#2B314E] rounded-2xl p-4 md:p-6 shadow-2xl mb-6 w-full max-w-full min-w-0">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 min-w-0">
@@ -821,15 +825,17 @@ const PublicMirror: React.FC = () => {
               </button>
             )}
 
-            {/* Workshop TV Auto-Rotation Button */}
-            <button
-              onClick={() => setViewMode('tv')}
-              className="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer border border-emerald-500/30"
-              title="Switch to Fullscreen Auto-Rotation TV Board"
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span>TV Board</span>
-            </button>
+            {/* Workshop TV Auto-Rotation Button (Guarded by User Permissions) */}
+            <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
+              <button
+                onClick={() => setViewMode('tv')}
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer border border-emerald-500/30"
+                title="Switch to Fullscreen Auto-Rotation TV Board"
+              >
+                <Tv className="w-3.5 h-3.5" />
+                <span>TV Board</span>
+              </button>
+            </WorkshopMirrorGuard>
 
             {/* Display Mode / Fullscreen Toggle */}
             <button
@@ -1157,18 +1163,20 @@ const PublicMirror: React.FC = () => {
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Grid</span>
             </button>
-            <button
-              onClick={() => setViewMode('tv')}
-              title="Workshop TV Display Mirror (Auto-Rotation Board)"
-              className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewMode === 'tv'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-emerald-400 hover:text-white hover:bg-emerald-500/10'
-              }`}
-            >
-              <Tv className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">TV Auto-Rotation</span>
-            </button>
+            <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
+              <button
+                onClick={() => setViewMode('tv')}
+                title="Workshop TV Display Mirror (Auto-Rotation Board)"
+                className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'tv'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-emerald-400 hover:text-white hover:bg-emerald-500/10'
+                }`}
+              >
+                <Tv className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">TV Auto-Rotation</span>
+              </button>
+            </WorkshopMirrorGuard>
           </div>
         </div>
       </div>
@@ -1938,6 +1946,7 @@ const PublicMirror: React.FC = () => {
         </p>
       </footer>
     </div>
+    </WorkshopMirrorGuard>
   );
 };
 

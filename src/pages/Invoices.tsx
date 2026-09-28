@@ -585,7 +585,7 @@ const Invoices: React.FC = () => {
 
         {/* Action Bars in ONE LINE with + Create Invoice to the Right */}
         <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar pt-3 border-t border-[#F1F5F9]">
-          {can('finance', 'accounts') && (
+          {(can('invoices', 'accounts') || can('finance', 'accounts')) && (
             <button
               onClick={() => setShowManageAccounts(true)}
               className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-indigo-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-800 active:scale-95 transition-all cursor-pointer"
@@ -594,7 +594,7 @@ const Invoices: React.FC = () => {
             </button>
           )}
 
-          {can('finance', 'groups') && (
+          {(can('invoices', 'groups') || can('finance', 'groups')) && (
             <button
               onClick={() => setShowManageGroups(true)}
               className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-purple-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
@@ -603,7 +603,7 @@ const Invoices: React.FC = () => {
             </button>
           )}
 
-          {can('finance', 'departments') && (
+          {(can('invoices', 'departments') || can('finance', 'departments')) && (
             <button
               onClick={() => setShowManageDepartments(true)}
               className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer"
@@ -621,26 +621,32 @@ const Invoices: React.FC = () => {
             </button>
           )}
 
-          {activeTab === 'invoices' && can('invoices', 'export') && (
+          {activeTab === 'invoices' && (
             <>
-              <button
-                onClick={handleImportClick}
-                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-amber-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 active:scale-95 transition-all cursor-pointer"
-              >
-                <Upload className="h-4 w-4 mr-1.5 text-amber-600 pointer-events-none" /> Import
-              </button>
-              <button
-                onClick={handleExport}
-                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-blue-200 rounded-xl shadow-xs text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 active:scale-95 transition-all cursor-pointer"
-              >
-                <Download className="h-4 w-4 mr-1.5 text-blue-600 pointer-events-none" /> Export
-              </button>
-              <button
-                onClick={handleGenerateBulkPDF}
-                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
-              >
-                <FileText className="h-4 w-4 mr-1.5 text-rose-600 pointer-events-none" /> Bulk PDF
-              </button>
+              {can('invoices', 'import') && (
+                <button
+                  onClick={handleImportClick}
+                  className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-amber-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-900 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Upload className="h-4 w-4 mr-1.5 text-amber-600 pointer-events-none" /> Import
+                </button>
+              )}
+              {can('invoices', 'export') && (
+                <button
+                  onClick={handleExport}
+                  className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-blue-200 rounded-xl shadow-xs text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Download className="h-4 w-4 mr-1.5 text-blue-600 pointer-events-none" /> Export
+                </button>
+              )}
+              {(can('invoices', 'singleDoc') || can('invoices', 'export')) && (
+                <button
+                  onClick={handleGenerateBulkPDF}
+                  className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-rose-200 rounded-xl shadow-xs text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-800 active:scale-95 transition-all cursor-pointer"
+                >
+                  <FileText className="h-4 w-4 mr-1.5 text-rose-600 pointer-events-none" /> Bulk PDF
+                </button>
+              )}
             </>
           )}
 
@@ -669,11 +675,11 @@ const Invoices: React.FC = () => {
             showCompleted={showCompleted} onShowCompletedChange={setShowCompleted}
           />
 
-          {selectedInvoiceIds.size > 0 && (user?.role === 'manager' || can('invoices', 'assign') || can('invoices', 'delete')) && (
+          {selectedInvoiceIds.size > 0 && (can('invoices', 'assign') || can('invoices', 'delete')) && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex items-center justify-between shadow-sm">
               <span className="font-medium text-sm text-red-800">{selectedInvoiceIds.size} invoice(s) selected</span>
               <div className="flex flex-wrap gap-3">
-                {(user?.role === 'manager' || can('invoices', 'assign')) && (
+                {can('invoices', 'assign') && (
                   <>
                     <button 
                       onClick={() => setShowAssignGroupModal(true)}
@@ -689,7 +695,7 @@ const Invoices: React.FC = () => {
                     </button>
                   </>
                 )}
-                {(user?.role === 'manager' || can('invoices', 'delete')) && (
+                {can('invoices', 'delete') && (
                   <button 
                     onClick={handleBulkDeleteClick}
                     className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
@@ -709,7 +715,7 @@ const Invoices: React.FC = () => {
             onDeletePayment={handleDeletePayment} onGenerateDocument={handleOpenLatestInvoicePDF}
             onViewDocument={(inv) => handleOpenLatestInvoicePDF(inv)} onStatusChange={handleStatusChange}
             onAssignDepartment={(inv) => { setSelectedInvoice(inv); setShowAssignDepartmentModal(true); }}
-            isManager={user?.role === 'manager'}
+            isManager={can('invoices', 'assign') || can('invoices', 'delete')}
             selectedIds={selectedInvoiceIds}
             onToggleOne={handleToggleOne}
             onToggleAll={handleToggleAll}

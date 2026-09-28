@@ -911,11 +911,11 @@ const Finance: React.FC = () => {
           recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
       />
 
-      {selectedTransactionIds.size > 0 && (user?.role === 'manager' || can('finance', 'assign') || can('finance', 'delete')) && (
+      {selectedTransactionIds.size > 0 && (can('finance', 'assign') || can('finance', 'delete')) && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
           <span className="font-medium text-sm text-indigo-800">{selectedTransactionIds.size} transaction(s) selected</span>
           <div className="flex flex-wrap gap-2">
-            {(user?.role === 'manager' || can('finance', 'assign')) && (
+            {can('finance', 'assign') && (
               <>
                 <button 
                   onClick={() => setShowAssignGroupModal(true)}
@@ -938,7 +938,7 @@ const Finance: React.FC = () => {
                 </button>
               </>
             )}
-            {(user?.role === 'manager' || can('finance', 'delete')) && (
+            {can('finance', 'delete') && (
               <button 
                 onClick={handleBulkDeleteClick}
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
@@ -964,7 +964,7 @@ const Finance: React.FC = () => {
         onAssign={handleAssignTransaction} 
         onAssignDepartment={(txn) => { setSelectedTransaction(txn); setShowAssignDepartmentModal(true); }}
         
-        isManager={user?.role === 'manager'}
+        isManager={can('finance', 'assign') || can('finance', 'delete')}
         selectedIds={selectedTransactionIds}
         onToggleOne={handleToggleOne}
         onToggleAll={handleToggleAll}

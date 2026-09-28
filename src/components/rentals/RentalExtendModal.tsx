@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Rental } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { addDays, addWeeks, format } from 'date-fns';
 import { calculateRentalCost, RENTAL_RATES, type RentalType } from '../../utils/rentalCalculations';
 import toast from 'react-hot-toast';
@@ -15,6 +16,8 @@ interface RentalExtendModalProps {
 
 const RentalExtendModal: React.FC<RentalExtendModalProps> = ({ rental, onClose }) => {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canNegotiate = can('rentals', 'update');
   const [loading, setLoading] = useState(false);
   const [customRate, setCustomRate] = useState<string>('');
   const [negotiationNotes, setNegotiationNotes] = useState('');
@@ -106,7 +109,7 @@ const RentalExtendModal: React.FC<RentalExtendModalProps> = ({ rental, onClose }
           </div>
         </div>
 
-        {(user?.role === 'admin' || user?.role === 'manager') && (
+        {canNegotiate && (
           <>
             <div className="space-y-4">
               <FormField

@@ -1,5 +1,5 @@
 // src/pages/Users.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useUsers } from '../hooks/useUsers';
 import { DataTable } from '../components/DataTable/DataTable';
 import { format } from 'date-fns';
@@ -15,18 +15,21 @@ import StatusBadge from '../components/ui/StatusBadge';
 import { usePermissions } from '../hooks/usePermissions';
 import { User } from '../types';
 import { normalizePermissions, RolePermissions, Permission } from '../types/roles';
-import ModulePermissionsPageView from '../components/users/ModulePermissionsPageView';
-import { doc, writeBatch } from 'firebase/firestore';
+import ModulePermissionsPageView, { PermissionAction } from '../components/users/ModulePermissionsPageView';
+import { doc, writeBatch, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const ROLE_ORDER: Record<string, number> = {
-  manager: 1, admin: 2, finance: 3, claims: 4, company: 5, member: 6,
+  superadmin: 1, manager: 2, admin: 3, supervisor: 4, accountant: 5, finance: 6, claims: 7, staff: 8, company: 9, member: 10,
 };
 
 const Users = () => {
+  const { user: currentUser, updateUserPermissions } = useAuth();
   const { users, loading } = useUsers();
-  const { can, isManager } = usePermissions();
+  const { can } = usePermissions();
+  const isManager = can('users', 'update');
   const [showForm, setShowForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editingUserInfo, setEditingUserInfo] = useState<User | null>(null);
@@ -43,9 +46,27 @@ const Users = () => {
   const [pageSelectedModule, setPageSelectedModule] = useState<keyof RolePermissions>('vehicles');
   const [pageSaving, setPageSaving] = useState(false);
 
+  // Fetch saved role template from Firestore if it exists, otherwise use normalizePermissions
+  const loadRolePermissions = async (targetRole: User['role']) => {
+    try {
+      const docSnap = await getDoc(doc(db, 'roleTemplates', targetRole));
+      if (docSnap.exists() && docSnap.data().permissions) {
+        setPagePermissions(normalizePermissions(targetRole, docSnap.data().permissions));
+      } else {
+        setPagePermissions(normalizePermissions(targetRole));
+      }
+    } catch {
+      setPagePermissions(normalizePermissions(targetRole));
+    }
+  };
+
+  useEffect(() => {
+    loadRolePermissions(pageRole);
+  }, []);
+
   const handleRoleTemplateChange = (newRole: User['role']) => {
     setPageRole(newRole);
-    setPagePermissions(normalizePermissions(newRole));
+    loadRolePermissions(newRole);
     toast.success(`Loaded permissions template for ${newRole.toUpperCase()}`);
   };
 
@@ -88,8 +109,31 @@ const Users = () => {
         },
         { merge: true }
       );
+
+      // Batch update all users assigned this role so changes take effect immediately
+      const usersQuery = query(collection(db, 'users'), where('role', '==', pageRole));
+      const usersSnap = await getDocs(usersQuery);
+      usersSnap.docs.forEach((uDoc) => {
+        batch.update(uDoc.ref, {
+          permissions: pagePermissions,
+          updatedAt: new Date(),
+        });
+      });
+
       await batch.commit();
-      toast.success(`Successfully saved permissions for role: ${pageRole.toUpperCase()}`, { id: toastId });
+
+      if (currentUser?.role === pageRole) {
+        updateUserPermissions(pagePermissions);
+      }
+      try {
+        window.dispatchEvent(
+          new CustomEvent('user_permissions_updated', {
+            detail: { role: pageRole, permissions: pagePermissions, timestamp: Date.now() },
+          })
+        );
+      } catch {}
+
+      toast.success(`Successfully saved and synced permissions for role: ${pageRole.toUpperCase()}`, { id: toastId });
     } catch (err) {
       console.error(err);
       toast.error('Failed to save permissions template', { id: toastId });
@@ -103,7 +147,10 @@ const Users = () => {
 
   const stats = useMemo(() => ({
     total: users.length,
-    admins: users.filter(u => u.role === 'admin' || u.role === 'manager').length,
+    admins: users.filter(u => u.role === 'admin' || u.role === 'manager' || u.role === 'superadmin').length,
+    supervisors: users.filter(u => u.role === 'supervisor').length,
+    staff: users.filter(u => u.role === 'staff').length,
+    accountants: users.filter(u => u.role === 'accountant' || u.role === 'finance').length,
     companies: users.filter(u => u.role === 'company').length,
     members: users.filter(u => u.role === 'member').length,
   }), [users]);
@@ -182,18 +229,20 @@ const Users = () => {
             </button>
           )}
           
-          {isManager && (
-            <>
-              <button onClick={(e) => { e.stopPropagation(); setEditingUserInfo(row.original); }} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit Profile">
-                <Edit className="w-4 h-4" />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); setEditingUser(row.original); }} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Manage Permissions">
-                <Shield className="w-4 h-4" />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); setDeletingUserId(row.original.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete User">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>
+          {(isManager || can('users', 'update')) && (
+            <button onClick={(e) => { e.stopPropagation(); setEditingUserInfo(row.original); }} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit Profile">
+              <Edit className="w-4 h-4" />
+            </button>
+          )}
+          {(isManager || can('users', 'update')) && (
+            <button onClick={(e) => { e.stopPropagation(); setEditingUser(row.original); }} className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Manage Permissions">
+              <Shield className="w-4 h-4" />
+            </button>
+          )}
+          {(isManager || can('users', 'delete')) && (
+            <button onClick={(e) => { e.stopPropagation(); setDeletingUserId(row.original.id); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete User">
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
       ),
@@ -204,6 +253,16 @@ const Users = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!can('users', 'view')) {
+    return (
+      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm max-w-lg mx-auto my-12">
+        <Shield className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+        <h2 className="text-xl font-bold text-slate-900">Access Restricted</h2>
+        <p className="text-sm text-slate-500 mt-1">You do not have permission to view User Management.</p>
       </div>
     );
   }
@@ -283,7 +342,7 @@ const Users = () => {
             <span className={`px-2 py-0.2 rounded-full text-[10px] font-mono font-bold ${
               activePageTab === 'permissions' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'
             }`}>
-              34 Modules
+              35 Modules
             </span>
           </button>
         </div>
@@ -321,24 +380,26 @@ const Users = () => {
       {activePageTab === 'users' && (
         <>
           {/* SUMMARY CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#F8FAFC] p-5 rounded-2xl shadow-xs border border-[#CBD5E1] hover:border-slate-300 flex items-center gap-4 transition-all text-[#0F172A]">
-              <div className="p-3 bg-white border border-[#CBD5E1] text-[#334155] rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
-              <div><p className="text-xs text-[#334155] font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0F172A] tracking-tight">{stats.total}</p></div>
+          {can('users', 'cards') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#F8FAFC] p-5 rounded-2xl shadow-xs border border-[#CBD5E1] hover:border-slate-300 flex items-center gap-4 transition-all text-[#0F172A]">
+                <div className="p-3 bg-white border border-[#CBD5E1] text-[#334155] rounded-xl shadow-xs"><UsersIcon className="w-6 h-6" /></div>
+                <div><p className="text-xs text-[#334155] font-bold uppercase tracking-wider">Total Users</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0F172A] tracking-tight">{stats.total}</p></div>
+              </div>
+              <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] hover:border-sky-300 flex items-center gap-4 transition-all text-[#0F172A]">
+                <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
+                <div><p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.admins}</p></div>
+              </div>
+              <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] hover:border-purple-300 flex items-center gap-4 transition-all text-[#0F172A]">
+                <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
+                <div><p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{stats.companies}</p></div>
+              </div>
+              <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] hover:border-emerald-300 flex items-center gap-4 transition-all text-[#0F172A]">
+                <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
+                <div><p className="text-xs text-[#059669] font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#047857] tracking-tight">{stats.members}</p></div>
+              </div>
             </div>
-            <div className="bg-[#F0F9FF] p-5 rounded-2xl shadow-xs border border-[#BAE6FD] hover:border-sky-300 flex items-center gap-4 transition-all text-[#0F172A]">
-              <div className="p-3 bg-white border border-[#BAE6FD] text-[#0284C7] rounded-xl shadow-xs"><ShieldCheck className="w-6 h-6" /></div>
-              <div><p className="text-xs text-[#0284C7] font-bold uppercase tracking-wider">System Admins</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#0369A1] tracking-tight">{stats.admins}</p></div>
-            </div>
-            <div className="bg-[#FAF5FF] p-5 rounded-2xl shadow-xs border border-[#E9D5FF] hover:border-purple-300 flex items-center gap-4 transition-all text-[#0F172A]">
-              <div className="p-3 bg-white border border-[#E9D5FF] text-[#7E22CE] rounded-xl shadow-xs"><Building2 className="w-6 h-6" /></div>
-              <div><p className="text-xs text-[#7E22CE] font-bold uppercase tracking-wider">Corporate Accounts</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#6B21A8] tracking-tight">{stats.companies}</p></div>
-            </div>
-            <div className="bg-[#ECFDF5] p-5 rounded-2xl shadow-xs border border-[#A7F3D0] hover:border-emerald-300 flex items-center gap-4 transition-all text-[#0F172A]">
-              <div className="p-3 bg-white border border-[#A7F3D0] text-[#059669] rounded-xl shadow-xs"><UserPlus className="w-6 h-6" /></div>
-              <div><p className="text-xs text-[#059669] font-bold uppercase tracking-wider">Portal Members</p><p className="text-2xl sm:text-3xl font-black font-mono text-[#047857] tracking-tight">{stats.members}</p></div>
-            </div>
-          </div>
+          )}
 
           {/* FILTERS */}
           <div className="bg-white p-4 rounded-2xl shadow-xs border border-[#E2E8F0] flex flex-col sm:flex-row gap-3">
@@ -358,10 +419,14 @@ const Users = () => {
               onChange={(e) => setRoleFilter(e.target.value)}
             >
               <option value="all">All Roles</option>
+              <option value="superadmin">Super Admin</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="accountant">Accountant</option>
               <option value="finance">Finance</option>
               <option value="claims">Claims</option>
+              <option value="staff">Staff</option>
               <option value="company">Company</option>
               <option value="member">Member</option>
             </select>

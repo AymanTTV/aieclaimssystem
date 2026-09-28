@@ -1,7 +1,7 @@
 import React from 'react';
 import FormField from '../../ui/FormField';
 import TextArea from '../../ui/TextArea';
-import { useAuth } from '../../../context/AuthContext';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 interface NegotiationSectionProps {
   standardRate: number;
@@ -18,8 +18,8 @@ const NegotiationSection: React.FC<NegotiationSectionProps> = ({
   negotiationNotes,
   onNotesChange
 }) => {
-  const { user } = useAuth();
-  const canNegotiate = user?.role === 'admin' || user?.role === 'manager';
+  const { can } = usePermissions();
+  const canNegotiate = can('rentals', 'update') || can('rentals', 'create');
 
   if (!canNegotiate) return null;
 

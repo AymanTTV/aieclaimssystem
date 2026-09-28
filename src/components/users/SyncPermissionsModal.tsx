@@ -26,6 +26,7 @@ import {
   MODULE_ACTION_BAR_CATALOG 
 } from '../../types/roles';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import toast from 'react-hot-toast';
 
 export type PermissionAction = keyof Permission;
@@ -72,6 +73,7 @@ export const PAGE_DEFINITIONS: Record<keyof RolePermissions, { pageName: string;
   rentals: { pageName: 'Rentals', routePath: '/rentals' },
   accidents: { pageName: 'Accidents', routePath: '/accidents' },
   claims: { pageName: 'Claims', routePath: '/claims' },
+  highRisk: { pageName: 'High Risk Registry', routePath: '/high-risk' },
   vdFinance: { pageName: 'VD Finance', routePath: '/claims/vd-finance' },
   vdInvoice: { pageName: 'VD Invoice', routePath: '/claims/vd-invoice' },
   driverPay: { pageName: 'Driver Pay', routePath: '/skyline-caps/driver-pay' },
@@ -175,6 +177,8 @@ export const ACTION_FRIENDLY_NAMES: Partial<Record<PermissionAction, string>> = 
   deletePayment: 'Delete Payments',
   restore: 'Restore from Recycle Bin',
   deletePermanently: 'Delete Permanently',
+  workshopTv: 'Workshop TV',
+  publicMirror: 'Live Public Mirror',
 };
 
 const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = ['memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices'];
@@ -198,7 +202,8 @@ export const SyncPermissionsModal: React.FC<SyncPermissionsModalProps> = ({
   onPermissionsSynced,
 }) => {
   const { user: currentUser } = useAuth();
-  const isManager = currentUser?.role === 'manager' || currentUser?.role === 'admin';
+  const { can } = usePermissions();
+  const isManager = can('users', 'update');
 
   const [query, setQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'missing' | 'synced'>('all');
@@ -342,9 +347,8 @@ export const SyncPermissionsModal: React.FC<SyncPermissionsModalProps> = ({
         }
         const currentMod = updatedPermissions[modKey] as Record<string, boolean>;
 
-        // Resolve appropriate value: check role defaults first, fallback to true for manager/admin, false for others
-        const roleDefaultVal = (DEFAULT_PERMISSIONS[activeRole as Role]?.[modKey] as Record<string, boolean> | undefined)?.[item.action];
-        const resolvedValue = roleDefaultVal !== undefined ? Boolean(roleDefaultVal) : (activeRole === 'manager' || activeRole === 'admin');
+        // Universal Explicit-Allow: do not automatically grant permissions to anyone during sync
+        const resolvedValue = false;
 
         currentMod[item.action] = resolvedValue;
       });
@@ -401,8 +405,7 @@ export const SyncPermissionsModal: React.FC<SyncPermissionsModalProps> = ({
 
     const updatedPermissions: RolePermissions = JSON.parse(JSON.stringify(customPermissions));
     const mod = (updatedPermissions[item.moduleKey] || { view: false }) as Record<string, boolean>;
-    const roleDefaultVal = (DEFAULT_PERMISSIONS[activeRole as Role]?.[item.moduleKey] as Record<string, boolean> | undefined)?.[item.action];
-    mod[item.action] = roleDefaultVal !== undefined ? Boolean(roleDefaultVal) : (activeRole === 'manager' || activeRole === 'admin');
+    mod[item.action] = false;
     updatedPermissions[item.moduleKey] = mod as Permission;
 
     if (onPermissionsSynced) {

@@ -13,24 +13,34 @@ import {
   overrideHighRiskDriver,
   removeHighRiskDriver,
   resetToSampleDrivers,
+  bulkImportHighRiskDrivers,
 } from '../services/highRiskService';
+import { ImportHighRiskModal } from '../components/highRisk/ImportHighRiskModal';
 import {
   HighRiskDriver,
   NewDriverInput,
   EditDriverInput,
   OverridePayload,
-  UserRole,
   RiskLevel,
 } from '../types/highRiskDriver';
 import { Lock, ShieldAlert, ArrowLeft, Building2, Copy, ExternalLink, X, CheckCircle2, Share2 } from 'lucide-react';
 import { ROUTES } from '../routes';
 import toast from 'react-hot-toast';
+import { usePermissions } from '../hooks/usePermissions';
+import AccessDeniedOverlay from '../components/common/AccessDeniedOverlay';
 
 interface HighRiskPageProps {
   embedded?: boolean;
 }
 
 export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) => {
+  const { can } = usePermissions();
+  const canView = can('highRisk', 'view');
+  const canCreate = can('highRisk', 'create');
+  const canUpdate = can('highRisk', 'update');
+  const canDelete = can('highRisk', 'delete');
+  const canImport = can('highRisk', 'import');
+
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const tabParam = searchParams.get('tab');
@@ -39,10 +49,21 @@ export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) 
   const [activeTab, setActiveTab] = useState<'internal' | 'external'>(
     tabParam === 'external' || tabParam === 'partner' || isPartnerPath ? 'external' : 'internal'
   );
-  const [userRole, setUserRole] = useState<UserRole>('manager');
   const [drivers, setDrivers] = useState<HighRiskDriver[]>([]);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // If user does not have explicit view permission in their matrix, block page completely with Access Denied view
+  if (!canView) {
+    return (
+      <AccessDeniedOverlay
+        module="High Risk Registry"
+        action="view"
+        isStandalone={!embedded}
+      />
+    );
+  }
 
   // Sync tab with URL if changed
   useEffect(() => {
@@ -69,39 +90,79 @@ export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) 
   };
 
   const handleAddDriver = (input: NewDriverInput) => {
+    if (!canCreate) {
+      toast.error('Access Denied: You do not have explicit permission to add high-risk drivers.');
+      return;
+    }
     const created = addHighRiskDriver(input);
     setDrivers((prev) => [created, ...prev.filter((d) => d.id !== created.id)]);
     toast.success(`Driver "${created.fullName}" registered in High Risk database!`);
   };
 
   const handleEditDriver = (driverId: string, input: EditDriverInput) => {
+    if (!canUpdate) {
+      toast.error('Access Denied: You do not have explicit permission to edit high-risk drivers.');
+      return;
+    }
     const updated = updateHighRiskDriver(driverId, input);
     setDrivers(updated);
     toast.success('High Risk driver record updated.');
   };
 
   const handleUpdateStatus = (driverId: string, status: RiskLevel) => {
+    if (!canUpdate) {
+      toast.error('Access Denied: You do not have explicit permission to update driver status.');
+      return;
+    }
     const updated = updateDriverStatus(driverId, status);
     setDrivers(updated);
     toast.success(`Status updated to ${status}.`);
   };
 
   const handleOverrideDriver = (driverId: string, payload: OverridePayload) => {
+    if (!canUpdate) {
+      toast.error('Access Denied: You do not have explicit permission to override driver status.');
+      return;
+    }
     const updated = overrideHighRiskDriver(driverId, payload);
     setDrivers(updated);
     toast.success('Manager override recorded.');
   };
 
   const handleDeleteDriver = (driverId: string) => {
+    if (!canDelete) {
+      toast.error('Access Denied: You do not have explicit permission to delete driver records.');
+      return;
+    }
     const updated = removeHighRiskDriver(driverId);
     setDrivers(updated);
     toast.success('Driver removed from High Risk database.');
   };
 
   const handleResetDrivers = () => {
+    if (!canUpdate) {
+      toast.error('Access Denied: You do not have explicit permission to reset driver records.');
+      return;
+    }
     const resetted = resetToSampleDrivers();
     setDrivers(resetted);
     toast.success('Reset to standard sample high risk records.');
+  };
+
+  const handleBulkImport = (importedDrivers: HighRiskDriver[], mode: 'merge' | 'replace') => {
+    if (!canImport) {
+      toast.error('Access Denied: You do not have explicit permission to import driver records.');
+      return;
+    }
+    const result = bulkImportHighRiskDrivers(importedDrivers, mode);
+    setDrivers(result.drivers);
+    if (mode === 'replace') {
+      toast.success(`High Risk registry replaced with ${result.totalCount} driver records.`);
+    } else {
+      toast.success(
+        `Import complete: ${result.addedCount} new added, ${result.updatedCount} updated. Total: ${result.totalCount}`
+      );
+    }
   };
 
   const partnerPortalUrl = typeof window !== 'undefined'
@@ -160,8 +221,8 @@ export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) 
         databaseCount={drivers.length}
         onCopyPartnerLink={handleCopyPartnerLink}
         copied={copiedLink}
-        userRole={userRole}
-        onRoleChange={setUserRole}
+        onOpenImport={() => setShowImportModal(true)}
+        drivers={drivers}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -174,7 +235,8 @@ export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) 
             onOverrideDriver={handleOverrideDriver}
             onDeleteDriver={handleDeleteDriver}
             onResetDrivers={handleResetDrivers}
-            userRole={userRole}
+            onBulkImport={handleBulkImport}
+            onOpenImport={() => setShowImportModal(true)}
           />
         ) : (
           <ExternalPartnerSearch
@@ -291,6 +353,14 @@ export const HighRiskPage: React.FC<HighRiskPageProps> = ({ embedded = false }) 
           </div>
         </div>
       )}
+
+      {/* Bulk Import High Risk Drivers Modal */}
+      <ImportHighRiskModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        existingDrivers={drivers}
+        onImportConfirm={handleBulkImport}
+      />
     </div>
   );
 

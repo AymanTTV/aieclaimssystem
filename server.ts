@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { highRiskRouter } from './src/server/highRiskRoutes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +14,9 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '10mb' }));
+
+  // Mount High Risk Registry REST API with explicit matrix authorization middleware
+  app.use('/api/high-risk-drivers', highRiskRouter);
 
   // Shared Gemini client initialization adhering to gemini-api skill
   const geminiApiKey = process.env.GEMINI_API_KEY;

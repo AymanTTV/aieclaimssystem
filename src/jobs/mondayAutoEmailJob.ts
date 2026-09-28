@@ -152,8 +152,12 @@ export function replacePlaceholders(templateText: string, placeholders: Record<s
       'registration number', 'registration_number', 'reg', 'client registration', 'vehicle registration', 'vehicle_registration', 'plate'
     ],
     total_amount: ['total_amount', 'total amount', 'gross cost', 'total cost', 'total'],
-    paid_amount: ['paid_amount', 'paid amount', 'amount paid'],
+    paid_amount: ['paid_amount', 'paid amount', 'amount paid', 'total_paid', 'total paid'],
     owing_amount: ['owing_amount', 'owing amount', 'owing balance', 'outstanding balance', 'remaining balance', 'owing'],
+    last_paid_amount: ['last_paid_amount', 'last paid amount', 'last_payment_amount', 'last payment amount', 'last_payment_paid', 'latest_payment_amount', 'last_paid'],
+    last_payment_date: ['last_payment_date', 'last payment date', 'date_paid', 'date paid', 'paid_date', 'payment_date', 'payment date'],
+    last_payment_amount_and_date: ['last_payment_amount_and_date', 'last payment amount and date', 'last_paid_amount_and_date'],
+    last_payments_list: ['last_payments_list', 'last payments list', 'payment_history_list', 'payment history list', 'payment_list', 'payment list', 'list_of_last_payments'],
     due_date: ['due_date', 'due date', 'current date', 'the current date', 'date'],
     rental_type: ['rental_type', 'rental type', 'hire type', 'type'],
   };
@@ -709,9 +713,54 @@ export async function sendSingleRentalTestEmail(
 
     total_amount: formatCurrency(totalAmount),
     paid_amount: formatCurrency(paidAmount),
+    total_paid: formatCurrency(paidAmount),
     owing_amount: formatCurrency(owingAmount),
     outstanding_amount: formatCurrency(owingAmount),
     balance_owing: formatCurrency(owingAmount),
+
+    last_paid_amount: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0) {
+        return formatCurrency(pList[pList.length - 1].amount || 0);
+      }
+      return formatCurrency(paidAmount > 0 ? paidAmount : 0);
+    })(),
+    last_payment_amount: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0) {
+        return formatCurrency(pList[pList.length - 1].amount || 0);
+      }
+      return formatCurrency(paidAmount > 0 ? paidAmount : 0);
+    })(),
+    last_payment_date: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0 && pList[pList.length - 1].date) {
+        return formatDate(pList[pList.length - 1].date);
+      }
+      return formatDate(rental.updatedAt || new Date());
+    })(),
+    last_payment_amount_and_date: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0) {
+        const last = pList[pList.length - 1];
+        return `${formatCurrency(last.amount || 0)} on ${formatDate(last.date)}`;
+      }
+      return paidAmount > 0 ? `${formatCurrency(paidAmount)} on ${formatDate(rental.updatedAt || new Date())}` : 'No payments recorded';
+    })(),
+    last_payments_list: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0) {
+        return pList.map((p: any) => `• ${formatDate(p.date)}: £${formatCurrency(p.amount || 0)}`).join('\n');
+      }
+      return paidAmount > 0 ? `• ${formatDate(rental.updatedAt || new Date())}: £${formatCurrency(paidAmount)}` : 'No payments recorded yet.';
+    })(),
+    payment_history_list: (() => {
+      const pList = rental.payments || [];
+      if (pList.length > 0) {
+        return pList.map((p: any) => `• ${formatDate(p.date)}: £${formatCurrency(p.amount || 0)}`).join('\n');
+      }
+      return paidAmount > 0 ? `• ${formatDate(rental.updatedAt || new Date())}: £${formatCurrency(paidAmount)}` : 'No payments recorded yet.';
+    })(),
 
     due_date: formatDate(rental.dueDate || rental.endDate || new Date()),
     rental_type: rawType === 'daily' ? 'Daily Hire' : 'Weekly Hire',

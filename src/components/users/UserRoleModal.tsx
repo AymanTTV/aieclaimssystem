@@ -13,6 +13,7 @@ import {
 } from '../../types/roles';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { SyncPermissionsModal } from './SyncPermissionsModal';
 import { 
   Search, 
@@ -56,7 +57,9 @@ import {
   ShieldAlert,
   Layers,
   ChevronRight,
-  Info
+  Info,
+  Tv,
+  ExternalLink
 } from 'lucide-react';
 
 export interface UserRoleModalProps { 
@@ -191,6 +194,8 @@ export const FRIENDLY_LABELS: Record<string, string> = {
   targetInvoice: 'Target Invoice',
   targetClaim: 'Target Claim',
   targetCustom: 'Target Custom',
+  workshopTv: 'Workshop TV',
+  publicMirror: 'Live Public Mirror',
 };
 
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
@@ -260,6 +265,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   categories: 'Allows creating and managing categorization taxonomies.',
   restore: 'Allows restoring deleted items back to active state.',
   deletePermanently: 'Permits permanently and irretrievably destroying archived items.',
+  workshopTv: 'Allows viewing and launching the Workshop TV Auto-Rotation Display Mirror board.',
+  publicMirror: 'Allows viewing, opening, and copying the real-time Live Public Mirror link.',
 };
 
 export const getModuleIcon = (modKey: keyof RolePermissions, className: string = 'w-4 h-4') => {
@@ -305,7 +312,8 @@ export const getModuleIcon = (modKey: keyof RolePermissions, className: string =
 
 export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole, onClose }) => {
   const { user: currentUser } = useAuth();
-  const isManager = currentUser?.role === 'manager' || currentUser?.role === 'admin';
+  const { can } = usePermissions();
+  const isManager = can('users', 'update');
 
   const [loading, setLoading] = useState(false);
   const [roleSaving, setRoleSaving] = useState(false);
@@ -441,6 +449,20 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
   // Reset to default role template
   const handleRoleTemplateChange = (newRole: User['role']) => {
     setRole(newRole);
+    if (newRole === 'manager') {
+      const allTrue = {} as RolePermissions;
+      (Object.keys(BASE_PERMISSIONS_BY_MODULE) as Array<keyof RolePermissions>).forEach((modKey) => {
+        const base = BASE_PERMISSIONS_BY_MODULE[modKey];
+        const allModPerms: Record<string, boolean> = {};
+        Object.keys(base).forEach((act) => {
+          allModPerms[act] = true;
+        });
+        allTrue[modKey] = allModPerms as Permission;
+      });
+      setCustomPermissions(allTrue);
+      toast.success('Switched role template to: MANAGER (All permissions enabled by default)');
+      return;
+    }
     setCustomPermissions(normalizePermissions(newRole));
     toast.success(`Switched role template to: ${newRole.toUpperCase()}`);
   };
@@ -554,7 +576,7 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
   // b. Document Permissions
   const DOC_ACTION_KEYS = ['singleDoc', 'signatureReq', 'copyId', 'recordsPermission'];
   // c. Data Transport & Sharing
-  const TRANSPORT_ACTION_KEYS = ['import', 'export', 'share', 'whatsapp', 'email', 'send', 'reminder', 'quickContact', 'clearHistory'];
+  const TRANSPORT_ACTION_KEYS = ['import', 'export', 'share', 'whatsapp', 'email', 'send', 'reminder', 'quickContact', 'clearHistory', 'workshopTv', 'publicMirror'];
 
   const coreActions = activeModuleEntries.filter(([k]) => CORE_ACTION_KEYS.includes(k));
   const docActions = activeModuleEntries.filter(([k]) => DOC_ACTION_KEYS.includes(k));
@@ -640,10 +662,14 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
               onChange={(e) => handleRoleTemplateChange(e.target.value as User['role'])}
               className="text-xs font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer uppercase"
             >
-              <option value="admin">Admin</option>
+              <option value="superadmin">Super Admin</option>
               <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="accountant">Accountant</option>
               <option value="finance">Finance</option>
               <option value="claims">Claims</option>
+              <option value="staff">Staff</option>
               <option value="company">Company</option>
               <option value="member">Member</option>
             </select>
@@ -824,6 +850,157 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
               </div>
             )}
           </div>
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              MAINTENANCE DEDICATED REAL-TIME DISPLAYS (Workshop TV & Public Mirror)
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          {selectedModule === 'maintenance' && (
+            <div className="bg-gradient-to-br from-teal-900/90 via-slate-900 to-emerald-950 border border-teal-500/30 rounded-2xl p-5 shadow-lg text-white space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-teal-500/20">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-teal-500/20 border border-teal-400/30 text-teal-300">
+                    <Tv className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-wider text-teal-200">
+                      Workshop Display & Real-Time Mirrors
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Configure permissions for auto-rotation TV displays and live customer mirrors.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-teal-950/60 border border-teal-500/30 text-teal-300 font-bold">
+                    Real-Time Stream Guards
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Workshop TV Board Toggle */}
+                {(() => {
+                  const isTvGranted = Boolean((customPermissions.maintenance as any)?.workshopTv);
+                  return (
+                    <div
+                      onClick={() => toggleAction('maintenance', 'workshopTv' as PermissionAction)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${
+                        isTvGranted
+                          ? 'bg-teal-950/60 border-teal-500/50 ring-1 ring-teal-400/30 shadow-md'
+                          : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Tv className="w-4 h-4 text-teal-400" />
+                            <span className="text-sm font-black text-teal-100">Workshop TV</span>
+                          </div>
+                          {/* Toggle Switch */}
+                          <div
+                            className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${
+                              isTvGranted ? 'bg-teal-500' : 'bg-slate-700'
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                                isTvGranted ? 'translate-x-5 shadow-xs' : 'translate-x-0'
+                              }`}
+                            >
+                              {isTvGranted && <Check className="w-2.5 h-2.5 text-teal-700 stroke-[3]" />}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Allows user to view, launch, and display the fullscreen Workshop TV Auto-Rotation Board on workshop screens.
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                        <span className={`font-bold px-2 py-0.5 rounded ${
+                          isTvGranted ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {isTvGranted ? 'Permission Granted' : 'Disabled (Deny-by-Default)'}
+                        </span>
+                        <a
+                          href="/workshop-tv"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 text-teal-400 hover:text-teal-300 font-semibold underline underline-offset-2"
+                        >
+                          <span>Preview Board</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Live Public Mirror Toggle */}
+                {(() => {
+                  const isMirrorGranted = Boolean((customPermissions.maintenance as any)?.publicMirror);
+                  return (
+                    <div
+                      onClick={() => toggleAction('maintenance', 'publicMirror' as PermissionAction)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${
+                        isMirrorGranted
+                          ? 'bg-emerald-950/60 border-emerald-500/50 ring-1 ring-emerald-400/30 shadow-md'
+                          : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-sm font-black text-emerald-100">Live Public Mirror</span>
+                          </div>
+                          {/* Toggle Switch */}
+                          <div
+                            className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${
+                              isMirrorGranted ? 'bg-emerald-500' : 'bg-slate-700'
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center ${
+                                isMirrorGranted ? 'translate-x-5 shadow-xs' : 'translate-x-0'
+                              }`}
+                            >
+                              {isMirrorGranted && <Check className="w-2.5 h-2.5 text-emerald-700 stroke-[3]" />}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Allows accessing the live real-time maintenance schedule mirror and copying the public read-only link.
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                        <span className={`font-bold px-2 py-0.5 rounded ${
+                          isMirrorGranted ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {isMirrorGranted ? 'Permission Granted' : 'Disabled (Deny-by-Default)'}
+                        </span>
+                        <a
+                          href="/maintenance/live"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2"
+                        >
+                          <span>Preview Mirror</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* ════════════════════════════════════════════════════════════════════════════════
               SECTION A: ACTION BAR & CORE CRUD

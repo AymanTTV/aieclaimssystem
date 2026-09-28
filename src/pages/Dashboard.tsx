@@ -48,19 +48,19 @@ const Dashboard = () => {
       <div className="space-y-6">
         {can('vehicles', 'cards') && <VehicleMetrics />}
         
-        {user?.role === 'manager' && (
+        {(can('finance', 'view') || can('finance', 'cards')) && (
           <FinancialSummary transactions={transactions} period="month" />
         )}
       </div>
 
       {/* CHARTS ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {user?.role === 'manager' && (
+        {(can('finance', 'view') || can('finance', 'cards')) && (
           <div className="lg:col-span-2">
             <RevenueChart transactions={transactions} />
           </div>
         )}
-        <div className={user?.role === 'manager' ? 'lg:col-span-1' : 'lg:col-span-3'}>
+        <div className={(can('finance', 'view') || can('finance', 'cards')) ? 'lg:col-span-1' : 'lg:col-span-3'}>
           <FleetDistributionChart vehicles={vehicles} />
         </div>
       </div>

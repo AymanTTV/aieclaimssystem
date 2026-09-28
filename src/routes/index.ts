@@ -86,6 +86,8 @@ export const ROUTE_PERMISSIONS = {
   [ROUTES.COMPANY_MANAGERS]: { module: 'users', action: 'view' },
   [ROUTES.SHARE]: { module: 'share', action: 'view' },
   [ROUTES.HIGH_RISK]: { module: 'highRisk', action: 'view' },
+  [ROUTES.MAINTENANCE_LIVE]: { module: 'maintenance', action: 'publicMirror' },
+  [ROUTES.WORKSHOP_TV]: { module: 'maintenance', action: 'workshopTv' },
 } as const;
 
 // Export route metadata

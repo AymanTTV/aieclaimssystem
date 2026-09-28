@@ -97,6 +97,29 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'claim complete':
         return 'bg-green-100 text-green-950 border border-green-300 font-semibold';
       
+      // User Roles
+      case 'superadmin':
+      case 'super admin':
+        return 'bg-purple-100 text-purple-900 border border-purple-300 font-bold';
+      case 'supervisor':
+        return 'bg-teal-100 text-teal-900 border border-teal-300 font-bold';
+      case 'staff':
+        return 'bg-slate-100 text-slate-800 border border-slate-300 font-medium';
+      case 'accountant':
+        return 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold';
+      case 'admin':
+        return 'bg-blue-100 text-blue-900 border border-blue-300 font-bold';
+      case 'manager':
+        return 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold';
+      case 'finance':
+        return 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold';
+      case 'claims':
+        return 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold';
+      case 'company':
+        return 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold';
+      case 'member':
+        return 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold';
+
       // Claim Types & Reasons (PI, VD, Hire, Recovery, Storage)
       case 'pi':
         return 'bg-white text-black border border-gray-300 font-bold';
@@ -118,6 +141,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
 
   const getDisplayLabel = (val: string): string => {
     const s = String(val).toLowerCase();
+    if (s === 'superadmin') return 'Super Admin';
+    if (s === 'supervisor') return 'Supervisor';
+    if (s === 'staff') return 'Staff';
+    if (s === 'accountant') return 'Accountant';
     if (s === 'parts-backorder' || s === 'parts backorder' || s === 'backorder' || s === 'awaiting-parts' || s === 'awaiting parts') return 'Awaiting Parts';
     if (s === 'workshop') return 'In Workshop';
     if (s === 'off-road' || s === 'off road' || s === 'off-road (vor)' || s === 'off road (vor)' || s === 'vor' || s === 'off-road-accident') return 'OFF ROAD (VOR)';

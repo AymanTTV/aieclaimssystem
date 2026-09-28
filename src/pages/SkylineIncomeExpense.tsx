@@ -243,9 +243,11 @@ export default function IncomeExpense() {
           </button>
         )}
 
-        <button onClick={() => setShowShares(true)} className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] hover:bg-[#F8FAFC] rounded-xl shadow-xs font-semibold text-sm transition-colors">
-          Shares
-        </button>
+        {(can('skylineIncomeExpense', 'share') || can('share', 'view')) && (
+          <button onClick={() => setShowShares(true)} className="px-3.5 py-2.5 border border-[#CBD5E1] bg-white text-[#1E293B] hover:bg-[#F8FAFC] rounded-xl shadow-xs font-semibold text-sm transition-colors">
+            Shares
+          </button>
+        )}
         {can('skylineIncomeExpense', 'share') && (
           <button onClick={() => setShowShare(true)} className="px-3.5 py-2.5 border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl shadow-xs font-semibold text-sm transition-colors">
             Share Profit

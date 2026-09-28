@@ -110,7 +110,8 @@ function isOverdue(d?: Timestamp | null, status?: TodoStatus) {
 // ────────────────────────────────────────────────────────────
 const TodoPage: React.FC = () => {
   const { user } = useAuth();
-  const { can, isManager } = usePermissions();
+  const { can } = usePermissions();
+  const isManager = can('todo', 'update') || can('todo', 'assign');
 
   const [todos, setTodos] = useState<Todo[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);

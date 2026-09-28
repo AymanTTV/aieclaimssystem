@@ -55,6 +55,38 @@ export const RENTAL_DATA_TOOLS: DataToolItem[] = [
     sampleValue: '£100.00',
   },
   {
+    key: 'last_paid_amount',
+    tag: '{last_paid_amount}',
+    label: 'Last Paid Amount',
+    category: 'payment',
+    description: 'Amount paid in the most recent payment transaction (latest received)',
+    sampleValue: '£100.00',
+  },
+  {
+    key: 'last_payment_amount_and_date',
+    tag: '{last_payment_amount_and_date}',
+    label: 'Last Payment Amount & Date',
+    category: 'payment',
+    description: 'Most recent payment amount combined with its date',
+    sampleValue: '£100.00 on 28/09/2026',
+  },
+  {
+    key: 'last_payments_list',
+    tag: '{last_payments_list}',
+    label: 'List of Last Payments',
+    category: 'payment',
+    description: 'Formatted itemized list of all recorded payments with amount and date',
+    sampleValue: '• 28/09/2026: £100.00 via Bank Transfer\n• 21/09/2026: £150.00 via Card',
+  },
+  {
+    key: 'payment_history_list',
+    tag: '{payment_history_list}',
+    label: 'Payment History List',
+    category: 'payment',
+    description: 'Detailed list of all past payment amounts and dates',
+    sampleValue: '• 28/09/2026: £100.00 via Bank Transfer\n• 21/09/2026: £150.00 via Card',
+  },
+  {
     key: 'last_payment_type',
     tag: '{last_payment_type}',
     label: 'Payment Type / Method',
@@ -324,10 +356,10 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
   onSaved,
   onDeleted,
 }) => {
-  const { can, isAdmin } = usePermissions();
-  const canCreate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
-  const canEdit = isAdmin || can('rentals', 'templateEdit');
-  const canDelete = isAdmin || can('rentals', 'templateDelete');
+  const { can, isManager } = usePermissions();
+  const canCreate = isManager || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
+  const canEdit = isManager || can('rentals', 'templateEdit');
+  const canDelete = isManager || can('rentals', 'templateDelete');
   const isReadOnly = Boolean(readOnly || (mode === 'create' ? !canCreate : !canEdit));
 
   const activeTemplate = templateToEdit || initialTemplate || null;
@@ -520,10 +552,28 @@ export const RentalTemplateEditorModal: React.FC<RentalTemplateEditorModalProps>
             value = `£${Number(rental.remainingAmount ?? 0).toFixed(2)}`;
           } else if (tool.tag === '{total_amount}') {
             value = `£${Number(rental.cost ?? 0).toFixed(2)}`;
-          } else if (tool.tag === '{last_payment_amount}') {
+          } else if (tool.tag === '{last_payment_amount}' || tool.tag === '{last_paid_amount}') {
             const pList = rental.payments || [];
             if (pList.length > 0) {
               value = `£${Number(pList[pList.length - 1].amount || 0).toFixed(2)}`;
+            } else if (rental.paidAmount) {
+              value = `£${Number(rental.paidAmount || 0).toFixed(2)}`;
+            }
+          } else if (tool.tag === '{last_payment_amount_and_date}') {
+            const pList = rental.payments || [];
+            if (pList.length > 0) {
+              const lastP = pList[pList.length - 1];
+              const d = lastP.date ? (lastP.date.toLocaleDateString ? lastP.date.toLocaleDateString('en-GB') : String(lastP.date)) : '';
+              value = `£${Number(lastP.amount || 0).toFixed(2)} on ${d}`;
+            }
+          } else if (tool.tag === '{last_payments_list}' || tool.tag === '{payment_history_list}') {
+            const pList = rental.payments || [];
+            if (pList.length > 0) {
+              value = pList.map(p => {
+                const d = p.date ? (p.date.toLocaleDateString ? p.date.toLocaleDateString('en-GB') : String(p.date)) : '';
+                const m = p.method ? ` (${p.method})` : '';
+                return `• ${d}: £${Number(p.amount || 0).toFixed(2)}${m}`;
+              }).join('\n');
             }
           } else if (tool.tag === '{last_payment_date}') {
             const pList = rental.payments || [];

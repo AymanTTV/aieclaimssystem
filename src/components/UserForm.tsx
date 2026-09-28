@@ -84,13 +84,20 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
         <label className="block text-sm font-medium text-gray-700">Role</label>
         <select
           value={formData.role}
-          onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'manager' | 'driver' })}
+          onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
           required
         >
-          <option value="driver">Driver</option>
+          <option value="superadmin">Super Admin</option>
           <option value="manager">Manager</option>
           <option value="admin">Admin</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="accountant">Accountant</option>
+          <option value="finance">Finance</option>
+          <option value="claims">Claims</option>
+          <option value="staff">Staff</option>
+          <option value="company">Company</option>
+          <option value="member">Member</option>
         </select>
       </div>
 

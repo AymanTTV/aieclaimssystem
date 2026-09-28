@@ -35,6 +35,7 @@ import financeGroupService, { FinanceGroup } from '../services/financeGroup.serv
 // ✅ Import the Shared Manage Modal from Finance & the Vehicle Assign Modal
 import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
 import AssignVehicleDepartmentModal from '../components/vehicles/AssignVehicleDepartmentModal';
+import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 
 const Vehicles: React.FC = () => {
   const { vehicles, loading } = useVehicles();
@@ -80,6 +81,7 @@ const Vehicles: React.FC = () => {
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<string>('');
 
   // Assign Group State
+  const [showManageGroups, setShowManageGroups] = useState(false);
   const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
   const [assigningGroupSingleVehicle, setAssigningGroupSingleVehicle] = useState<Vehicle | null>(null);
   const [financeGroups, setFinanceGroups] = useState<FinanceGroup[]>([]);
@@ -555,6 +557,18 @@ const Vehicles: React.FC = () => {
 
           <div className="flex items-center gap-2 flex-nowrap overflow-x-auto w-full sm:w-auto scrollbar-none py-1">
             
+            {/* Manage Groups Header Button */}
+            {!isCompany && can('vehicles', 'groups') && (
+               <button
+                 type="button"
+                 onClick={() => setShowManageGroups(true)}
+                 className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-800 active:scale-95 transition-all cursor-pointer"
+               >
+                 <Layers className="h-4 w-4 mr-2 text-purple-600 pointer-events-none" />
+                 Groups
+               </button>
+            )}
+
             {/* ✅ Added Departments Header Button */}
             {!isCompany && can('vehicles', 'departments') && (
                <button
@@ -577,7 +591,7 @@ const Vehicles: React.FC = () => {
               Generate PDF
             </button>
             )}
-            {can('vehicles', 'create') && (
+            {can('vehicles', 'export') && (
             <button
               type="button"
               onClick={handleExport}
@@ -649,7 +663,7 @@ const Vehicles: React.FC = () => {
       />
 
       {/* Bulk Actions Header */}
-      {selectedIds.size > 0 && !isCompany && can('vehicles', 'update') && (
+      {selectedIds.size > 0 && !isCompany && (can('vehicles', 'assign') || can('vehicles', 'groups') || can('vehicles', 'departments') || can('vehicles', 'update')) && (
         <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs text-blue-900">
           <div className="flex items-center text-blue-950 font-bold text-sm">
             <CheckCircle className="w-5 h-5 mr-2 text-emerald-600" />
@@ -734,6 +748,13 @@ const Vehicles: React.FC = () => {
       </div>
 
       {/* ✅ Mount Modals */}
+      <ManageGroupsModal 
+        open={showManageGroups} 
+        onClose={() => {
+          setShowManageGroups(false);
+          financeGroupService.getAll().then(all => setFinanceGroups(all.sort((a,b) => a.name.localeCompare(b.name))));
+        }} 
+      />
       <ManageFinanceDepartmentsModal isOpen={showManageDepartments} onClose={() => setShowManageDepartments(false)} />
       
       <AssignVehicleDepartmentModal 

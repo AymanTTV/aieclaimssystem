@@ -1,90 +1,51 @@
 // src/hooks/usePermissions.ts
 import { useAuth } from '../context/AuthContext';
-import { DEFAULT_PERMISSIONS } from '../types/roles';
 import type { RolePermissions, Permission } from '../types/roles';
 
 export const usePermissions = () => {
   const { user } = useAuth();
 
   const can = (module: keyof RolePermissions, action: keyof Permission): boolean => {
-    if (!user?.role) return false;
+    if (!user) return false;
 
-    // Super-admin has full access to all system modules and actions
-    if (user.role === 'admin') return true;
-
-    // 1) Custom override saved on the user doc
-    const customModulePerms = user.permissions?.[module];
-    if (customModulePerms) {
-      if (customModulePerms[action] !== undefined) {
-        return Boolean(customModulePerms[action]);
-      }
-      if (module === 'rentals') {
-        if (action === 'bulkEmailScheduler' && customModulePerms.mondayAutoEmail !== undefined) {
-          return Boolean(customModulePerms.mondayAutoEmail);
-        }
-        if (action === 'mondayAutoEmail' && customModulePerms.bulkEmailScheduler !== undefined) {
-          return Boolean(customModulePerms.bulkEmailScheduler);
-        }
-      }
+    // Strict Universal Explicit-Allow (Deny-by-Default):
+    // NO AUTOMATIC PERMISSIONS FOR ANYONE. No user, role, admin, or MANAGER gets automatic access.
+    // Access is granted ONLY if the user's specific permission switch is explicitly set to true.
+    const userModulePerms = user.permissions?.[module];
+    if (userModulePerms && userModulePerms[action] === true) {
+      return true;
     }
 
-    // Cross-module aliasing for customers & members (The Members page uses 'customers' data / 'members' config)
+    // Support High Risk Registry matrix key aliases and edit/update mapping
+    if (
+      module === 'highRisk' ||
+      (module as string) === 'highRiskRegistry' ||
+      (module as string) === 'high_risk_registry' ||
+      (module as string) === 'High Risk Registry'
+    ) {
+      const p = user.permissions;
+      if (p) {
+        const hr = (p as any).highRisk || (p as any).highRiskRegistry || (p as any)['high_risk_registry'] || (p as any)['High Risk Registry'];
+        if (hr) {
+          if (hr[action] === true) return true;
+          if ((action as string) === 'update' && hr.edit === true) return true;
+          if ((action as string) === 'edit' && hr.update === true) return true;
+        }
+      }
+      return false;
+    }
+
+    // Cross-module explicit mappings for customer/member communication aliases
     if (module === 'customers') {
       const memberPerms = user.permissions?.members;
-      if (memberPerms && memberPerms[action] !== undefined) {
-        return Boolean(memberPerms[action]);
-      }
-      if (action === 'whatsapp' && (customModulePerms?.send || memberPerms?.whatsapp || memberPerms?.send || user.permissions?.whatsapp?.send)) {
-        return true;
-      }
-      if (action === 'email' && (customModulePerms?.send || memberPerms?.email || memberPerms?.send || user.permissions?.bulkEmail?.send)) {
-        return true;
-      }
-      if (action === 'groupMessaging' && (customModulePerms?.view || memberPerms?.groupMessaging || memberPerms?.view)) {
-        return true;
-      }
+      if (memberPerms && memberPerms[action] === true) return true;
     }
-
     if (module === 'members') {
       const customerPerms = user.permissions?.customers;
-      if (customerPerms && customerPerms[action] !== undefined) {
-        return Boolean(customerPerms[action]);
-      }
-      if (action === 'whatsapp' && (customModulePerms?.send || customerPerms?.whatsapp || customerPerms?.send || user.permissions?.whatsapp?.send)) {
-        return true;
-      }
-      if (action === 'email' && (customModulePerms?.send || customerPerms?.email || customerPerms?.send || user.permissions?.bulkEmail?.send)) {
-        return true;
-      }
-      if (action === 'groupMessaging' && (customModulePerms?.view || customerPerms?.groupMessaging || customerPerms?.view)) {
-        return true;
-      }
+      if (customerPerms && customerPerms[action] === true) return true;
     }
 
-    // 2) Fallback to defaults for the user’s role
-    const rolePerms = DEFAULT_PERMISSIONS[user.role];
-    const defaultModulePerms = rolePerms?.[module];
-    if (defaultModulePerms && defaultModulePerms[action] !== undefined) {
-      return Boolean(defaultModulePerms[action]);
-    }
-
-    // Fallback cross-check between customers <-> members defaults
-    if (module === 'customers' && rolePerms?.members?.[action] !== undefined) {
-      return Boolean(rolePerms.members[action]);
-    }
-    if (module === 'members' && rolePerms?.customers?.[action] !== undefined) {
-      return Boolean(rolePerms.customers[action]);
-    }
-
-    if (module === 'rentals' && defaultModulePerms) {
-      if (action === 'bulkEmailScheduler' && defaultModulePerms.mondayAutoEmail !== undefined) {
-        return Boolean(defaultModulePerms.mondayAutoEmail);
-      }
-      if (action === 'mondayAutoEmail' && defaultModulePerms.bulkEmailScheduler !== undefined) {
-        return Boolean(defaultModulePerms.bulkEmailScheduler);
-      }
-    }
-
+    // If unticked, missing, false, or undefined -> Strictly Deny Access
     return false;
   };
 
@@ -98,12 +59,16 @@ export const usePermissions = () => {
     can,
     canAny,
     canAll,
-    isManager: user?.role === 'manager',
-    isAdmin:   user?.role === 'admin',
-    isFinance: user?.role === 'finance',
-    isClaims:  user?.role === 'claims',
-    isCompany: user?.role === 'company', 
-    isMember:  user?.role === 'member',
+    isManager: false, // Universal Explicit-Allow: No manager bypass anywhere
+    isAdmin:   false, // Universal Explicit-Allow: No admin bypass anywhere
+    isSuperAdmin: user?.role?.toLowerCase() === 'superadmin',
+    isSupervisor: user?.role?.toLowerCase() === 'supervisor',
+    isStaff:      user?.role?.toLowerCase() === 'staff',
+    isAccountant: user?.role?.toLowerCase() === 'accountant',
+    isFinance: user?.role?.toLowerCase() === 'finance',
+    isClaims:  user?.role?.toLowerCase() === 'claims',
+    isCompany: user?.role?.toLowerCase() === 'company', 
+    isMember:  user?.role?.toLowerCase() === 'member',
     role: user?.role ?? null,
     permissions: user?.permissions ?? null,
   };

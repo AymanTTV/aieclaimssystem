@@ -677,8 +677,8 @@ const VDFinance: React.FC = () => {
       return matchesSearch && matchesDate && matchesIncidentDate && matchesCategory && matchesGroup && matchesDepartment && matchesAmount && matchesClaim;
     })
     .filter(record => {
-      // Use granular permissions instead of strict role checks where possible
-      const isManagerOrAdmin = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin';
+      // Universal Explicit-Allow: No role-based bypasses for custom date/department access limits
+      const isManagerOrAdmin = false;
       const vdFinanceAccess = (user as any)?.vdFinanceAccess;
       const hasCustomAccess = !!vdFinanceAccess && (vdFinanceAccess.start || vdFinanceAccess.end || (vdFinanceAccess.departments && vdFinanceAccess.departments.length > 0));
 

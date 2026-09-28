@@ -318,6 +318,81 @@ export function removeHighRiskDriver(driverId: string): HighRiskDriver[] {
 }
 
 /**
+ * REST API client functions for High Risk Registry backend
+ * These endpoints enforce server-side matrix authorization middleware (401/403)
+ */
+export async function apiFetchHighRiskDrivers(userMatrix?: any) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (userMatrix) {
+    headers['x-user-permissions'] = typeof userMatrix === 'string' ? userMatrix : JSON.stringify(userMatrix);
+  }
+  const res = await fetch('/api/high-risk-drivers', { headers });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `API Error: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiCreateHighRiskDriver(input: NewDriverInput, userMatrix?: any) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (userMatrix) {
+    headers['x-user-permissions'] = typeof userMatrix === 'string' ? userMatrix : JSON.stringify(userMatrix);
+  }
+  const res = await fetch('/api/high-risk-drivers', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `API Error: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiUpdateHighRiskDriver(id: string, input: Partial<EditDriverInput>, userMatrix?: any) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (userMatrix) {
+    headers['x-user-permissions'] = typeof userMatrix === 'string' ? userMatrix : JSON.stringify(userMatrix);
+  }
+  const res = await fetch(`/api/high-risk-drivers/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `API Error: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiDeleteHighRiskDriver(id: string, userMatrix?: any) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (userMatrix) {
+    headers['x-user-permissions'] = typeof userMatrix === 'string' ? userMatrix : JSON.stringify(userMatrix);
+  }
+  const res = await fetch(`/api/high-risk-drivers/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `API Error: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
  * Real-time subscription to High Risk drivers across all pages,
  * tabs, windows, and Firestore updates.
  */
@@ -415,5 +490,87 @@ export function subscribeToHighRiskDrivers(
     if (unsubscribeFirestore) {
       unsubscribeFirestore();
     }
+  };
+}
+
+export {
+  exportHighRiskToCSV,
+  exportHighRiskToExcel,
+  exportHighRiskToJSON,
+  downloadHighRiskTemplate,
+  parseHighRiskImportFile,
+} from './highRiskExportImport';
+
+export interface BulkImportResult {
+  addedCount: number;
+  updatedCount: number;
+  totalCount: number;
+  drivers: HighRiskDriver[];
+}
+
+export function bulkImportHighRiskDrivers(
+  importedDrivers: HighRiskDriver[],
+  mode: 'merge' | 'replace' = 'merge'
+): BulkImportResult {
+  const currentDrivers = getStoredHighRiskDrivers();
+
+  if (mode === 'replace') {
+    saveHighRiskDrivers(importedDrivers, true);
+    return {
+      addedCount: importedDrivers.length,
+      updatedCount: 0,
+      totalCount: importedDrivers.length,
+      drivers: importedDrivers,
+    };
+  }
+
+  // Merge mode:
+  let addedCount = 0;
+  let updatedCount = 0;
+  const mergedMap = new Map<string, HighRiskDriver>();
+
+  // Map existing by ID and normalized name
+  currentDrivers.forEach((d) => {
+    mergedMap.set(d.id, d);
+  });
+
+  const nameToId = new Map<string, string>();
+  currentDrivers.forEach((d) => {
+    nameToId.set(normalizeName(d.fullName), d.id);
+  });
+
+  importedDrivers.forEach((newD) => {
+    const norm = normalizeName(newD.fullName);
+    const existingId = nameToId.get(norm);
+
+    if (existingId && mergedMap.has(existingId)) {
+      // Update existing
+      const existing = mergedMap.get(existingId)!;
+      mergedMap.set(existingId, {
+        ...existing,
+        riskLevel: newD.riskLevel || existing.riskLevel,
+        category: newD.category || existing.category,
+        categoryDetails: newD.categoryDetails || existing.categoryDetails,
+        reportingFleet: newD.reportingFleet || existing.reportingFleet,
+        reportedYear: newD.reportedYear || existing.reportedYear,
+        badgeNumber: newD.badgeNumber || existing.badgeNumber,
+      });
+      updatedCount++;
+    } else {
+      // Add as new
+      mergedMap.set(newD.id, newD);
+      nameToId.set(norm, newD.id);
+      addedCount++;
+    }
+  });
+
+  const resultDrivers = Array.from(mergedMap.values());
+  saveHighRiskDrivers(resultDrivers, true);
+
+  return {
+    addedCount,
+    updatedCount,
+    totalCount: resultDrivers.length,
+    drivers: resultDrivers,
   };
 }

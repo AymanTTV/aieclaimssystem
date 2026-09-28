@@ -34,6 +34,7 @@ import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase'; 
 import FormField from '../components/ui/FormField';
 import { checkVehicleStatus, updateVehicleStatus } from '../utils/vehicleStatusManager';
+import { WorkshopMirrorGuard } from '../components/maintenance/WorkshopMirrorGuard';
 
 const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
@@ -127,30 +128,89 @@ const Maintenance: React.FC = () => {
 
   const orderedLogs = React.useMemo(() => {
     const now = startOfDay(new Date());
+
+    const isLogOrVehicleOffRoad = (log: MaintenanceLog): boolean => {
+      const s = String(log.status || '').toLowerCase().trim();
+      if (s === 'completed' || s === 'cancelled') return false;
+      if (s === 'off-road' || s === 'off road (vor)' || s === 'off-road (vor)' || s === 'off road' || s === 'vor') {
+        return true;
+      }
+      if (log.roadCondition === 'OFF ROAD (VOR)' || log.statusDisplay === 'OFF ROAD (VOR)') {
+        return true;
+      }
+      if (isOffRoadAccidentLog(log) && (s === 'off-road' || !s || s === 'vor')) {
+        return true;
+      }
+      const vehicle = log.vehicleId ? vehiclesMap[log.vehicleId] : undefined;
+      if (vehicle) {
+        const vs = String(vehicle.status || '').toLowerCase().trim();
+        const vr = String((vehicle as any).statusReason || '').toLowerCase();
+        if (vs === 'off-road' || vs === 'vor' || vs === 'off road (vor)') return true;
+        if (vr.includes('off-road') || vr.includes('off road') || vr.includes('vor')) return true;
+      }
+      return false;
+    };
+
+    const isLogOrVehicleAwaitingParts = (log: MaintenanceLog): boolean => {
+      const s = String(log.status || '').toLowerCase().trim();
+      if (s === 'completed' || s === 'cancelled') return false;
+      if (s === 'parts-backorder' || s === 'awaiting-parts' || s === 'awaiting parts' || s === 'parts backorder') {
+        return true;
+      }
+      const vehicle = log.vehicleId ? vehiclesMap[log.vehicleId] : undefined;
+      if (vehicle) {
+        const vs = String(vehicle.status || '').toLowerCase().trim();
+        const vr = String((vehicle as any).statusReason || '').toLowerCase();
+        if (vs === 'parts-backorder' || vs === 'awaiting-parts') return true;
+        if (vr.includes('awaiting parts') || vr.includes('parts backorder') || vr.includes('backorder')) return true;
+      }
+      return false;
+    };
+
     const priority = (log: MaintenanceLog) => {
-      const s = (log.status || '').toLowerCase();
-      if (isOffRoadAccidentLog(log) || s === 'off-road' || s === 'off road (vor)' || s === 'vor') return -1; // Highest priority: Off-Road (VOR)
+      const s = (log.status || '').toLowerCase().trim();
+      
+      // If completed or cancelled, they are at the terminal status section
+      if (s === 'completed') return 80;
+      if (s === 'cancelled') return 81;
+
+      // When vehicle status is marked awaiting parts or off road (vor),
+      // it should be at the bottom of the list until the status is changed!
+      if (isLogOrVehicleAwaitingParts(log)) return 50;
+      if (isLogOrVehicleOffRoad(log)) return 51;
+
+      // Active working jobs at the top
       if (s === 'scheduled') return 0;
       if (s === 'in-progress') return 1;
       if (s === 'workshop') return 2;
-      if (s === 'parts-backorder' || s === 'awaiting-parts') return 3;
-      if (s === 'bodywork') return 4;
-      if (s === 'pending') return 5;
-      if (s === 'completed') return 6;
-      return 7;
+      if (s === 'bodywork') return 3;
+      if (s === 'pending' || s === 'awaiting-approval' || s === 'inspection') return 4;
+      return 5;
     };
+
     return [...filteredLogs].sort((a, b) => {
       const pa = priority(a);
       const pb = priority(b);
       if (pa !== pb) return pa - pb;
+
+      // For scheduled logs: closest to today / overdue first
       if (pa === 0) {
-        const da = differenceInCalendarDays(a.date, now);
-        const db = differenceInCalendarDays(b.date, now);
+        const da = a.date ? differenceInCalendarDays(new Date(a.date), now) : 99999;
+        const db = b.date ? differenceInCalendarDays(new Date(b.date), now) : 99999;
         if (da !== db) return da - db;
       }
-      return (b.date?.getTime?.() ?? 0) - (a.date?.getTime?.() ?? 0);
+
+      // For same-priority logs: newest date/update first
+      const getTime = (l: MaintenanceLog) => {
+        const d = l.date || (l as any).updatedAt || (l as any).createdAt;
+        if (!d) return 0;
+        if (d instanceof Date) return d.getTime();
+        if (typeof (d as any).toDate === 'function') return (d as any).toDate().getTime();
+        return new Date(d).getTime() || 0;
+      };
+      return getTime(b) - getTime(a);
     });
-  }, [filteredLogs]);
+  }, [filteredLogs, vehiclesMap]);
 
   const handleExport = useCallback(() => {
     try {
@@ -256,6 +316,11 @@ const Maintenance: React.FC = () => {
         updates.isNonDrivable = true;
         updates.roadCondition = 'OFF ROAD (VOR)';
         updates.statusDisplay = 'OFF ROAD (VOR)';
+      } else {
+        updates.isOffRoad = false;
+        updates.isNonDrivable = false;
+        updates.roadCondition = 'DRIVABLE';
+        updates.statusDisplay = newStatus;
       }
       await updateDoc(doc(db, 'maintenanceLogs', log.id), updates);
 
@@ -271,7 +336,7 @@ const Maintenance: React.FC = () => {
             ? 'In workshop'
             : newStatus === 'bodywork'
             ? 'In bodywork'
-            : newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)' || isOffRoadAccidentLog(log)
+            : newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)'
             ? 'Off-road non-drivable due to accident repair'
             : newStatus === 'pending'
             ? 'Pending maintenance authorization'
@@ -468,7 +533,7 @@ const Maintenance: React.FC = () => {
               </button>
             )}
 
-            {(user?.role === 'manager' || can('maintenance', 'export')) && (
+            {can('maintenance', 'export') && (
               <button
                 type="button"
                 onClick={handleGenerateBulkPDF}
@@ -490,48 +555,54 @@ const Maintenance: React.FC = () => {
               </button>
             )}
 
-            {/* Dual-View Real-Time Public Mirror Button */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <a
-                href="/workshop-tv"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer gap-1.5"
-                title="Open Workshop TV Display Mirror (Auto-Rotation Board) in new tab"
-              >
-                <Tv className="h-4 w-4 text-teal-600 pointer-events-none" />
-                <span>Workshop TV</span>
-              </a>
+            {/* Dual-View Real-Time Public Mirror & Workshop TV Buttons (Guarded by User Matrix Permissions) */}
+            <WorkshopMirrorGuard permission="either" behavior="hide">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
+                  <a
+                    href="/workshop-tv"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer gap-1.5"
+                    title="Open Workshop TV Display Mirror (Auto-Rotation Board) in new tab"
+                  >
+                    <Tv className="h-4 w-4 text-teal-600 pointer-events-none" />
+                    <span>Workshop TV</span>
+                  </a>
+                </WorkshopMirrorGuard>
 
-              <div className="inline-flex items-center rounded-xl border border-emerald-200 shadow-xs bg-emerald-50 overflow-hidden flex-shrink-0">
-                <a
-                  href="/maintenance/live"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex whitespace-nowrap items-center justify-center px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer gap-1.5"
-                  title="Open Real-Time Public Mirror in new tab"
-                >
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <ExternalLink className="h-3.5 w-3.5 text-emerald-600 pointer-events-none" />
-                  <span>Live Public Mirror</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const mirrorUrl = `${window.location.origin}/maintenance/live`;
-                    navigator.clipboard.writeText(mirrorUrl);
-                    toast.success('Public Mirror URL copied to clipboard!');
-                  }}
-                  className="p-2 border-l border-emerald-200 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-colors cursor-pointer"
-                  title="Copy Public Mirror URL"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
+                <WorkshopMirrorGuard permission="publicMirror" behavior="hide">
+                  <div className="inline-flex items-center rounded-xl border border-emerald-200 shadow-xs bg-emerald-50 overflow-hidden flex-shrink-0">
+                    <a
+                      href="/maintenance/live"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex whitespace-nowrap items-center justify-center px-3 py-2 text-xs sm:text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer gap-1.5"
+                      title="Open Real-Time Public Mirror in new tab"
+                    >
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5 text-emerald-600 pointer-events-none" />
+                      <span>Live Public Mirror</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mirrorUrl = `${window.location.origin}/maintenance/live`;
+                        navigator.clipboard.writeText(mirrorUrl);
+                        toast.success('Public Mirror URL copied to clipboard!');
+                      }}
+                      className="p-2 border-l border-emerald-200 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-colors cursor-pointer"
+                      title="Copy Public Mirror URL"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </WorkshopMirrorGuard>
               </div>
-            </div>
+            </WorkshopMirrorGuard>
 
             {can('maintenance', 'create') && (
               <button

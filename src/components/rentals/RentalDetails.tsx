@@ -281,10 +281,10 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   const [commModalMode, setCommModalMode] = useState<'whatsapp' | 'email'>('whatsapp');
 
   // Permissions & Templates Navigation Tabs modal state
-  const { can, isAdmin } = usePermissions();
-  const canEditTemplates = isAdmin || can('rentals', 'templateEdit');
-  const canSendWhatsApp = isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view');
-  const canSendEmail = isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view');
+  const { can, isManager } = usePermissions();
+  const canEditTemplates = isManager || can('rentals', 'templateEdit');
+  const canSendWhatsApp = isManager || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send');
+  const canSendEmail = isManager || can('rentals', 'email') || can('rentals', 'send');
   const [isTemplatesNavModalOpen, setIsTemplatesNavModalOpen] = useState(false);
   const [templatesNavModalTab, setTemplatesNavModalTab] = useState<'whatsapp' | 'email'>('whatsapp');
 
@@ -392,6 +392,24 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         ? `Payment of ${paidAmt} recorded on ${formatDateStr(rental.updatedAt || start)} via ${formatMethod(rental.paymentMethod)}`
         : `No payment recorded yet. Balance outstanding: ${owingAmt}`;
 
+    // Last Payment Amount and Date Combined
+    const lastPaymentAmountAndDate = lastPayment
+      ? `${lastPaymentAmt} on ${lastPaymentDateStr}`
+      : paid > 0
+        ? `${paidAmt} on ${lastPaymentDateStr}`
+        : 'No payments recorded';
+
+    // List of payments showing amount and date
+    const lastPaymentsList = sortedPayments.length > 0
+      ? sortedPayments.map((p) => {
+          const dStr = formatDateStr(p.date || p.createdAt);
+          const pMethod = p.method ? ` (${formatMethod(p.method)})` : '';
+          return `• ${dStr}: ${formatCurrency(p.amount || 0)}${pMethod}`;
+        }).join('\n')
+      : paid > 0
+        ? `• ${lastPaymentDateStr}: ${paidAmt}`
+        : 'No payments recorded yet.';
+
     const replacements: Record<string, string> = {
       '{client_name}': custName,
       '{customer_name}': custName,
@@ -431,11 +449,21 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
       '{payment_status}': remaining <= 0.001 ? 'Fully Paid' : paid > 0 ? 'Partially Paid' : 'Pending',
 
       // Record Payment / Last Payment Details
+      '{last_paid_amount}': lastPaymentAmt,
+      '{last_paid}': lastPaymentAmt,
+      '{latest_payment_amount}': lastPaymentAmt,
+      '{latest_paid_amount}': lastPaymentAmt,
       '{last_payment_amount}': lastPaymentAmt,
       '{last_payment_paid}': lastPaymentAmt,
       '{last_payment_date}': lastPaymentDateStr,
       '{date_paid}': lastPaymentDateStr,
       '{paid_date}': lastPaymentDateStr,
+      '{last_payment_amount_and_date}': lastPaymentAmountAndDate,
+      '{last_paid_amount_and_date}': lastPaymentAmountAndDate,
+      '{last_payments_list}': lastPaymentsList,
+      '{payment_history_list}': lastPaymentsList,
+      '{payment_list}': lastPaymentsList,
+      '{list_of_last_payments}': lastPaymentsList,
       '{last_payment_type}': lastPaymentMethod,
       '{payment_type}': lastPaymentMethod,
       '{payment_method}': lastPaymentMethod,

@@ -19,9 +19,10 @@ import { TodoItem, Priority } from '../types/todo';
 
 export function useTodos(targetUserId?: string) {
   const { user } = useAuth();
-  const { isManager } = usePermissions();
+  const { can } = usePermissions();
+  const canManageAllTodos = can('todo', 'update') || can('todo', 'create');
 
-  const ownerId = isManager && targetUserId
+  const ownerId = canManageAllTodos && targetUserId
     ? targetUserId
     : user?.id;
 

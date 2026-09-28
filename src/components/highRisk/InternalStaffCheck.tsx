@@ -22,7 +22,9 @@ import {
   Building2,
   EyeOff,
   Hash,
+  Upload,
 } from 'lucide-react';
+import { usePermissions } from '../../hooks/usePermissions';
 import {
   HighRiskDriver,
   NewDriverInput,
@@ -42,6 +44,8 @@ import { ManagerOverrideModal } from './ManagerOverrideModal';
 import { FlagNewDriverModal } from './FlagNewDriverModal';
 import { EditDriverModal } from './EditDriverModal';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
+import { ExportHighRiskMenu } from './ExportHighRiskMenu';
+import { ImportHighRiskModal } from './ImportHighRiskModal';
 import { useCustomers } from '../../hooks/useCustomers';
 
 interface InternalStaffCheckProps {
@@ -52,7 +56,9 @@ interface InternalStaffCheckProps {
   onOverrideDriver: (driverId: string, payload: OverridePayload) => void;
   onDeleteDriver: (driverId: string) => void;
   onResetDrivers: () => void;
-  userRole: UserRole;
+  onBulkImport?: (importedDrivers: HighRiskDriver[], mode: 'merge' | 'replace') => void;
+  onOpenImport?: () => void;
+  userRole?: UserRole;
 }
 
 export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
@@ -63,7 +69,8 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
   onOverrideDriver,
   onDeleteDriver,
   onResetDrivers,
-  userRole,
+  onBulkImport,
+  onOpenImport,
 }) => {
   const [searchName, setSearchName] = useState('');
   const [selectedDriverForOverride, setSelectedDriverForOverride] = useState<HighRiskDriver | null>(null);
@@ -73,7 +80,16 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
   const [showRegistry, setShowRegistry] = useState(true);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showFlagModal, setShowFlagModal] = useState(false);
+  const [showLocalImportModal, setShowLocalImportModal] = useState(false);
   const [flagModalPrefill, setFlagModalPrefill] = useState<{ fullName?: string; badgeNumber?: string } | undefined>(undefined);
+
+  const handleOpenImportModal = () => {
+    if (onOpenImport) {
+      onOpenImport();
+    } else {
+      setShowLocalImportModal(true);
+    }
+  };
 
   // Hook into registered system fleet customers
   const { customers: systemCustomers } = useCustomers();
@@ -83,7 +99,13 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
   const [tableRiskFilter, setTableRiskFilter] = useState<'All' | RiskLevel>('All');
   const [tableCategoryFilter, setTableCategoryFilter] = useState<'All' | string>('All');
 
-  const isManager = userRole === 'manager';
+  const { can } = usePermissions();
+  const isManager = can('highRisk', 'update') || can('highRisk', 'create');
+  const canCreate = can('highRisk', 'create');
+  const canUpdate = can('highRisk', 'update');
+  const canDelete = can('highRisk', 'delete');
+  const canExport = can('highRisk', 'export');
+  const canImport = can('highRisk', 'import');
 
   // Load search history from local storage on mount
   useEffect(() => {
@@ -198,31 +220,6 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Role Access Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 rounded-xl bg-[#111a33] border border-slate-800 text-xs shadow-md gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`px-2.5 py-1 rounded-md font-bold uppercase tracking-wider text-[11px] ${
-              isManager
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80'
-                : 'bg-blue-950/80 text-blue-300 border border-blue-800/80'
-            }`}
-          >
-            {isManager ? 'Manager (Admin Mode)' : 'Standard Staff (View Only)'}
-          </span>
-          <span className="text-slate-300 font-medium">
-            {isManager
-              ? 'Full authorization: Add, Edit, Delete, Status override, and View reporting fleet names.'
-              : 'View-only mode: Search queries enabled. Add/Edit/Delete actions locked; reporting fleet names confidential.'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-[11px] whitespace-nowrap">
-          <Lock className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Strict Zero-PII Compliance Enforced</span>
-        </div>
-      </div>
-
       {/* Overview & Quick Testing Panel */}
       <div className="bg-[#111a33] border border-slate-800 rounded-2xl p-6 shadow-lg">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -331,33 +328,39 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
               )}
             </div>
 
-            {/* + Add High Risk Driver Button */}
-            {isManager ? (
+            {/* + Add High Risk Driver Button: Only rendered if canCreate === true */}
+            {canCreate && (
               <button
                 type="button"
                 onClick={() => setShowFlagModal(true)}
                 className="flex-shrink-0 px-5 py-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-lg shadow-red-950/50 border border-red-500 transition flex items-center justify-center gap-2 group whitespace-nowrap cursor-pointer"
-                title="Add a new driver to the High Risk database (Authorized Manager Only)"
+                title="Add a new driver to the High Risk database"
               >
                 <UserPlus className="w-4 h-4 group-hover:scale-110 transition-transform text-white" />
                 <span>+ Add High Risk Driver</span>
               </button>
-            ) : (
-              <div className="relative group">
-                <button
-                  type="button"
-                  disabled
-                  className="flex-shrink-0 px-5 py-3.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-500 font-bold text-sm cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
-                  title="Authorized Manager Access Required"
-                >
-                  <UserPlus className="w-4 h-4 text-slate-500" />
-                  <span>+ Add High Risk Driver</span>
-                  <Lock className="w-3.5 h-3.5 text-amber-500" />
-                </button>
-                <div className="absolute right-0 top-full mt-1.5 hidden group-hover:block z-30 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs shadow-xl whitespace-nowrap">
-                  Authorized Manager Access Required to add drivers
-                </div>
-              </div>
+            )}
+
+            {/* Import Button */}
+            {canImport && (
+              <button
+                type="button"
+                onClick={handleOpenImportModal}
+                className="flex-shrink-0 px-4 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-950/50 border border-indigo-500 transition flex items-center justify-center gap-2 group whitespace-nowrap cursor-pointer"
+                title="Bulk import high risk drivers from CSV, Excel, or JSON"
+              >
+                <Upload className="w-4 h-4 text-white group-hover:-translate-y-0.5 transition-transform" />
+                <span>Import</span>
+              </button>
+            )}
+
+            {/* Export Menu */}
+            {canExport && (
+              <ExportHighRiskMenu
+                drivers={drivers}
+                filteredDrivers={filteredDrivers}
+                compact={false}
+              />
             )}
           </div>
 
@@ -587,7 +590,7 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                   <span className="text-red-400 font-bold uppercase tracking-wider text-[10px]">
                     Reporting Fleet Company
                   </span>
-                  {isManager ? (
+                  {(canUpdate || canDelete || canCreate) ? (
                     <div className="text-base font-black text-white flex items-center gap-1.5">
                       <Building2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                       <span className="truncate">{searchResult.match.reportingFleet || 'Apex Rentals'}</span>
@@ -599,7 +602,7 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                     </div>
                   )}
                   <p className="text-slate-400 text-[11px] font-medium">
-                    {isManager ? 'Manager audit trail.' : 'Partner protection.'}
+                    {(canUpdate || canDelete || canCreate) ? 'Audit trail verification.' : 'Partner protection.'}
                   </p>
                 </div>
               </div>
@@ -739,7 +742,7 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                     </p>
                   </div>
 
-                  {isManager && (
+                  {canCreate && (
                     <button
                       type="button"
                       onClick={() => {
@@ -760,8 +763,8 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
             </div>
           )}
 
-          {/* Quick Manager Action: Register this queried name if not matched */}
-          {!searchResult.isMatch && isManager && !matchedSystemCustomer && (
+          {/* Quick Action: Register this queried name if not matched (Guarded by canCreate) */}
+          {!searchResult.isMatch && canCreate && !matchedSystemCustomer && (
             <div className="mt-3 p-3 rounded-xl bg-[#0c1427] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
               <span className="text-slate-400 font-medium">
                 Want to register an adverse incident for <strong className="text-white">&ldquo;{searchName}&rdquo;</strong>?
@@ -805,23 +808,45 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                 Fleet High-Risk Registry Database ({drivers.length} Records)
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                {isManager
-                  ? 'Authorized Manager Controls: Edit details, change status, and delete records.'
-                  : 'Standard Staff View: Search and inspection mode. Action buttons restricted.'}
+                {(canUpdate || canDelete)
+                  ? 'Operator Controls Active: Edit details, change status, and delete records based on matrix permissions.'
+                  : 'Inspection Mode: Search and view only. Modify/Delete actions locked by permissions matrix.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onResetDrivers}
-              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition flex items-center gap-1 shadow-sm cursor-pointer"
-              title="Reset records to the 3 default mock drivers"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-              <span>Reset 3 Mock Records</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canImport && (
+              <button
+                type="button"
+                onClick={handleOpenImportModal}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                title="Bulk import high risk drivers from CSV, Excel, or JSON"
+              >
+                <Upload className="w-3.5 h-3.5 text-white" />
+                <span>Import</span>
+              </button>
+            )}
+
+            {canExport && (
+              <ExportHighRiskMenu
+                drivers={drivers}
+                filteredDrivers={filteredDrivers}
+                compact={true}
+              />
+            )}
+
+            {canUpdate && (
+              <button
+                type="button"
+                onClick={onResetDrivers}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition flex items-center gap-1 shadow-sm cursor-pointer"
+                title="Reset records to default sample drivers"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                <span>Reset Sample Records</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -922,13 +947,15 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                     <th className="px-4 py-3.5">Incident Category</th>
                     <th className="px-4 py-3.5">Reporting Fleet Company</th>
                     <th className="px-4 py-3.5">Reported Year</th>
-                    <th className="px-4 py-3.5 text-right">Actions (Manager Only)</th>
+                    {(canUpdate || canDelete) && (
+                      <th className="px-4 py-3.5 text-right">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
                   {filteredDrivers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={(canUpdate || canDelete) ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
                         <p className="font-bold text-white mb-1">No driver records found matching your table search or filters.</p>
                         <button
                           type="button"
@@ -972,7 +999,7 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
 
                     {/* Change Status Dropdown or Badge */}
                     <td className="px-4 py-3.5">
-                      {isManager ? (
+                      {canUpdate ? (
                         <div className="flex items-center gap-1.5">
                           <select
                             value={driver.riskLevel}
@@ -1015,9 +1042,9 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                       )}
                     </td>
 
-                    {/* Reporting Fleet Company: Full for Manager, Confidential for Staff */}
+                    {/* Reporting Fleet Company: Full for Edit/Delete/Create, Confidential for View-Only */}
                     <td className="px-4 py-3.5">
-                      {isManager ? (
+                      {(canUpdate || canDelete || canCreate) ? (
                         <span className="inline-flex items-center gap-1.5 font-bold text-white">
                           <Building2 className="w-3.5 h-3.5 text-emerald-400" />
                           <span>{driver.reportingFleet || 'Apex Rentals'}</span>
@@ -1034,55 +1061,36 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
                       Reported {driver.reportedYear}
                     </td>
 
-                    {/* Actions: Edit, Delete (Manager only) */}
-                    <td className="px-4 py-3.5 text-right">
-                      {isManager ? (
+                    {/* Actions: Edit, Delete - ONLY rendered if user has explicit permission */}
+                    {(canUpdate || canDelete) && (
+                      <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDriverForEdit(driver)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                            title="Edit driver information"
-                          >
-                            <Edit3 className="w-3 h-3 text-blue-400" />
-                            <span>Edit</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setDriverToDelete(driver)}
-                            className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-300 hover:text-red-200 border border-red-800/70 text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
-                            title="Delete driver from High Risk registry"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-400" />
-                            <span>Delete</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="relative group inline-block text-right">
-                          <div className="flex items-center justify-end gap-1.5 opacity-50">
+                          {canUpdate && (
                             <button
                               type="button"
-                              disabled
-                              className="px-2 py-1 rounded bg-slate-800/40 text-slate-500 text-xs font-bold cursor-not-allowed flex items-center gap-1 border border-slate-800"
+                              onClick={() => setSelectedDriverForEdit(driver)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                              title="Edit driver information"
                             >
-                              <Edit3 className="w-3 h-3" />
+                              <Edit3 className="w-3 h-3 text-blue-400" />
                               <span>Edit</span>
                             </button>
+                          )}
+
+                          {canDelete && (
                             <button
                               type="button"
-                              disabled
-                              className="p-1 rounded bg-slate-800/40 text-slate-500 text-xs cursor-not-allowed border border-slate-800"
+                              onClick={() => setDriverToDelete(driver)}
+                              className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-300 hover:text-red-200 border border-red-800/70 text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                              title="Delete driver from High Risk registry"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-3 h-3 text-red-400" />
+                              <span>Delete</span>
                             </button>
-                          </div>
-                          <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-20 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-slate-200 text-[11px] shadow-xl whitespace-nowrap">
-                            Authorized Manager Access Required
-                          </div>
+                          )}
                         </div>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -1134,6 +1142,19 @@ export const InternalStaffCheck: React.FC<InternalStaffCheckProps> = ({
         onConfirmOverride={(id, payload) => {
           onOverrideDriver(id, payload);
           setSelectedDriverForOverride(null);
+        }}
+      />
+
+      {/* Import Modal */}
+      <ImportHighRiskModal
+        isOpen={showLocalImportModal}
+        onClose={() => setShowLocalImportModal(false)}
+        existingDrivers={drivers}
+        onImportConfirm={(importedDrivers, mode) => {
+          if (onBulkImport) {
+            onBulkImport(importedDrivers, mode);
+          }
+          setShowLocalImportModal(false);
         }}
       />
     </div>

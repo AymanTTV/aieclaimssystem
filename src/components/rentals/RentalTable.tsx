@@ -99,7 +99,7 @@ const RentalTable: React.FC<RentalTableProps> = ({
   onSetReturnExpectation,
   onExtend,
 }) => {
-  const { can, isAdmin } = usePermissions();
+  const { can, isManager } = usePermissions();
   const { user } = useAuth(); 
   const { formatCurrency } = useFormattedDisplay();
 
@@ -547,12 +547,12 @@ const RentalTable: React.FC<RentalTableProps> = ({
             )}
 
             {/* ROW 3: Documents Generation & Communications */}
-            {(isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler') || can('rentals', 'singleDoc')) && (
+            {(isManager || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'email') || can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler') || can('rentals', 'singleDoc')) && (
               <div className="flex flex-wrap justify-center gap-1 w-full pt-2 mt-1 border-t border-gray-100">
-                {(isAdmin || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view')) && (
+                {(isManager || can('rentals', 'whatsapp') || can('rentals', 'send') || can('whatsapp', 'send') || can('rentals', 'view')) && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'whatsapp' })} icon={MessageCircle} colorClass="text-emerald-700 bg-emerald-50 hover:bg-emerald-100" title="Share via WhatsApp" />
                 )}
-                {(isAdmin || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view')) && (
+                {(isManager || can('rentals', 'email') || can('rentals', 'send') || can('rentals', 'view')) && (
                   <ActionBtn onClick={() => setCommModal({ isOpen: true, rental: r, mode: 'email' })} icon={Mail} colorClass="text-sky-700 bg-sky-50 hover:bg-sky-100" title="Send via Email" />
                 )}
                 {(can('rentals', 'mondayAutoEmail') || can('rentals', 'bulkEmailScheduler')) && r.status === 'active' && (() => {

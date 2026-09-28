@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
+import { useAuth } from '../context/AuthContext';
+import { usePermissions } from './usePermissions';
 
 /**
  * Automates the Monday Payment Reminder schedule:
@@ -11,9 +13,16 @@ import { runMondayAutoEmailJob } from '../jobs/mondayAutoEmailJob';
  * Idempotently executes once per Monday by tracking last_monday_job_run in Firestore.
  */
 export function useMondayAutoEmailScheduler() {
+  const { user } = useAuth();
+  const { can, isManager, isAdmin, isSuperAdmin } = usePermissions();
   const isRunningRef = useRef(false);
 
   useEffect(() => {
+    // Only authenticated staff/managers with automation access should trigger scheduler checks
+    if (!user) return;
+    const hasAutomationPerm = isManager || isAdmin || isSuperAdmin || can('automation', 'mondayAutoEmail') || can('automation', 'scheduler') || can('automation', 'view');
+    if (!hasAutomationPerm) return;
+
     const checkAndExecuteMondayJob = async () => {
       if (isRunningRef.current) return;
 
@@ -75,8 +84,13 @@ export function useMondayAutoEmailScheduler() {
 
           await runMondayAutoEmailJob({ isTestRun: false, bypassGlobalToggle: false });
         }
-      } catch (err) {
-        console.error('[AutoEmailScheduler] Error executing automated schedule job:', err);
+      } catch (err: any) {
+        // Handle permission errors silently if permissions are restricted
+        if (err?.code === 'permission-denied' || err?.message?.includes('Missing or insufficient permissions')) {
+          console.warn('[AutoEmailScheduler] Insufficient permissions to execute schedule job, skipping.');
+        } else {
+          console.error('[AutoEmailScheduler] Error executing automated schedule job:', err);
+        }
       } finally {
         isRunningRef.current = false;
       }
@@ -89,5 +103,5 @@ export function useMondayAutoEmailScheduler() {
     const intervalId = setInterval(checkAndExecuteMondayJob, 60 * 1000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [user, can, isManager, isAdmin, isSuperAdmin]);
 }

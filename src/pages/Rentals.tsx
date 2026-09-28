@@ -68,7 +68,7 @@ const Rentals = () => {
   const { rentals, loading } = useRentals();
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { customers, loading: customersLoading } = useCustomers();
-  const { can, isAdmin } = usePermissions();
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();

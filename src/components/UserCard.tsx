@@ -39,12 +39,16 @@ const UserCard: React.FC<UserCardProps> = ({ user, onEdit, onDelete }) => {
             </div>
           </div>
         </div>
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-          ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-            user.role === 'manager' ? 'bg-blue-100 text-blue-800' :
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize
+          ${user.role === 'superadmin' ? 'bg-purple-100 text-purple-900 border border-purple-200' :
+            user.role === 'admin' ? 'bg-blue-100 text-blue-900 border border-blue-200' :
+            user.role === 'manager' ? 'bg-indigo-100 text-indigo-900 border border-indigo-200' :
+            user.role === 'supervisor' ? 'bg-teal-100 text-teal-900 border border-teal-200' :
+            user.role === 'accountant' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
+            user.role === 'staff' ? 'bg-slate-100 text-slate-800 border border-slate-200' :
             'bg-green-100 text-green-800'}`}
         >
-          {user.role}
+          {user.role === 'superadmin' ? 'Super Admin' : user.role}
         </span>
       </div>
 

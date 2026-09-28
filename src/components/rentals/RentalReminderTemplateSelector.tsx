@@ -58,6 +58,11 @@ const AVAILABLE_PLACEHOLDERS = [
   { tag: '{vehicle_reg}', desc: 'Vehicle registration number (plate / VRM)' },
   { tag: '{total_amount}', desc: 'Total agreement cost' },
   { tag: '{paid_amount}', desc: 'Total amount paid' },
+  { tag: '{last_paid_amount}', desc: 'Most recent payment received (amount)' },
+  { tag: '{last_payment_amount}', desc: 'Last payment amount received' },
+  { tag: '{last_payment_date}', desc: 'Date of last payment received' },
+  { tag: '{last_payment_amount_and_date}', desc: 'Last payment amount and date combined' },
+  { tag: '{last_payments_list}', desc: 'List of recorded payments with amounts and dates' },
   { tag: '{owing_amount}', desc: 'Current outstanding balance' },
   { tag: '{due_date}', desc: 'Payment due date' },
   { tag: '{rental_type}', desc: 'Hire type (Weekly or Daily)' },
@@ -68,12 +73,12 @@ export const RentalReminderTemplateSelector: React.FC<RentalReminderTemplateSele
   className = '',
   isCompact = false,
 }) => {
-  const { can, isAdmin } = usePermissions();
-  const canCreateTemplate = isAdmin || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
-  const canEditTemplate = isAdmin || can('rentals', 'templateEdit');
-  const canManageReminder = isAdmin || can('rentals', 'reminderTemplate') || can('rentals', 'templateEdit');
-  const canManageMondayEmail = isAdmin || can('automation', 'mondayAutoEmail') || can('automation', 'update');
-  const canManageScheduler = isAdmin || can('automation', 'scheduler') || can('automation', 'update');
+  const { can, isManager } = usePermissions();
+  const canCreateTemplate = isManager || can('rentals', 'templateCreate') || can('rentals', 'templateEdit');
+  const canEditTemplate = isManager || can('rentals', 'templateEdit');
+  const canManageReminder = isManager || can('rentals', 'reminderTemplate') || can('rentals', 'templateEdit');
+  const canManageMondayEmail = isManager || can('automation', 'mondayAutoEmail') || can('automation', 'update');
+  const canManageScheduler = isManager || can('automation', 'scheduler') || can('automation', 'update');
 
   const [loading, setLoading] = useState(true);
   const [savingPreferences, setSavingPreferences] = useState(false);

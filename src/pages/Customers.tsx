@@ -64,12 +64,9 @@ const Customers = () => {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
 
-  const isManager = (user?.role || '').toLowerCase() === 'manager';
-
   const visibleCustomers = useMemo(() => {
-    if (isManager) return filteredCustomers;
-    return (searchQuery || '').trim() ? filteredCustomers : [];
-  }, [filteredCustomers, isManager, searchQuery]);
+    return filteredCustomers;
+  }, [filteredCustomers]);
 
   const handleBulkStatusUpdate = async (newStatus: 'active' | 'inactive') => {
     const selectedIds = Object.keys(rowSelection);
@@ -179,12 +176,14 @@ const Customers = () => {
             </button>
           )}
 
-          <button
-            onClick={() => setIsGroupMessagingOpen(true)}
-            className="inline-flex items-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
-          >
-            <Radio className="h-4 w-4 mr-2 text-purple-600" /> Group Messaging / News Flash
-          </button>
+          {can('customers', 'groupMessaging') && (
+            <button
+              onClick={() => setIsGroupMessagingOpen(true)}
+              className="inline-flex items-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+            >
+              <Radio className="h-4 w-4 mr-2 text-purple-600" /> Group Messaging / News Flash
+            </button>
+          )}
 
           {can('customers', 'create') && (
             <button onClick={() => handleOpenEditForm(null)} className="inline-flex items-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer">

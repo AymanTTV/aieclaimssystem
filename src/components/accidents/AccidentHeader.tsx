@@ -1,6 +1,6 @@
 // src/components/accidents/AccidentHeader.tsx
 import React from 'react';
-import { Download, Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, DollarSign, Activity, FileCheck, ClipboardList, ShieldAlert } from 'lucide-react';
+import { Download, Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, DollarSign, Activity, FileCheck, ClipboardList, ShieldAlert, Upload } from 'lucide-react';
 import { Accident } from '../../types';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
@@ -205,29 +205,42 @@ const AccidentHeader: React.FC<AccidentHeaderProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {can('accidents', 'export') && (
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={handleImport}
-            className="hidden"
-          />
+          {can('accidents', 'import') && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center px-3.5 sm:px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                title="Import Accidents Data"
+              >
+                <Upload className="h-4 w-4 mr-1.5 sm:mr-2 text-[#64748B]" />
+                <span className="truncate">Import</span>
+              </button>
+            </>
           )}
 
-          <button
-            onClick={() => onTabChange?.(activeTab === 'risk_analysis' ? 'claims' : 'risk_analysis')}
-            className={`flex items-center px-3.5 sm:px-4 py-2.5 border rounded-xl shadow-xs text-sm font-semibold transition-colors cursor-pointer ${
-              activeTab === 'risk_analysis'
-                ? 'bg-rose-600 text-white border-rose-600 hover:bg-rose-700'
-                : 'border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100'
-            }`}
-          >
-            <ShieldAlert className="h-4 w-4 mr-1.5 sm:mr-2" />
-            <span className="truncate">{activeTab === 'risk_analysis' ? 'Claims Register' : 'Driver Risk & Renewal'}</span>
-          </button>
+          {(can('accidents', 'driverRisk') || can('accidents', 'renewalAnalysis')) && (
+            <button
+              onClick={() => onTabChange?.(activeTab === 'risk_analysis' ? 'claims' : 'risk_analysis')}
+              className={`flex items-center px-3.5 sm:px-4 py-2.5 border rounded-xl shadow-xs text-sm font-semibold transition-colors cursor-pointer ${
+                activeTab === 'risk_analysis'
+                  ? 'bg-rose-600 text-white border-rose-600 hover:bg-rose-700'
+                  : 'border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100'
+              }`}
+            >
+              <ShieldAlert className="h-4 w-4 mr-1.5 sm:mr-2" />
+              <span className="truncate">{activeTab === 'risk_analysis' ? 'Claims Register' : 'Driver Risk & Renewal'}</span>
+            </button>
+          )}
 
-          {can('accidents', 'export') && (
+          {(can('accidents', 'singleDoc') || can('accidents', 'export')) && (
             <button
               onClick={onExportFleetExperiencePDF || onGeneratePDF}
               className="flex items-center px-3.5 sm:px-4 py-2.5 border border-blue-600 rounded-xl shadow-xs text-sm font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors cursor-pointer"

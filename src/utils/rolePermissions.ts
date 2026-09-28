@@ -1,13 +1,7 @@
 import { Role } from '../types';
 
 export const ROLE_PERMISSIONS = {
-  admin: {
-    vehicles: ['view', 'create', 'update', 'delete'],
-    maintenance: ['view', 'create', 'update', 'delete'],
-    rentals: ['view', 'create', 'update', 'delete'],
-    finance: ['view', 'create', 'update', 'delete'],
-    users: ['view', 'create', 'update', 'delete']
-  },
+  admin: {}, // Strict Deny-by-Default: Admin has no automatic permissions unless explicitly assigned
   manager: {
     vehicles: ['view', 'create', 'update'],
     maintenance: ['view', 'create', 'update'],

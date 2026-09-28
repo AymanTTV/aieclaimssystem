@@ -70,7 +70,7 @@ export const MaintenanceCommunicationModal: React.FC<
   initialRecipient = 'driver',
 }) => {
   const { user } = useAuth();
-  const { can, isAdmin } = usePermissions();
+  const { can, isManager } = usePermissions();
 
   // Combine log and logs to ensure complete order list
   const availableLogs = useMemo(() => {
@@ -116,8 +116,8 @@ export const MaintenanceCommunicationModal: React.FC<
     return resolveMaintenanceContext(effLog, vMap, cMap, [], rentals || []);
   }, [context, effLog, log, vehicles, customers, rentals]);
 
-  const canSendWhatsApp = isAdmin || can('maintenance', 'whatsapp') || can('maintenance', 'send');
-  const canSendEmail = isAdmin || can('maintenance', 'email') || can('maintenance', 'send');
+  const canSendWhatsApp = isManager || can('maintenance', 'whatsapp') || can('maintenance', 'send');
+  const canSendEmail = isManager || can('maintenance', 'email') || can('maintenance', 'send');
 
   const [mode, setMode] = useState<MaintenanceChannelMode>(() => {
     if (initialMode === 'whatsapp' && canSendWhatsApp) return 'whatsapp';

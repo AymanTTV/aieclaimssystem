@@ -23,6 +23,7 @@ import {
   Info
 } from 'lucide-react';
 import { useCustomers } from '../../hooks/useCustomers';
+import { usePermissions } from '../../hooks/usePermissions';
 import { Customer } from '../../types/customer';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -102,6 +103,7 @@ const NON_CLAIM_DOCUMENTS: DocumentWorkflowItem[] = [
 ];
 
 export const CompanyDocumentManager: React.FC = () => {
+  const { can } = usePermissions();
   const { customers } = useCustomers();
   const [activeCategory, setActiveCategory] = useState<CustomerDocumentCategory>('claim');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -484,70 +486,80 @@ export const CompanyDocumentManager: React.FC = () => {
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {/* View Document */}
-                  <button
-                    type="button"
-                    onClick={() => handleViewDocument(docItem)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                    title="View Document"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-600" />
-                    <span>View</span>
-                  </button>
+                  {can('company', 'view') && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewDocument(docItem)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                      title="View Document"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-600" />
+                      <span>View</span>
+                    </button>
+                  )}
 
                   {/* Copy Direct Link */}
-                  <button
-                    type="button"
-                    onClick={() => handleCopyLink(docItem)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                    title="Copy Share Link"
-                  >
-                    {isCopied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-emerald-700">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-slate-600" />
-                        <span>Link</span>
-                      </>
-                    )}
-                  </button>
+                  {can('company', 'view') && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(docItem)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                      title="Copy Share Link"
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Link</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   {/* Share in WhatsApp */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenWhatsApp(docItem)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
-                    title="Share via WhatsApp"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>WhatsApp</span>
-                  </button>
+                  {can('company', 'whatsapp') && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWhatsApp(docItem)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                      title="Share via WhatsApp"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>WhatsApp</span>
+                    </button>
+                  )}
 
                   {/* Share via Email */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEmail(docItem)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
-                    title="Share via Email"
-                  >
-                    <Mail className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Email</span>
-                  </button>
+                  {can('company', 'email') && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEmail(docItem)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                      title="Share via Email"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Email</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Signature Workflow Action */}
-                <button
-                  type="button"
-                  onClick={() => handleSendSignatureRequest(docItem)}
-                  disabled={isSending}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 rounded-lg shadow-2xs transition-all cursor-pointer"
-                  title="Generate Signature Request Link (Enforces T&C and Timestamps)"
-                >
-                  <PenTool className="w-3.5 h-3.5" />
-                  <span>{isSending ? 'Generating...' : 'Request Signature'}</span>
-                </button>
+                {can('company', 'signatureReq') && (
+                  <button
+                    type="button"
+                    onClick={() => handleSendSignatureRequest(docItem)}
+                    disabled={isSending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 rounded-lg shadow-2xs transition-all cursor-pointer"
+                    title="Generate Signature Request Link (Enforces T&C and Timestamps)"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    <span>{isSending ? 'Generating...' : 'Request Signature'}</span>
+                  </button>
+                )}
               </div>
             </div>
           );

@@ -22,7 +22,8 @@ interface ToDoModalProps {
 
 export const ToDoModal: React.FC<ToDoModalProps> = ({ open, onClose }) => {
   const { user } = useAuth()
-  const { can, isManager } = usePermissions()
+  const { can } = usePermissions()
+  const isManager = can('todo', 'update') || can('todo', 'assign')
   const [selectedUser, setSelectedUser] = useState<string>(user?.id || '')
   const [userList, setUserList] = useState<UserRecord[]>([])
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)

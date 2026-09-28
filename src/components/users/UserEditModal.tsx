@@ -270,10 +270,14 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose }) => {
                 className={inputBaseClass}
                 required
               >
+                <option value="superadmin">Super Admin</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="accountant">Accountant</option>
                 <option value="finance">Finance</option>
                 <option value="claims">Claims</option>
+                <option value="staff">Staff</option>
                 <option value="company">Company</option>
                 <option value="member">Member</option>
               </select>

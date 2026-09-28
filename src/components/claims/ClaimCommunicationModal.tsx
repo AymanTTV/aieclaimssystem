@@ -79,8 +79,8 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
   const navigate = useNavigate();
   const { user } = useAuth();
   const permissions = usePermissions();
-  const can = typeof permissions?.can === 'function' ? permissions.can : () => true;
-  const isAdmin = permissions?.isAdmin;
+  const can = typeof permissions?.can === 'function' ? permissions.can : () => false;
+  const isManager = permissions?.isManager;
 
   const [selectedClaimId, setSelectedClaimId] = useState<string>(claim?.id || '');
 
@@ -100,9 +100,9 @@ export const ClaimCommunicationModal: React.FC<ClaimCommunicationModalProps> = (
     return claims && claims.length > 0 ? claims[0] : null;
   }, [claim, claims, selectedClaimId]);
 
-  const hasWhatsAppPermission = isAdmin || can('claims', 'whatsapp') || can('claims', 'send');
-  const hasEmailPermission = isAdmin || can('claims', 'email') || can('claims', 'send');
-  const canChangeTemplate = isAdmin || can('claims', 'template');
+  const hasWhatsAppPermission = isManager || can('claims', 'whatsapp') || can('claims', 'send');
+  const hasEmailPermission = isManager || can('claims', 'email') || can('claims', 'send');
+  const canChangeTemplate = isManager || can('claims', 'template');
 
   // Primary selections
   const [channel, setChannel] = useState<ClaimCommunicationChannel>(() => {

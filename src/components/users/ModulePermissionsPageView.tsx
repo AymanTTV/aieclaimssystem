@@ -53,7 +53,8 @@ import {
   Layers,
   ChevronDown,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Tv
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -216,6 +217,8 @@ export const PERMISSION_METADATA: Record<PermissionAction, { label: string; desc
   unlock: { label: 'Unlock Records', description: 'Allows managers to unlock previously finalized pay periods.', category: 'Fleet & Operations' },
   tableStatus: { label: 'Table Status', description: 'Allows configuring and filtering by custom table workflow statuses.', category: 'Fleet & Operations' },
   signatureReq: { label: 'Request Signatures', description: 'Allows requesting digital electronic signatures on documents.', category: 'Fleet & Operations' },
+  workshopTv: { label: 'Workshop TV', description: 'Allows viewing and launching the Workshop TV Auto-Rotation Display Mirror board.', category: 'Fleet & Operations' },
+  publicMirror: { label: 'Live Public Mirror', description: 'Allows viewing, opening, and copying the real-time Live Public Mirror link.', category: 'Fleet & Operations' },
 
   recordsPermission: { label: 'Records Permissions', description: 'Restricts or opens confidential record security classifications.', category: 'Governance & Workflow' },
   groups: { label: 'Manage Groups', description: 'Allows managing corporate groups and grouping records.', category: 'Governance & Workflow' },
@@ -589,10 +592,14 @@ export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps>
                 onChange={(e) => onRoleChange(e.target.value as User['role'])}
                 className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
+                <option value="superadmin">Super Admin</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="accountant">Accountant</option>
                 <option value="finance">Finance</option>
                 <option value="claims">Claims</option>
+                <option value="staff">Staff</option>
                 <option value="company">Company</option>
                 <option value="member">Member</option>
               </select>
@@ -1010,6 +1017,143 @@ export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps>
 
             {/* ── LIST OF PERMISSIONS FOR THIS MODULE'S PAGE ── */}
             <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-slate-50/50 space-y-5">
+              {/* Specialized Real-Time Displays Callout Banner for Maintenance */}
+              {activeModuleKey === 'maintenance' && (
+                <div className="bg-gradient-to-br from-teal-900/95 via-slate-900 to-emerald-950 border border-teal-500/30 rounded-2xl p-4 sm:p-5 shadow-md text-white space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-teal-500/20">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-teal-500/20 border border-teal-400/30 text-teal-300">
+                        <Tv className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-teal-200">
+                          Maintenance Live Stream & Mirror Permissions
+                        </h4>
+                        <p className="text-[11px] text-slate-300">
+                          Control access to real-time auto-rotation boards and customer-facing schedule mirrors.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-teal-950/80 border border-teal-500/30 text-teal-300 font-bold self-start sm:self-auto">
+                      Real-Time Streaming
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Workshop TV Toggle Card */}
+                    {(() => {
+                      const isTvGranted = Boolean((customPermissions.maintenance as any)?.workshopTv);
+                      return (
+                        <div
+                          onClick={() => isManager && onChangePermission('maintenance', 'workshopTv', !isTvGranted)}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
+                            isTvGranted
+                              ? 'bg-teal-950/70 border-teal-500/60 ring-1 ring-teal-400/30 shadow-xs'
+                              : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <Tv className="w-3.5 h-3.5 text-teal-400" />
+                                <span className="text-xs font-black text-teal-100">Workshop TV</span>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isTvGranted}
+                                  onChange={(e) => isManager && onChangePermission('maintenance', 'workshopTv', e.target.checked)}
+                                  disabled={!isManager}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-teal-500 peer-disabled:opacity-50"></div>
+                              </label>
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-snug">
+                              Authorizes opening and displaying the auto-rotation TV board on workshop physical monitors.
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                            <span className={`font-bold px-1.5 py-0.5 rounded ${
+                              isTvGranted ? 'bg-teal-500/20 text-teal-300' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {isTvGranted ? 'Granted' : 'Revoked'}
+                            </span>
+                            <a
+                              href="/workshop-tv"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1 underline"
+                            >
+                              <span>Preview</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Live Public Mirror Toggle Card */}
+                    {(() => {
+                      const isMirrorGranted = Boolean((customPermissions.maintenance as any)?.publicMirror);
+                      return (
+                        <div
+                          onClick={() => isManager && onChangePermission('maintenance', 'publicMirror', !isMirrorGranted)}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
+                            isMirrorGranted
+                              ? 'bg-emerald-950/70 border-emerald-500/60 ring-1 ring-emerald-400/30 shadow-xs'
+                              : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-xs font-black text-emerald-100">Live Public Mirror</span>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isMirrorGranted}
+                                  onChange={(e) => isManager && onChangePermission('maintenance', 'publicMirror', e.target.checked)}
+                                  disabled={!isManager}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
+                              </label>
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-snug">
+                              Authorizes opening and copying links for the read-only live customer maintenance schedule mirror.
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                            <span className={`font-bold px-1.5 py-0.5 rounded ${
+                              isMirrorGranted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {isMirrorGranted ? 'Granted' : 'Revoked'}
+                            </span>
+                            <a
+                              href="/maintenance/live"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 underline"
+                            >
+                              <span>Preview</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
               {Object.keys(groupedPermissions).length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-2xs">
                   <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />

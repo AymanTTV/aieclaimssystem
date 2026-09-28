@@ -154,10 +154,14 @@ const UserForm: React.FC<UserFormProps> = ({ onClose }) => {
             <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-200 md:col-span-2">
               <label className={labelClass}>System Access Level</label>
               <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value as User['role'] })} className={inputClass} required>
-                <option value="manager">Manager (Full Access)</option>
+                <option value="superadmin">Super Admin (System Governance)</option>
+                <option value="manager">Manager (Management Level)</option>
                 <option value="admin">Admin (Operational Access)</option>
+                <option value="supervisor">Supervisor (Team Oversight)</option>
+                <option value="accountant">Accountant (General Ledger & Audit)</option>
                 <option value="finance">Finance (Billing & Reports)</option>
                 <option value="claims">Claims (Accident handling)</option>
+                <option value="staff">Staff (Standard Operations)</option>
                 <option value="company">Company (B2B Partner)</option>
                 <option value="member">Member (Customer Portal)</option>
               </select>
