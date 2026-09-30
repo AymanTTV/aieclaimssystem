@@ -54,9 +54,39 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
           const date = safeToDate(data.date) || safeToDate(data.createdAt) || new Date();
           const nextServiceDate = safeToDate(data.nextServiceDate);
 
+          const costNum = data.cost !== undefined ? Number(data.cost) : 0;
+          const customerBilledNum = data.customerBilled !== undefined ? Number(data.customerBilled) : costNum;
+          const isProfitEdited = data.isProfitEdited === true;
+
+          // Default Dealer Cost to match Total price (or set Profit to £0.00 / 0.0% Margin)
+          // The system must IGNORE any profit calculation for a record UNTIL a user manually opens the record, clicks "Edit", updates the information, and hits "Save" / "Update".
+          const rawSubCost = data.dealerCost !== undefined
+            ? Number(data.dealerCost)
+            : (data.subcontractorCost !== undefined ? Number(data.subcontractorCost) : customerBilledNum);
+          const subCostNum = isProfitEdited
+            ? rawSubCost
+            : customerBilledNum;
+          let netProfit = isProfitEdited
+            ? (data.netProfit !== undefined ? Number(data.netProfit) : Number((customerBilledNum - subCostNum).toFixed(2)))
+            : 0;
+          let profitMarginPercent = isProfitEdited
+            ? (data.profitMarginPercent !== undefined ? Number(data.profitMarginPercent) : (customerBilledNum > 0 ? Number(((netProfit / customerBilledNum) * 100).toFixed(2)) : 0))
+            : 0;
+
           logsData.push({
             id: doc.id,
             ...data,
+            isProfitEdited,
+            isEdited: isProfitEdited,
+            orderId: data.orderId || data.orderNumber,
+            orderNumber: data.orderNumber || data.orderId,
+            invoiceNumber: data.invoiceNumber,
+            cost: costNum,
+            customerBilled: customerBilledNum,
+            subcontractorCost: subCostNum,
+            dealerCost: subCostNum,
+            netProfit,
+            profitMarginPercent,
             date: date,
             nextServiceDate: nextServiceDate,
             createdAt: safeToDate(data.createdAt),

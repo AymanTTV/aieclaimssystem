@@ -28,17 +28,9 @@ const FileHandlers = () => {
         />
 
         <div>
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <label className="block text-sm font-bold text-gray-950">
-              Legal Handler
-            </label>
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
-              title="Compulsory field - Must fill in"
-            >
-              <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
-            </span>
-          </div>
+          <label className="block text-sm font-bold text-gray-950 mb-1.5">
+            Legal Handler <span className="text-red-500 font-bold select-none" aria-hidden="true">*</span>
+          </label>
           <Controller
             name="fileHandlers.legalHandler"
             control={control}

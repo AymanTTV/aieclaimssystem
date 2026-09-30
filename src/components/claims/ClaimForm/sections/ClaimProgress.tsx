@@ -91,17 +91,12 @@ const ClaimProgress = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <label className="block text-sm font-bold text-gray-950">Claim Type</label>
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
-              title="Compulsory field - Must fill in"
-            >
-              <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
-            </span>
-          </div>
+          <label className="block text-sm font-bold text-gray-950 mb-1.5">
+            Claim Type <span className="text-red-500 font-bold select-none" aria-hidden="true">*</span>
+          </label>
           <select
             {...register('claimType')}
+            aria-required="true"
             className="block w-full rounded-lg border border-gray-300 border-l-4 border-l-red-500 bg-white text-gray-950 font-semibold px-3 py-2.5 shadow-2xs focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
           >
             <option value="Domestic">Domestic</option>
@@ -115,15 +110,9 @@ const ClaimProgress = () => {
         </div>
 
         <div>
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <label className="block text-sm font-bold text-gray-950">Claim Reason</label>
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
-              title="Compulsory - Select at least one"
-            >
-              <span className="text-red-600 font-black text-xs leading-none">*</span> Select min 1
-            </span>
-          </div>
+          <label className="block text-sm font-bold text-gray-950 mb-1.5">
+            Claim Reason <span className="text-red-500 font-bold select-none" aria-hidden="true">*</span>
+          </label>
           <div className="flex flex-wrap gap-2 pt-0.5">
             {CLAIM_REASONS.map((reason) => {
               const isChecked = Array.isArray(selectedReasons) ? selectedReasons.includes(reason.value) : false;

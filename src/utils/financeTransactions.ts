@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   query,
+  setDoc,
   updateDoc,
   where,
   getDocs
@@ -14,15 +15,21 @@ import {
 import { db } from '../lib/firebase';
 import { MaintenanceLog, Vehicle } from '../types';
 import toast from 'react-hot-toast';
+import { getOrderCandidateVariants } from './maintenanceFinanceLink';
 
 interface FinanceTransactionParams {
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'EXPENSE' | 'INCOME';
+  transactionType?: 'EXPENSE' | 'INCOME';
+  entryType?: 'DEBIT' | 'CREDIT';
   category: string;
   amount: number;
   netAmount?: number;
   vatAmount?: number;
   description: string;
   referenceId: string;
+  sourceReferenceId?: string; // ✅ Strict UPSERT link field
+  maintenanceJobId?: string;
+  maintenanceOrderId?: string;
   vehicleId?: string;
   vehicleName?: string;
   vehicleOwner?: {
@@ -33,7 +40,7 @@ interface FinanceTransactionParams {
   paymentMethod?: string;
   paymentReference?: string;
   paymentId?: string; // ✅ Dedicated system link field
-  paymentStatus?: 'paid' | 'partially_paid' | 'unpaid';
+  paymentStatus?: 'paid' | 'partially_paid' | 'unpaid' | 'expense';
   date?: Date;
   accountFrom?: string;
   accountTo?: string;
@@ -45,6 +52,44 @@ interface FinanceTransactionParams {
   groupName?: string; 
   departmentId?: string; 
   departmentName?: string; 
+  subcontractorCost?: number;
+  dealerCost?: number;
+  customerBilled?: number;
+  netProfit?: number;
+  profitMarginPercent?: number;
+  isProfitEdited?: boolean;
+  isEdited?: boolean;
+  linkedInvoiceRef?: string;
+  invoiceId?: string;
+  entityId?: string;
+  entityType?: 'RENTAL' | 'INVOICE' | 'MAINTENANCE';
+  orderId?: string;
+  orderNumber?: string;
+  invoiceNumber?: string;
+}
+
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  if (obj === null || obj === undefined) return {};
+  if (typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return obj;
+  if (typeof (obj as any).toMillis === 'function') return obj;
+  if (Array.isArray(obj)) {
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => (typeof item === 'object' && item !== null ? sanitizeForFirestore(item) : item));
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    if (typeof value === 'function' || typeof value === 'symbol') continue;
+    if (value && typeof value === 'object' && !(value instanceof Date) && typeof (value as any).toMillis !== 'function') {
+      cleaned[key] = sanitizeForFirestore(value);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
 }
 
 export async function reverseFinanceTransaction(params: {
@@ -78,7 +123,14 @@ export async function reverseFinanceTransaction(params: {
       return;
     }
     await Promise.all(
-      snap.docs.map((d) => deleteDoc(doc(db, 'transactions', d.id)))
+      snap.docs.map(async (d) => {
+        await deleteDoc(doc(db, 'transactions', d.id));
+        try {
+          await deleteDoc(doc(db, 'finance_ledger', d.id));
+        } catch {
+          // ignore
+        }
+      })
     );
     toast.success('Finance transaction reversed');
   } catch (err) {
@@ -227,12 +279,47 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       }
     }
 
+    const normalizedType = String(type || 'expense').toLowerCase() === 'income' ? 'income' : 'expense';
+    const transactionType = params.transactionType 
+      ? (String(params.transactionType).toUpperCase() as 'EXPENSE' | 'INCOME')
+      : (normalizedType === 'income' ? 'INCOME' : 'EXPENSE');
+
+    const entryType: 'DEBIT' | 'CREDIT' = params.entryType
+      ? (String(params.entryType).toUpperCase() as 'DEBIT' | 'CREDIT')
+      : (transactionType === 'EXPENSE' || normalizedType === 'expense' ? 'DEBIT' : 'CREDIT');
+
+    const resolvedInvoiceNum =
+      params.invoiceNumber ||
+      (paymentReference && (paymentReference.startsWith('INV') || paymentReference.startsWith('inv') || paymentReference.startsWith('#'))
+        ? paymentReference.replace(/^#/, '')
+        : undefined);
+
+    const candidatePaymentId = params.paymentId?.trim();
+    const candidateSourceRefId = (params.sourceReferenceId || params.referenceId)?.trim();
+    const targetOrderId = (params.orderId || params.orderNumber || params.maintenanceOrderId)?.trim();
+    const candidateVariants = targetOrderId ? getOrderCandidateVariants(targetOrderId) : [];
+
+    const isMaintenanceExpense = (transactionType === 'EXPENSE' || normalizedType === 'expense' || entryType === 'DEBIT') && Boolean(
+      params.entityType === 'MAINTENANCE' ||
+      params.category?.toLowerCase() === 'maintenance' ||
+      params.maintenanceJobId ||
+      params.maintenanceOrderId ||
+      Boolean(targetOrderId) ||
+      (candidateVariants && candidateVariants.length > 0) ||
+      Boolean(candidateSourceRefId)
+    );
+
     const transaction: Record<string, any> = {
-      type,
+      type: isMaintenanceExpense ? 'expense' : normalizedType,
+      transactionType: isMaintenanceExpense ? 'EXPENSE' : transactionType,
+      entryType: isMaintenanceExpense ? 'DEBIT' : entryType,
       category,
       amount,
       description,
       referenceId,
+      ...(candidateSourceRefId && { sourceReferenceId: candidateSourceRefId }),
+      ...(params.maintenanceJobId && { maintenanceJobId: params.maintenanceJobId }),
+      ...(params.maintenanceOrderId && { maintenanceOrderId: params.maintenanceOrderId }),
       status,
       date: date || new Date(),
       createdAt: new Date(),
@@ -252,11 +339,345 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       ...(groupId          && { groupId }),
       ...(groupName        && { groupName }), 
       ...(departmentId     && { departmentId }), 
-      ...(departmentName   && { departmentName }) 
+      ...(departmentName   && { departmentName }),
+      ...(params.subcontractorCost !== undefined && { subcontractorCost: params.subcontractorCost }),
+      ...(params.dealerCost !== undefined || params.subcontractorCost !== undefined
+        ? { dealerCost: params.dealerCost ?? params.subcontractorCost }
+        : {}),
+      ...(params.customerBilled !== undefined && { customerBilled: params.customerBilled }),
+      ...(params.netProfit !== undefined && { netProfit: params.netProfit }),
+      ...(params.profitMarginPercent !== undefined && { profitMarginPercent: params.profitMarginPercent }),
+      ...(params.isProfitEdited !== undefined && {
+        isProfitEdited: params.isProfitEdited,
+        isEdited: params.isProfitEdited,
+      }),
+      linkedInvoiceRef: params.linkedInvoiceRef || referenceId,
+      ...(params.invoiceId ? { invoiceId: params.invoiceId } : params.linkedInvoiceRef ? { invoiceId: params.linkedInvoiceRef } : (params.entityType === 'INVOICE' && referenceId) ? { invoiceId: referenceId } : {}),
+      ...(params.entityId ? { entityId: params.entityId } : referenceId ? { entityId: referenceId } : {}),
+      ...(params.entityType ? { entityType: params.entityType } : params.linkedInvoiceRef ? { entityType: 'INVOICE' } : {}),
+      ...((params.orderId || params.orderNumber || targetOrderId) && {
+        orderId: targetOrderId,
+        orderNumber: targetOrderId,
+      }),
+      ...(resolvedInvoiceNum && {
+        invoiceNumber: resolvedInvoiceNum,
+      })
     };
 
-    const docRef = await addDoc(collection(db, 'transactions'), transaction);
-    return { success: true, id: docRef.id };
+    if (isMaintenanceExpense) {
+      transaction.type = 'expense';
+      transaction.transactionType = 'EXPENSE';
+      transaction.entryType = 'DEBIT';
+      const billedVal = params.customerBilled !== undefined ? Number(params.customerBilled) : amount;
+      const dealerVal = params.dealerCost !== undefined ? Number(params.dealerCost) : (params.subcontractorCost !== undefined ? Number(params.subcontractorCost) : undefined);
+      transaction.customerBilled = billedVal;
+      if (dealerVal !== undefined) {
+        transaction.dealerCost = dealerVal;
+        transaction.subcontractorCost = dealerVal;
+        const profit = params.netProfit !== undefined ? Number(params.netProfit) : Number((billedVal - dealerVal).toFixed(2));
+        transaction.netProfit = profit;
+        transaction.profitMarginPercent = params.profitMarginPercent !== undefined ? Number(params.profitMarginPercent) : (billedVal > 0 ? Number(((profit / billedVal) * 100).toFixed(1)) : 0);
+        transaction.isProfitEdited = true;
+        transaction.isEdited = true;
+      }
+    }
+
+    const resolvedInvId = transaction.invoiceId || params.invoiceId || params.linkedInvoiceRef;
+
+    console.log(
+      `[FinanceLedger Audit] [createFinanceTransaction] Committing transaction: ` +
+      `orderId = "${targetOrderId || 'N/A'}", invoiceId = "${resolvedInvId || 'N/A'}", invoiceNumber = "${resolvedInvoiceNum || 'N/A'}", transactionType = "${transactionType}", entryType = "${entryType}", type = "${normalizedType}", category = "${category}", amount = ${amount}, ref = "${referenceId}"`
+    );
+
+    // ===================================================================
+    // SINGLE SOURCE OF TRUTH & UPSERT ENFORCEMENT
+    // Check Before Insert: Before adding any transaction to the Finance Ledger,
+    // check if an entry already exists for orderId === maintenance.orderId AND type === 'EXPENSE'.
+    // If Found: UPDATE the existing Expense record in-place.
+    // If Not Found: INSERT a single new Expense record.
+    // Delete/Purge Orphaned Income Entries: Clean up and remove any existing Income entries tied to Maintenance Order #A1.
+    // ===================================================================
+    let existingTxDocId: string | null = null;
+    const txCol = collection(db, 'transactions');
+
+    // 1. Search for existing EXPENSE entry matching orderId / orderNumber
+    if (isMaintenanceExpense && candidateVariants.length > 0) {
+      for (const variant of candidateVariants) {
+        try {
+          const qByOrd = query(txCol, where('orderId', '==', variant));
+          const snapByOrd = await getDocs(qByOrd);
+          const expMatch = snapByOrd.docs.find(d => {
+            const dData = d.data();
+            const dType = (dData.type || '').toLowerCase();
+            const dTxType = (dData.transactionType || '').toUpperCase();
+            return dType === 'expense' || dTxType === 'EXPENSE';
+          });
+          if (expMatch) {
+            existingTxDocId = expMatch.id;
+            break;
+          }
+
+          const qByOrdNum = query(txCol, where('orderNumber', '==', variant));
+          const snapByOrdNum = await getDocs(qByOrdNum);
+          const expMatchNum = snapByOrdNum.docs.find(d => {
+            const dData = d.data();
+            const dType = (dData.type || '').toLowerCase();
+            const dTxType = (dData.transactionType || '').toUpperCase();
+            return dType === 'expense' || dTxType === 'EXPENSE';
+          });
+          if (expMatchNum) {
+            existingTxDocId = expMatchNum.id;
+            break;
+          }
+        } catch {
+          // Continue scanning
+        }
+      }
+    }
+
+    // 2. Search by paymentId if present and not yet found
+    if (!existingTxDocId && candidatePaymentId) {
+      const qPay = query(txCol, where('paymentId', '==', candidatePaymentId));
+      const snapPay = await getDocs(qPay);
+      if (!snapPay.empty) {
+        existingTxDocId = snapPay.docs[0].id;
+      } else {
+        const qPayRef = query(txCol, where('paymentReference', '==', candidatePaymentId));
+        const snapPayRef = await getDocs(qPayRef);
+        if (!snapPayRef.empty) {
+          existingTxDocId = snapPayRef.docs[0].id;
+        }
+      }
+    }
+
+    // 2b. If searching for an invoice payment by (invoiceId + paymentReference)
+    if (!existingTxDocId && params.paymentReference && (params.invoiceId || candidateSourceRefId)) {
+      const targetInvId = params.invoiceId || candidateSourceRefId;
+      const qInvPay = query(
+        txCol,
+        where('invoiceId', '==', targetInvId),
+        where('paymentReference', '==', params.paymentReference)
+      );
+      const snapInvPay = await getDocs(qInvPay);
+      const match = snapInvPay.docs.find(d => {
+        const dData = d.data();
+        return (dData.type || '').toLowerCase() === 'income';
+      });
+      if (match) {
+        existingTxDocId = match.id;
+      }
+    }
+
+    // 3. Search by sourceReferenceId / referenceId if present and not yet found
+    // CRITICAL: ONLY run this fallback search when candidatePaymentId is NOT provided!
+    // Never allow a payment to match the parent invoice document or overwrite non-payment records!
+    if (!existingTxDocId && candidateSourceRefId && !candidatePaymentId) {
+      const qSrcRef = query(txCol, where('sourceReferenceId', '==', candidateSourceRefId));
+      const snapSrcRef = await getDocs(qSrcRef);
+      if (!snapSrcRef.empty) {
+        const match = snapSrcRef.docs.find(d => {
+          const dData = d.data();
+          if (isMaintenanceExpense) {
+            const dType = (dData.type || '').toLowerCase();
+            const dTxType = (dData.transactionType || '').toUpperCase();
+            const dEntryType = (dData.entryType || '').toUpperCase();
+            return dType === 'expense' || dTxType === 'EXPENSE' || dEntryType === 'DEBIT';
+          }
+          if (dData.paymentId) {
+            return false;
+          }
+          return true;
+        });
+        if (match) {
+          existingTxDocId = match.id;
+        }
+      } else {
+        const qRefId = query(txCol, where('referenceId', '==', candidateSourceRefId));
+        const snapRefId = await getDocs(qRefId);
+        if (!snapRefId.empty) {
+          const match = snapRefId.docs.find(d => {
+            const dData = d.data();
+            if (isMaintenanceExpense) {
+              const dType = (dData.type || '').toLowerCase();
+              const dTxType = (dData.transactionType || '').toUpperCase();
+              const dEntryType = (dData.entryType || '').toUpperCase();
+              return dType === 'expense' || dTxType === 'EXPENSE' || dEntryType === 'DEBIT';
+            }
+            if (dData.paymentId) {
+              return false;
+            }
+            if (params.category && dData.category && dData.category !== params.category) {
+              return false;
+            }
+            return true;
+          });
+          if (match) {
+            existingTxDocId = match.id;
+          }
+        }
+      }
+    }
+
+    // ===================================================================
+    // DELETE / PURGE ORPHANED INCOME ENTRIES
+    // Clean up and remove any existing Income entries tied to Maintenance Order #A1
+    // (or any maintenance job) to eliminate double-entry duplication.
+    // ===================================================================
+    if (isMaintenanceExpense) {
+      try {
+        const orphanedIncomeDocIds = new Set<string>();
+
+        // Check by order candidate variants
+        for (const variant of candidateVariants) {
+          try {
+            const qOrdInc = query(txCol, where('orderId', '==', variant));
+            const snapOrdInc = await getDocs(qOrdInc);
+            snapOrdInc.docs.forEach(d => {
+              const dData = d.data();
+              const dType = (dData.type || '').toLowerCase();
+              const dTxType = (dData.transactionType || '').toUpperCase();
+              const dEntryType = (dData.entryType || '').toUpperCase();
+              if (dType === 'income' || dTxType === 'INCOME' || dEntryType === 'CREDIT') {
+                orphanedIncomeDocIds.add(d.id);
+              }
+            });
+
+            const qOrdNumInc = query(txCol, where('orderNumber', '==', variant));
+            const snapOrdNumInc = await getDocs(qOrdNumInc);
+            snapOrdNumInc.docs.forEach(d => {
+              const dData = d.data();
+              const dType = (dData.type || '').toLowerCase();
+              const dTxType = (dData.transactionType || '').toUpperCase();
+              const dEntryType = (dData.entryType || '').toUpperCase();
+              if (dType === 'income' || dTxType === 'INCOME' || dEntryType === 'CREDIT') {
+                orphanedIncomeDocIds.add(d.id);
+              }
+            });
+          } catch {}
+        }
+
+        // Check by referenceId / sourceReferenceId matching maintenance log ID
+        if (candidateSourceRefId) {
+          try {
+            const qRefInc = query(txCol, where('referenceId', '==', candidateSourceRefId));
+            const snapRefInc = await getDocs(qRefInc);
+            snapRefInc.docs.forEach(d => {
+              const dData = d.data();
+              const dType = (dData.type || '').toLowerCase();
+              const dTxType = (dData.transactionType || '').toUpperCase();
+              const dEntryType = (dData.entryType || '').toUpperCase();
+              if (dType === 'income' || dTxType === 'INCOME' || dEntryType === 'CREDIT') {
+                orphanedIncomeDocIds.add(d.id);
+              }
+            });
+
+            const qLinkedInc = query(txCol, where('linkedInvoiceRef', '==', candidateSourceRefId));
+            const snapLinkedInc = await getDocs(qLinkedInc);
+            snapLinkedInc.docs.forEach(d => {
+              const dData = d.data();
+              const dType = (dData.type || '').toLowerCase();
+              const dTxType = (dData.transactionType || '').toUpperCase();
+              const dEntryType = (dData.entryType || '').toUpperCase();
+              if (dType === 'income' || dTxType === 'INCOME' || dEntryType === 'CREDIT') {
+                orphanedIncomeDocIds.add(d.id);
+              }
+            });
+          } catch {}
+        }
+
+        // Specifically search and purge Order #A1 income entries
+        try {
+          const allTxSnap = await getDocs(query(txCol));
+          allTxSnap.docs.forEach(d => {
+            const dData = d.data();
+            const dType = (dData.type || '').toLowerCase();
+            const dTxType = (dData.transactionType || '').toUpperCase();
+            const dEntryType = (dData.entryType || '').toUpperCase();
+            const isInc = dType === 'income' || dTxType === 'INCOME' || dEntryType === 'CREDIT';
+            if (!isInc) return;
+            // Never purge legitimate invoice payments
+            if (dData.paymentId || dData.entityType === 'INVOICE' || dData.invoiceId || dData.isInvoicePayment) return;
+
+            const oVal = String(dData.orderId || dData.orderNumber || dData.maintenanceOrderId || '').trim().toLowerCase();
+            const desc = String(dData.description || '').toLowerCase();
+            const cat = String(dData.category || '').toLowerCase();
+            const isA1 =
+              oVal === 'a1' ||
+              oVal === '#a1' ||
+              oVal.includes('a1') ||
+              desc.includes('order: #a1') ||
+              desc.includes('order: a1') ||
+              desc.includes('order #a1') ||
+              desc.includes('order a1') ||
+              desc.includes('#a1');
+
+            const isMaint =
+              cat === 'maintenance' ||
+              dData.entityType === 'MAINTENANCE' ||
+              desc.includes('maintenance job') ||
+              desc.includes('maintenance expense') ||
+              Boolean(dData.maintenanceJobId);
+
+            if (isA1 || isMaint) {
+              orphanedIncomeDocIds.add(d.id);
+            }
+          });
+        } catch {}
+
+        for (const orphanId of orphanedIncomeDocIds) {
+          console.log(`[FinanceLedger Purge] Purging orphaned Income transaction ${orphanId} tied to maintenance order ${targetOrderId || candidateSourceRefId || 'A1'}`);
+          await deleteDoc(doc(db, 'transactions', orphanId)).catch(() => {});
+          try {
+            await deleteDoc(doc(db, 'finance_ledger', orphanId)).catch(() => {});
+          } catch {}
+        }
+      } catch (purgeErr) {
+        console.warn('Error purging orphaned maintenance income entries:', purgeErr);
+      }
+    }
+
+    if (existingTxDocId) {
+      // UPDATE in-place: do not insert a duplicate row!
+      console.log(`[FinanceLedger UPSERT] Updating existing Finance entry in-place: docId = ${existingTxDocId}`);
+      const updatePayload = sanitizeForFirestore({
+        ...transaction,
+        id: existingTxDocId,
+        updatedAt: new Date()
+      });
+      await updateDoc(doc(db, 'transactions', existingTxDocId), updatePayload);
+      try {
+        await setDoc(
+          doc(db, 'finance_ledger', existingTxDocId),
+          {
+            id: existingTxDocId,
+            ...(resolvedInvId ? { invoiceId: resolvedInvId } : {}),
+            ...updatePayload
+          },
+          { merge: true }
+        );
+      } catch {
+        // ignore
+      }
+      return { success: true, id: existingTxDocId, isUpdate: true };
+    }
+
+    // If Not Found: INSERT a new Finance entry
+    const sanitizedNew = sanitizeForFirestore(transaction);
+    const docRef = await addDoc(collection(db, 'transactions'), sanitizedNew);
+    try {
+      await setDoc(
+        doc(db, 'finance_ledger', docRef.id),
+        {
+          id: docRef.id,
+          ...(resolvedInvId ? { invoiceId: resolvedInvId } : {}),
+          ...sanitizedNew
+        },
+        { merge: true }
+      );
+    } catch {
+      // ignore
+    }
+    return { success: true, id: docRef.id, isUpdate: false };
   } catch (error) {
     console.error('Error creating finance transaction:', error);
     toast.error('Failed to create transaction');

@@ -35,6 +35,8 @@ import { db } from '../lib/firebase';
 import FormField from '../components/ui/FormField';
 import { checkVehicleStatus, updateVehicleStatus } from '../utils/vehicleStatusManager';
 import { WorkshopMirrorGuard } from '../components/maintenance/WorkshopMirrorGuard';
+import { syncMaintenanceRecord } from '../services/unifiedSync.service';
+import { useFinancialSync } from '../hooks/useFinancialSync';
 
 const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
@@ -43,6 +45,7 @@ const Maintenance: React.FC = () => {
   const { rentals, loading: rentalsLoading } = useRentals();
   const { can, isCompany } = usePermissions(); 
   const { user } = useAuth();
+  const { saveAndSync: saveAndSyncFinancialRecord } = useFinancialSync();
   const { companyDetails } = useCompanyDetails();
 
   // Maps
@@ -76,7 +79,12 @@ const Maintenance: React.FC = () => {
     dateRange,
     setDateRange,
     filteredLogs,
+    contextFilteredLogs,
   } = useMaintenanceFilters(logs, vehiclesMap);
+
+  // Explicit aliases for reactive financial calculations based on active search / vehicle / query filters
+  const allItems = logs;
+  const filteredItems = filteredLogs;
 
   const offRoadAccidentCount = React.useMemo(() => {
     return logs.filter(l => isOffRoadAccidentLog(l)).length;
@@ -311,18 +319,23 @@ const Maintenance: React.FC = () => {
       if (newStatus === 'completed' && !log.completedDate) {
         updates.completedDate = new Date();
       }
-      if (newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)') {
+      if (
+        newStatus === 'off-road' ||
+        newStatus === 'OFF ROAD (VOR)' ||
+        newStatus === 'accident' ||
+        newStatus === 'off-road-accident'
+      ) {
         updates.isOffRoad = true;
         updates.isNonDrivable = true;
         updates.roadCondition = 'OFF ROAD (VOR)';
-        updates.statusDisplay = 'OFF ROAD (VOR)';
+        updates.statusDisplay = newStatus === 'accident' ? 'Accident' : 'OFF ROAD (VOR)';
       } else {
         updates.isOffRoad = false;
         updates.isNonDrivable = false;
         updates.roadCondition = 'DRIVABLE';
         updates.statusDisplay = newStatus;
       }
-      await updateDoc(doc(db, 'maintenanceLogs', log.id), updates);
+      await saveAndSyncFinancialRecord('MAINTENANCE', updates, log.id);
 
       // Sync vehicle availability:
       // The vehicle is unavailable until the maintenance is marked completed
@@ -336,7 +349,7 @@ const Maintenance: React.FC = () => {
             ? 'In workshop'
             : newStatus === 'bodywork'
             ? 'In bodywork'
-            : newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)'
+            : newStatus === 'off-road' || newStatus === 'OFF ROAD (VOR)' || newStatus === 'accident'
             ? 'Off-road non-drivable due to accident repair'
             : newStatus === 'pending'
             ? 'Pending maintenance authorization'
@@ -382,8 +395,9 @@ const Maintenance: React.FC = () => {
 
       setModalLoading(true);
       try {
-         await updateDoc(doc(db, 'maintenanceLogs', log.id), {
+         await syncMaintenanceRecord(log.id, {
             orderNumber: formData.orderNumber,
+            orderId: formData.orderNumber,
             invoiceNumber: formData.invoiceNumber,
             serviceProvider: formData.serviceProvider,
             nextServiceDate: formData.nextServiceDate ? parseISO(formData.nextServiceDate) : null,
@@ -499,7 +513,12 @@ const Maintenance: React.FC = () => {
     <div className="space-y-3.5">
 
       <MaintenanceSummaryCards 
-        logs={logs} 
+        filteredItems={filteredItems}
+        allItems={allItems}
+        logs={allItems}
+        filteredLogs={filteredItems}
+        filteredData={filteredItems}
+        contextLogs={contextFilteredLogs}
         activeStatusFilter={statusFilter}
         onSelectStatusFilter={setStatusFilter}
         activeRoadConditionFilter={roadConditionFilter}
@@ -559,16 +578,30 @@ const Maintenance: React.FC = () => {
             <WorkshopMirrorGuard permission="either" behavior="hide">
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
-                  <a
-                    href="/workshop-tv"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-teal-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 hover:text-teal-800 active:scale-95 transition-all cursor-pointer gap-1.5"
-                    title="Open Workshop TV Display Mirror (Auto-Rotation Board) in new tab"
-                  >
-                    <Tv className="h-4 w-4 text-teal-600 pointer-events-none" />
-                    <span>Workshop TV</span>
-                  </a>
+                  <div className="inline-flex items-center rounded-xl border border-teal-200 shadow-xs bg-teal-50 overflow-hidden flex-shrink-0">
+                    <a
+                      href="/workshop-tv"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex whitespace-nowrap items-center justify-center px-3 py-2 text-xs sm:text-sm font-semibold text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer gap-1.5"
+                      title="Open Workshop TV Display Mirror (Auto-Rotation Board) in new tab"
+                    >
+                      <Tv className="h-4 w-4 text-teal-600 pointer-events-none" />
+                      <span>Workshop TV</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tvUrl = `${window.location.origin}/workshop-tv`;
+                        navigator.clipboard.writeText(tvUrl);
+                        toast.success('Workshop TV URL copied to clipboard!');
+                      }}
+                      className="p-2 border-l border-teal-200 text-teal-600 hover:bg-teal-100 active:scale-95 transition-colors cursor-pointer"
+                      title="Copy Workshop TV URL for Smart TV or Cast"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </WorkshopMirrorGuard>
 
                 <WorkshopMirrorGuard permission="publicMirror" behavior="hide">

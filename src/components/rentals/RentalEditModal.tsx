@@ -17,6 +17,7 @@ import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gau
 import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { syncRentalRecord } from '../../services/unifiedSync.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import RentalCommunicationModal from './RentalCommunicationModal';
@@ -537,6 +538,12 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
       const finalUpdatePayload = cleanObjectForFirestore(rentalUpdateData);
 
       await updateDoc(doc(db, 'rentals', rental.id), finalUpdatePayload);
+
+      // Synchronize immediately with Central Finance Ledger
+      syncRentalRecord(rental.id, finalUpdatePayload).catch((err) =>
+        console.warn('Background sync error for updated rental:', err)
+      );
+
       const completeUpdatedRental = { ...rental, ...rentalUpdateData } as Rental;
       setSavedRentalForShare(completeUpdatedRental);
       setIsConfirmModalOpen(false);

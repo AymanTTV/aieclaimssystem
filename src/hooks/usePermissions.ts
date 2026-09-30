@@ -8,12 +8,58 @@ export const usePermissions = () => {
   const can = (module: keyof RolePermissions, action: keyof Permission): boolean => {
     if (!user) return false;
 
+    // Direct check for payment deletion / maintenance finance privileges on user profile
+    if (action === 'deletePayment' || action === ('can_delete_payments' as any)) {
+      if (
+        user.can_delete_payments === true ||
+        user.manage_maintenance_finance === true ||
+        (user as any)['can_delete_payments'] === true ||
+        (user as any)['manage_maintenance_finance'] === true
+      ) {
+        return true;
+      }
+    }
+    if (action === ('manage_maintenance_finance' as any)) {
+      if (
+        user.manage_maintenance_finance === true ||
+        (user as any)['manage_maintenance_finance'] === true
+      ) {
+        return true;
+      }
+    }
+
     // Strict Universal Explicit-Allow (Deny-by-Default):
-    // NO AUTOMATIC PERMISSIONS FOR ANYONE. No user, role, admin, or MANAGER gets automatic access.
     // Access is granted ONLY if the user's specific permission switch is explicitly set to true.
     const userModulePerms = user.permissions?.[module];
     if (userModulePerms && userModulePerms[action] === true) {
       return true;
+    }
+
+    // Payment delete aliases across maintenance and finance
+    if (module === 'maintenance') {
+      if (action === 'deletePayment' || action === ('can_delete_payments' as any)) {
+        if (
+          userModulePerms?.can_delete_payments === true ||
+          userModulePerms?.manage_maintenance_finance === true ||
+          userModulePerms?.deletePayment === true ||
+          (userModulePerms as any)?.['can_delete_payments'] === true ||
+          (userModulePerms as any)?.['manage_maintenance_finance'] === true ||
+          user.permissions?.finance?.can_delete_payments === true ||
+          user.permissions?.finance?.manage_maintenance_finance === true ||
+          user.permissions?.finance?.deletePayment === true
+        ) {
+          return true;
+        }
+      }
+      if (action === ('manage_maintenance_finance' as any)) {
+        if (
+          userModulePerms?.manage_maintenance_finance === true ||
+          (userModulePerms as any)?.['manage_maintenance_finance'] === true ||
+          user.permissions?.finance?.manage_maintenance_finance === true
+        ) {
+          return true;
+        }
+      }
     }
 
     // Support High Risk Registry matrix key aliases and edit/update mapping
@@ -69,6 +115,30 @@ export const usePermissions = () => {
     isClaims:  user?.role?.toLowerCase() === 'claims',
     isCompany: user?.role?.toLowerCase() === 'company', 
     isMember:  user?.role?.toLowerCase() === 'member',
+    canDeletePayments: Boolean(
+      user?.can_delete_payments === true ||
+      user?.manage_maintenance_finance === true ||
+      (user as any)?.can_delete_payments === true ||
+      (user as any)?.manage_maintenance_finance === true ||
+      user?.permissions?.maintenance?.can_delete_payments === true ||
+      user?.permissions?.maintenance?.manage_maintenance_finance === true ||
+      user?.permissions?.maintenance?.deletePayment === true ||
+      (user?.permissions?.maintenance as any)?.['can_delete_payments'] === true ||
+      (user?.permissions?.maintenance as any)?.['manage_maintenance_finance'] === true ||
+      user?.permissions?.finance?.can_delete_payments === true ||
+      user?.permissions?.finance?.manage_maintenance_finance === true ||
+      user?.permissions?.finance?.deletePayment === true ||
+      (user?.permissions as any)?.can_delete_payments === true ||
+      (user?.permissions as any)?.manage_maintenance_finance === true
+    ),
+    canManageMaintenanceFinance: Boolean(
+      user?.manage_maintenance_finance === true ||
+      (user as any)?.manage_maintenance_finance === true ||
+      user?.permissions?.maintenance?.manage_maintenance_finance === true ||
+      (user?.permissions?.maintenance as any)?.['manage_maintenance_finance'] === true ||
+      user?.permissions?.finance?.manage_maintenance_finance === true ||
+      (user?.permissions as any)?.manage_maintenance_finance === true
+    ),
     role: user?.role ?? null,
     permissions: user?.permissions ?? null,
   };

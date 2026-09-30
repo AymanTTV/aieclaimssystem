@@ -18,8 +18,10 @@ import { uploadMaintenanceAttachments } from '../../utils/maintenanceUpload';
 import productService from '../../services/product.service';
 import maintenanceCategoryService from '../../services/maintenanceCategory.service';
 import ProductFormModal from '../products/ProductFormModal'; 
-import { Plus, PlusCircle, Car, Wrench, Layers, CreditCard, Paperclip, ArrowRight, ArrowLeft, AlertTriangle, AlertCircle } from 'lucide-react'; 
+import { Plus, PlusCircle, Car, Wrench, Layers, CreditCard, Paperclip, ArrowRight, ArrowLeft, AlertTriangle, AlertCircle, TrendingUp, TrendingDown, Percent, DollarSign } from 'lucide-react'; 
 import { checkVehicleStatus, updateVehicleStatus } from '../../utils/vehicleStatusManager';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { fetchUnifiedProfitAndCosts, syncMaintenanceRecord } from '../../services/unifiedSync.service';
 
 interface MaintenanceFormProps {
   vehicles: Vehicle[];
@@ -74,6 +76,29 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const [additionalPayment, setAdditionalPayment] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState(editLog?.paymentMethod || 'cash');
   const [paymentReference, setPaymentReference] = useState(editLog?.paymentReference || '');
+  const [subcontractorCost, setSubcontractorCost] = useState<string>(
+    editLog?.subcontractorCost !== undefined && Number(editLog.subcontractorCost) > 0
+      ? String(editLog.subcontractorCost)
+      : '0'
+  );
+
+  useEffect(() => {
+    if (editLog?.id) {
+      if (editLog.subcontractorCost !== undefined && Number(editLog.subcontractorCost) > 0) {
+        setSubcontractorCost(String(editLog.subcontractorCost));
+      } else {
+        fetchUnifiedProfitAndCosts({
+          id: editLog.id,
+          orderNumber: editLog.orderNumber || editLog.orderId,
+          invoiceNumber: editLog.invoiceNumber,
+        }).then((unified) => {
+          if (unified && unified.subcontractorCost !== undefined && unified.subcontractorCost > 0) {
+            setSubcontractorCost(String(unified.subcontractorCost));
+          }
+        });
+      }
+    }
+  }, [editLog?.id, editLog?.subcontractorCost, editLog?.orderNumber, editLog?.orderId, editLog?.invoiceNumber]);
   const { formatCurrency } = useFormattedDisplay();
 
   // Off-road & Accident Condition State
@@ -261,6 +286,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
   const remainingAmount = totalAmount - totalPaidAmount;
   const paymentStatus = totalPaidAmount >= totalAmount ? 'paid' : totalPaidAmount > 0 ? 'partially_paid' : 'unpaid';
 
+  const subCostNum = Math.max(0, parseFloat(subcontractorCost) || 0);
+  const profitMetrics = calculateProfitMetrics(totalAmount, subCostNum);
+
   useEffect(() => { if (editLog) setExistingPaidAmount(editLog.paidAmount || 0); }, [editLog]);
 
   useEffect(() => {
@@ -419,6 +447,11 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         laborRate: formData.laborRate,
         laborCost: laborTotal,
         cost: totalAmount,
+        subcontractorCost: editLog ? profitMetrics.subcontractorCost : totalAmount,
+        customerBilled: totalAmount,
+        netProfit: editLog ? profitMetrics.netProfit : 0,
+        profitMarginPercent: editLog ? profitMetrics.profitMarginPercent : 0,
+        isProfitEdited: Boolean(editLog),
         netAmount,
         vatAmount,
         paidAmount: totalPaidAmount,
@@ -494,8 +527,16 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       } : undefined;
   
       if (editLog) {
-        await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+        await syncMaintenanceRecord(editLog.id, {
           ...maintenanceData,
+          orderId: orderNumber,
+          orderNumber: orderNumber,
+          invoiceNumber: invoiceNumber,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          customerBilled: totalAmount,
+          netProfit: profitMetrics.netProfit,
+          profitMarginPercent: profitMetrics.profitMarginPercent,
+          isProfitEdited: true,
           updatedAt: new Date(),
           updatedBy: user.id,
         });
@@ -513,10 +554,21 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               vehicleOwner,
               accountFrom: vehicleOwner?.accountId || undefined,
               paymentMethod: paymentMethod,
-              paymentReference: paymentReference || undefined,
+              paymentReference: invoiceNumber || paymentReference || undefined,
               paymentStatus: maintenanceData.paymentStatus,
               status: 'completed',
               date: new Date(),
+              dealerCost: profitMetrics.subcontractorCost,
+              subcontractorCost: profitMetrics.subcontractorCost,
+              customerBilled: totalAmount,
+              netProfit: profitMetrics.netProfit,
+              profitMarginPercent: profitMetrics.profitMarginPercent,
+              isProfitEdited: true,
+              isEdited: true,
+              linkedInvoiceRef: editLog.id,
+              orderId: orderNumber,
+              orderNumber: orderNumber,
+              invoiceNumber: invoiceNumber,
               groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
               // ✅ ADD THESE LINES:
               groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
@@ -539,6 +591,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       } else { 
         const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
           ...maintenanceData,
+          orderId: orderNumber,
+          orderNumber: orderNumber,
+          invoiceNumber: invoiceNumber,
+          subcontractorCost: totalAmount,
+          customerBilled: totalAmount,
+          netProfit: 0,
+          profitMarginPercent: 0,
+          isProfitEdited: false,
           vehicleId: manualEntry ? null : selectedVehicleId,
           vehicleDetails: manualEntry ? maintenanceData.vehicleDetails : null,
           createdAt: new Date(),
@@ -562,6 +622,13 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
             paymentStatus: maintenanceData.paymentStatus,
             status: 'completed',
             date: new Date(),
+            subcontractorCost: totalAmount,
+            customerBilled: totalAmount,
+            netProfit: 0,
+            profitMarginPercent: 0,
+            orderId: orderNumber,
+            orderNumber: orderNumber,
+            invoiceNumber: invoiceNumber,
             groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
             // ✅ ADD THESE LINES:
             groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
@@ -1307,6 +1374,100 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                         onChange={e => setPaymentReference(e.target.value)}
                         placeholder="Enter payment reference or transaction ID"
                       />
+                    </div>
+                  </div>
+
+                  {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+                  <div className="bg-white p-4.5 rounded-xl border-2 border-indigo-100 space-y-3 text-slate-900 shadow-md">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                          <DollarSign className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                            Dealer / Subcontractor Cost & Profit Tracking
+                          </h4>
+                          <p className="text-[11px] text-slate-500">Live profit margin preview based on customer billed total</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+                        Billed: {formatCurrency(totalAmount)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Dealer / Subcontractor Cost (£)
+                        </label>
+                        <div className="relative rounded-lg shadow-2xs">
+                          <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-sm font-bold">
+                            £
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={subcontractorCost}
+                            onChange={(e) => setSubcontractorCost(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Profit Preview Badges */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div
+                          className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                            profitMetrics.netProfit >= 0
+                              ? 'bg-emerald-50/80 border-emerald-200'
+                              : 'bg-rose-50/80 border-rose-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                            <span>Live Net Profit</span>
+                            {profitMetrics.netProfit >= 0 ? (
+                              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                            )}
+                          </div>
+                          <p
+                            className={`text-base font-black font-mono mt-0.5 ${
+                              profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                            }`}
+                          >
+                            {profitMetrics.netProfit >= 0 ? '+' : ''}
+                            {formatCurrency(profitMetrics.netProfit)}
+                          </p>
+                          <span className="text-[10px] text-slate-500">Billed – Dealer Cost</span>
+                        </div>
+
+                        <div
+                          className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                            profitMetrics.profitMarginPercent >= 0
+                              ? 'bg-indigo-50/80 border-indigo-200'
+                              : 'bg-rose-50/80 border-rose-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                            <span>Profit Margin</span>
+                            <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                          </div>
+                          <p
+                            className={`text-base font-black font-mono mt-0.5 ${
+                              profitMetrics.profitMarginPercent >= 0
+                                ? 'text-indigo-700'
+                                : 'text-rose-700'
+                            }`}
+                          >
+                            {profitMetrics.profitMarginPercent.toFixed(1)}%
+                          </p>
+                          <span className="text-[10px] text-slate-500">Margin on billed</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

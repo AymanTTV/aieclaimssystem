@@ -220,6 +220,150 @@ export const useMaintenanceFilters = (
     user 
   ]);
 
+  // Context-filtered logs (matches search, vehicle, type, date range, etc. without statusFilter)
+  // allows status filter cards to reflect counts for the active vehicle/search context
+  const contextFilteredLogs = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    const canViewCompleted = can('maintenance', 'completed') && !isCompany;
+    const companyNameLower = (user?.companyName || user?.name || '').toLowerCase().trim();
+
+    return logs.filter(log => {
+      if (!canViewCompleted && (log.status === 'completed' || log.status === 'cancelled')) {
+        return false;
+      }
+
+      if (isCompany) {
+        if (log.vehicleId && !vehicles[log.vehicleId]) {
+          return false;
+        }
+
+        const isOffRoadAccident = isOffRoadAccidentLog(log) || log.ticketCategory === 'ACCIDENT DAMAGE' || log.category === 'ACCIDENT DAMAGE';
+        const isAssignedVehicle = Boolean(log.vehicleId && vehicles[log.vehicleId]);
+
+        if (!isOffRoadAccident) {
+          const providerLower = (log.serviceProvider || '').trim().toLowerCase();
+          if (providerLower && providerLower !== companyNameLower) {
+            return false;
+          }
+          if (!providerLower && !isAssignedVehicle) {
+            return false;
+          }
+        }
+      }
+
+      const vehicle = vehicles[log.vehicleId || ''] || (log.vehicleDetails as any);
+
+      const matchesSearch = (() => {
+        if (!searchQuery) return true;
+        const vehicleText = vehicle 
+          ? `${vehicle.make} ${vehicle.model} ${vehicle.registrationNumber}`.toLowerCase() 
+          : (log.vehicleId ? log.vehicleId.toLowerCase() : '');
+
+        const typeFormatted = (log.type || '').replace(/-/g, ' ').toLowerCase();
+        const partsText = (log.parts || [])
+          .map(p => `${p.name || ''} ${p.partNumber || ''}`)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          vehicleText.includes(searchLower) ||
+          typeFormatted.includes(searchLower) ||
+          (log.type || '').toLowerCase().includes(searchLower) ||
+          (log.status || '').toLowerCase().includes(searchLower) ||
+          (log.paymentStatus || '').toLowerCase().includes(searchLower) ||
+          (log.serviceProvider || '').toLowerCase().includes(searchLower) ||
+          (log.location || '').toLowerCase().includes(searchLower) ||
+          (log.description || '').toLowerCase().includes(searchLower) ||
+          (log.notes || '').toLowerCase().includes(searchLower) ||
+          (log.orderNumber || '').toLowerCase().includes(searchLower) ||
+          (log.invoiceNumber || '').toLowerCase().includes(searchLower) ||
+          partsText.includes(searchLower)
+        );
+      })();
+
+      const matchesType =
+        typeFilter === 'all' ||
+        (log.type || '').toLowerCase() === typeFilter.toLowerCase();
+
+      const matchesVehicle =
+        !vehicleFilter || vehicleFilter === 'all' || log.vehicleId === vehicleFilter;
+
+      const matchesPaymentStatus =
+        paymentStatusFilter === 'all' ||
+        (log.paymentStatus || '').toLowerCase() === paymentStatusFilter.toLowerCase();
+
+      const matchesRoadCondition = (() => {
+        if (roadConditionFilter === 'all') return true;
+        const isAccidentOffRoad = isOffRoadAccidentLog(log);
+        if (roadConditionFilter === 'off-road-accident') {
+          return isAccidentOffRoad;
+        }
+        if (roadConditionFilter === 'all-off-road') {
+          return isAccidentOffRoad || log.isOffRoad === true || log.isNonDrivable === true;
+        }
+        if (roadConditionFilter === 'drivable') {
+          return !isAccidentOffRoad && !log.isOffRoad && !log.isNonDrivable;
+        }
+        return true;
+      })();
+
+      let matchesDate = true;
+      if (dateRange.from || dateRange.to) {
+        const logDate = log.date instanceof Date ? log.date : (log.date as any).toDate();
+        if (dateRange.from) {
+          const start = startOfDay(parseISO(dateRange.from));
+          if (logDate < start) matchesDate = false;
+        }
+        if (dateRange.to) {
+          const end = endOfDay(parseISO(dateRange.to));
+          if (logDate > end) matchesDate = false;
+        }
+      }
+
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesVehicle &&
+        matchesPaymentStatus &&
+        matchesRoadCondition &&
+        matchesDate
+      );
+    });
+  }, [
+    logs,
+    vehicles,
+    searchQuery,
+    typeFilter,
+    vehicleFilter,
+    paymentStatusFilter,
+    roadConditionFilter,
+    dateRange,
+    can,
+    isCompany,
+    user 
+  ]);
+
+  const isFiltered = useMemo(() => {
+    return Boolean(
+      (searchQuery && searchQuery.trim().length > 0) ||
+      statusFilter !== 'all' ||
+      typeFilter !== 'all' ||
+      (vehicleFilter && vehicleFilter !== 'all') ||
+      paymentStatusFilter !== 'all' ||
+      roadConditionFilter !== 'all' ||
+      dateRange.from !== '' ||
+      dateRange.to !== ''
+    );
+  }, [
+    searchQuery,
+    statusFilter,
+    typeFilter,
+    vehicleFilter,
+    paymentStatusFilter,
+    roadConditionFilter,
+    dateRange
+  ]);
+
   return {
     searchQuery,
     setSearchQuery,
@@ -235,6 +379,8 @@ export const useMaintenanceFilters = (
     setRoadConditionFilter,
     dateRange,
     setDateRange,
-    filteredLogs
+    filteredLogs,
+    contextFilteredLogs,
+    isFiltered
   };
 };

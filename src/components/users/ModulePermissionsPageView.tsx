@@ -193,6 +193,8 @@ export const PERMISSION_METADATA: Record<PermissionAction, { label: string; desc
   viewPayment: { label: 'View Payments', description: 'Allows inspecting payment logs, receipts, and allocation history.', category: 'Financial & Operations' },
   editPayment: { label: 'Edit Payments', description: 'Allows amending payment amounts, methods, or dates.', category: 'Financial & Operations' },
   deletePayment: { label: 'Delete Payments', description: 'Allows voiding or deleting recorded payment entries.', category: 'Financial & Operations' },
+  can_delete_payments: { label: 'Delete Payments (Permission)', description: 'Authorizes deleting payment history entries and reversing ledger records.', category: 'Financial & Operations' },
+  manage_maintenance_finance: { label: 'Manage Maintenance Finance', description: 'Grants full access to maintenance payment schedules, subcontractor costs, dealer rates, and financial adjustments.', category: 'Financial & Operations' },
   accounts: { label: 'Accounts Ledger', description: 'Enables managing the chart of accounts, bank transfers, and ledgers.', category: 'Financial & Operations' },
   period: { label: 'Pay Period', description: 'Allows filtering and generating settlements by specific pay periods.', category: 'Financial & Operations' },
   reoccurring: { label: 'Recurring Rules', description: 'Allows creating and managing automated recurring billing or expense schedules.', category: 'Financial & Operations' },

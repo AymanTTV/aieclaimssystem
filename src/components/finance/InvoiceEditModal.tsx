@@ -17,10 +17,12 @@ import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal'; 
-import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer } from 'lucide-react'; 
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, TrendingUp, TrendingDown, Percent, DollarSign } from 'lucide-react'; 
 import Modal from '../ui/Modal';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { fetchUnifiedProfitAndCosts, syncInvoiceRecord } from '../../services/unifiedSync.service';
 
 interface InvoiceEditModalProps {
   invoice: Invoice;
@@ -70,7 +72,47 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
 
-  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>((invoice.lineItems || []).map(li => ({ ...li })));
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(() =>
+    (invoice.lineItems || []).map((li, idx) => ({
+      ...li,
+      id: li.id || `line-${idx}-${uuidv4()}`,
+      description: li.description || '',
+      quantity: Number(li.quantity) || 1,
+      unitPrice: Number(li.unitPrice) || 0,
+      discount: Number(li.discount) || 0,
+      includeVAT: Boolean(li.includeVAT),
+      vehicleId: li.vehicleId || '',
+      vehicleName: li.vehicleName || '',
+    }))
+  );
+  const initialLineItemCost = (invoice.lineItems || []).reduce((acc, li) => acc + (Number(li.subcontractorCost) || 0), 0);
+  const [subcontractorCost, setSubcontractorCost] = useState<string>(
+    invoice.subcontractorCost !== undefined && Number(invoice.subcontractorCost) > 0
+      ? String(invoice.subcontractorCost)
+      : initialLineItemCost > 0
+      ? String(initialLineItemCost)
+      : '0'
+  );
+
+  useEffect(() => {
+    const lineItemCost = (invoice.lineItems || []).reduce((acc, li) => acc + (Number(li.subcontractorCost) || 0), 0);
+    if (invoice.subcontractorCost !== undefined && Number(invoice.subcontractorCost) > 0) {
+      setSubcontractorCost(String(invoice.subcontractorCost));
+    } else if (lineItemCost > 0) {
+      setSubcontractorCost(String(lineItemCost));
+    } else {
+      fetchUnifiedProfitAndCosts({
+        id: invoice.id,
+        referenceId: invoice.referenceId,
+        orderNumber: invoice.orderNumber || invoice.orderId,
+        invoiceNumber: invoice.invoiceNumber,
+      }).then((unified) => {
+        if (unified && unified.subcontractorCost !== undefined && unified.subcontractorCost > 0) {
+          setSubcontractorCost(String(unified.subcontractorCost));
+        }
+      });
+    }
+  }, [invoice.id, invoice.subcontractorCost, invoice.referenceId, invoice.orderNumber, invoice.orderId, invoice.invoiceNumber, invoice.lineItems]);
   
   // Share Modal & Post-Save trigger states
   const [showShareModal, setShowShareModal] = useState(false);
@@ -122,6 +164,8 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
     paymentReference: '',
     paymentNotes: '',
     isLoan: invoice.isLoan ?? false,
+    transactionType: (invoice.isLoan ? 'EXPENSE' : 'INCOME') as 'EXPENSE' | 'INCOME',
+    loanTransactionType: (invoice.loanTransactionType || 'expense') as 'expense' | 'income',
     uploadedDocument: null as File | null
   });
 
@@ -204,21 +248,34 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
   const computeTotals = () => {
     let subTotal = 0; let vatAmount = 0; let totalDiscount = 0;
     lineItems.forEach(item => {
-      const lineNet = item.quantity * item.unitPrice;
-      const discountAmt = (item.discount / 100) * lineNet;
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discount) || 0;
+      const lineNet = qty * price;
+      const discountAmt = (disc / 100) * lineNet;
       totalDiscount += discountAmt;
       const netAfterDiscount = lineNet - discountAmt;
       subTotal += netAfterDiscount;
       if (item.includeVAT) { vatAmount += netAfterDiscount * 0.2; }
     });
-    return { subTotal, vatAmount, total: subTotal + vatAmount, totalDiscount };
+    const finalTotal = isNaN(subTotal + vatAmount) ? 0 : subTotal + vatAmount;
+    return {
+      subTotal: isNaN(subTotal) ? 0 : subTotal,
+      vatAmount: isNaN(vatAmount) ? 0 : vatAmount,
+      total: finalTotal,
+      totalDiscount: isNaN(totalDiscount) ? 0 : totalDiscount,
+    };
   };
 
   const { subTotal, vatAmount, total, totalDiscount } = computeTotals();
 
+  const subCostNum = Math.max(0, parseFloat(subcontractorCost) || 0);
+  const profitMetrics = calculateProfitMetrics(total, subCostNum);
+
   useEffect(() => {
     if (formData.isAddingPayment) {
-      const remaining = Math.max(0, total - (invoice.paidAmount || 0));
+      const paid = Number(invoice.paidAmount) || 0;
+      const remaining = isNaN(total - paid) ? 0 : Math.max(0, total - paid);
       setFormData(fd => ({ ...fd, amountToPay: remaining.toFixed(2) }));
     }
   }, [formData.isAddingPayment, total, invoice.paidAmount]);
@@ -339,6 +396,10 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         date: new Date(formData.date), dueDate: new Date(formData.dueDate),
         lineItems: lineItems.map(li => ({ ...li })),
         subTotal, vatAmount, total, amount: total,
+        subcontractorCost: profitMetrics.subcontractorCost,
+        customerBilled: total,
+        netProfit: profitMetrics.netProfit,
+        profitMarginPercent: profitMetrics.profitMarginPercent,
         paidAmount: newTotalPaid, remainingAmount: newRemaining,
         paymentStatus: newStatus as any, category: formData.category, description: formData.description,
         customCategory: formData.category === 'Other' ? formData.customCategory : null,
@@ -351,13 +412,28 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         customerId: formData.useCustomCustomer ? null : (formData.customerId || null),
         customerName: formData.useCustomCustomer ? formData.customerName : customers.find(c => c.id === formData.customerId)?.name || '',
         customerPhone: formData.useCustomCustomer ? formData.customerPhone : customers.find(c => c.id === formData.customerId)?.mobile || '',
-        payments: updatedPayments, isLoan: formData.isLoan,
+        payments: updatedPayments, 
+        isLoan: formData.isLoan,
+        loanTransactionType: formData.isLoan ? (formData.loanTransactionType || 'expense') : null,
+        transactionType: formData.isLoan 
+          ? (formData.loanTransactionType === 'income' ? 'INCOME' : 'EXPENSE')
+          : 'INCOME',
+        type: formData.isLoan 
+          ? (formData.loanTransactionType === 'income' ? 'income' : 'expense')
+          : 'income',
         accountFrom: formData.accountFrom || null,
         accountTo: formData.accountTo || null,
         updatedAt: new Date()
       };
 
-      await updateDoc(doc(db, 'invoices', invoice.id), payload);
+      console.log(
+        `[InvoiceEditModal Submission Handler] Pre-dispatch payload check -> ` +
+        `Invoice: ${invoiceNumberToSave} | isLoan: ${Boolean(payload.isLoan)} | ` +
+        `loanTransactionType: "${payload.loanTransactionType}" | ` +
+        `transactionType (Verified): "${payload.transactionType}" (type: "${payload.type}")`
+      );
+
+      await syncInvoiceRecord(invoice.id, payload);
 
       const fullInv = { id: invoice.id, ...invoice, ...payload } as any;
       const pdfVehicle = mainVehicle;
@@ -401,16 +477,30 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
 
       const txRef = collection(db, 'transactions');
       const qExp = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'expense'));
-      const txSnaps = await getDocs(qExp);
+      const qInc = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'income'));
+      const [snapExp, snapInc] = await Promise.all([getDocs(qExp), getDocs(qInc)]);
       const batch = writeBatch(db);
-      txSnaps.forEach(d => {
-        if (d.data().category === (invoice.category || 'Loan Provided') || d.data().category === 'Loan Provided') {
+      snapExp.forEach(d => {
+        const cat = d.data().category;
+        const desc = d.data().description || '';
+        if (cat === 'Loan Provided' || cat === 'Loan Received' || cat === (invoice.category || 'Loan Provided') || desc.includes('Loan')) {
+           batch.delete(d.ref);
+        }
+      });
+      snapInc.forEach(d => {
+        const cat = d.data().category;
+        const desc = d.data().description || '';
+        if (cat === 'Loan Provided' || cat === 'Loan Received' || desc.includes('Loan')) {
            batch.delete(d.ref);
         }
       });
       await batch.commit();
 
       if (formData.isLoan) {
+          const loanType: 'expense' | 'income' = formData.loanTransactionType === 'income' ? 'income' : 'expense';
+          const defaultCategory = loanType === 'income' ? 'Loan Received' : 'Loan Provided';
+          const loanLabel = loanType === 'income' ? 'Loan Received (Income)' : 'Loan Provided (Expense)';
+
           for (const [vId, totals] of groupsByVehicle.entries()) {
               const targetVehicle = vehicles.find(v => v.id === vId);
               const vehicleOwner = targetVehicle?.owner 
@@ -423,11 +513,17 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
               const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
 
               await createFinanceTransaction({
-                  type: 'expense',
-                  category: formData.category || 'Loan Provided',
+                  type: loanType,
+                  transactionType: loanType === 'income' ? 'INCOME' : 'EXPENSE',
+                  category: formData.category || defaultCategory,
                   amount: totals.gross,
-                  description: [formData.description, `Loan for Invoice ${invoiceNumberToSave}`].filter(Boolean).join(' - '),
+                  description: [formData.description, `${loanLabel} for Invoice ${invoiceNumberToSave}`].filter(Boolean).join(' - '),
                   referenceId: invoice.id,
+                  sourceReferenceId: invoice.id,
+                  linkedInvoiceRef: invoice.id,
+                  entityId: invoice.id,
+                  entityType: 'INVOICE',
+                  invoiceNumber: invoiceNumberToSave,
                   vehicleId: vId === 'unassigned' ? undefined : vId,
                   vehicleName: totals.vehicleName,
                   vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
@@ -436,6 +532,11 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                   paymentMethod: 'internal',
                   paymentStatus: 'paid',
                   date: new Date(formData.date), 
+                  subcontractorCost: profitMetrics.subcontractorCost,
+                  dealerCost: profitMetrics.subcontractorCost,
+                  customerBilled: total,
+                  netProfit: profitMetrics.netProfit,
+                  profitMarginPercent: profitMetrics.profitMarginPercent,
                   accountFrom: formData.accountFrom || undefined,
                   accountTo: formData.accountTo || undefined,
                   groupId: rawGroupId || undefined, 
@@ -446,7 +547,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           }
       }
 
-      if (formData.isAddingPayment && payNow > 0) {
+      if (!formData.isLoan && formData.isAddingPayment && payNow > 0) {
           let finalAccountId = formData.accountTo || formData.accountId;
           if (!finalAccountId) {
               const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
@@ -474,10 +575,15 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
               if (allocatedPayment > 0) {
                   await createFinanceTransaction({
                       type: 'income',
+                      transactionType: 'INCOME',
                       category: actualCategory,
                       amount: allocatedPayment,
                       description: [formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${invoiceNumberToSave}`,
-                      referenceId: invoice.id, 
+                      referenceId: invoice.id,
+                      sourceReferenceId: invoice.id,
+                      linkedInvoiceRef: invoice.id,
+                      entityId: invoice.id,
+                      entityType: 'INVOICE',
                       vehicleId: vId === 'unassigned' ? undefined : vId,
                       vehicleName: totals.vehicleName,
                       vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
@@ -488,6 +594,14 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                       paymentId: newPaymentId, // ✅ Dedicated system link
                       paymentStatus: newStatus as any,
                       date: new Date(),
+                      subcontractorCost: profitMetrics.subcontractorCost,
+                      dealerCost: profitMetrics.subcontractorCost,
+                      customerBilled: total,
+                      netProfit: profitMetrics.netProfit,
+                      profitMarginPercent: profitMetrics.profitMarginPercent,
+                      orderId: (invoice as any).orderNumber || (invoice as any).orderId,
+                      orderNumber: (invoice as any).orderNumber || (invoice as any).orderId,
+                      invoiceNumber: invoiceNumberToSave,
                       accountTo: finalAccountId || undefined,
                       groupId: rawGroupId || undefined, 
                       groupName: resolvedGroupName || undefined, 
@@ -534,7 +648,16 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         onClose();
       }
 
-      toast.success(`Invoice ${invoiceNumberToSave} updated successfully!`);
+      const expectedTransactionType = formData.isLoan ? 'EXPENSE' : 'INCOME';
+      console.log(
+        `[InvoiceEditModal Audit] Pre-save verification: Invoice ${invoiceNumberToSave} | isLoan=${formData.isLoan} ` +
+        `=> Ledger transactionType verified as: ${expectedTransactionType}`
+      );
+
+      toast.success(
+        `Invoice ${invoiceNumberToSave} updated! Ledger transactionType: ${expectedTransactionType}`,
+        { duration: 4500 }
+      );
     } catch (err) {
       console.error(err);
       toast.error('Failed to update invoice');
@@ -752,18 +875,83 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                 </div>
             </div>
 
-            <div className="flex items-start space-x-3 p-4 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
-                <input 
-                  type="checkbox" 
-                  id="confirmLoan" 
-                  checked={formData.isLoan} 
-                  onChange={e => setFormData(fd => ({ ...fd, isLoan: e.target.checked }))} 
-                  className="mt-1 h-5 w-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer" 
-                />
-                <label htmlFor="confirmLoan" className="text-sm font-bold text-amber-900 cursor-pointer">
-                  Is this a Loan Account? <br/>
-                  <span className="font-normal text-amber-700">Check this if an expense transaction should be recorded to the ledger.</span>
-                </label>
+            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 shadow-xs space-y-3">
+                <div className="flex items-start space-x-3">
+                  <input 
+                    type="checkbox" 
+                    id="confirmLoan" 
+                    checked={formData.isLoan} 
+                    onChange={e => {
+                      const isChecked = e.target.checked;
+                      setFormData(fd => ({
+                        ...fd,
+                        isLoan: isChecked,
+                        loanTransactionType: isChecked ? (fd.loanTransactionType || 'expense') : 'expense',
+                        transactionType: isChecked ? (fd.loanTransactionType === 'income' ? 'INCOME' : 'EXPENSE') : 'INCOME'
+                      }));
+                    }} 
+                    className="mt-1 h-5 w-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer" 
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="confirmLoan" className="text-sm font-bold text-amber-900 cursor-pointer select-none block">
+                      Is this a Loan Account?
+                    </label>
+                    <span className="text-xs text-amber-700 block mt-0.5">
+                      {formData.isLoan 
+                        ? 'Loan account enabled. Select ledger posting mode below (defaults to Expense).'
+                        : 'Unchecked: Records standard Income entry to the Finance Ledger.'}
+                    </span>
+                  </div>
+                </div>
+
+                {formData.isLoan && (
+                  <div className="pt-2 border-t border-amber-200/80 pl-8 space-y-2">
+                    <label className="text-xs font-black uppercase tracking-wider text-amber-900 block">
+                      Ledger Transaction Type:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(fd => ({ ...fd, loanTransactionType: 'expense', transactionType: 'EXPENSE' }))}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                          (formData.loanTransactionType || 'expense') === 'expense'
+                            ? 'bg-rose-50 border-rose-500 text-rose-900 ring-2 ring-rose-500/20 shadow-xs'
+                            : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold">Expense (Default)</span>
+                          {(formData.loanTransactionType || 'expense') === 'expense' && (
+                            <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-200 text-rose-800">Active</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Debit entry / Loan Provided
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(fd => ({ ...fd, loanTransactionType: 'income', transactionType: 'INCOME' }))}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                          formData.loanTransactionType === 'income'
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-xs'
+                            : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold">Income Mode</span>
+                          {formData.loanTransactionType === 'income' && (
+                            <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-800">Active</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Credit entry / Loan Received
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                )}
             </div>
 
             {/* Quick Actions (Selectable Checkboxes) */}
@@ -970,14 +1158,14 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           </div>
           <div className="space-y-3">
             {lineItems.map((item, idx) => (
-              <div key={item.id} className="relative p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3">
+              <div key={item.id || `line-item-${idx}`} className="relative p-3 border border-gray-200 rounded-md bg-gray-50 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
                   <div className="sm:col-span-2 relative">
-                    <FormField label="Description" value={item.description} onChange={e => { handleLineChange(idx, 'description', e.target.value); showAt(idx, true); }} onFocus={() => showAt(idx, true)} onBlur={() => { setTimeout(() => showAt(idx, false), 120); tryAutofillUnitPrice(item.description, idx); }} required />
+                    <FormField label="Description" value={item.description || ''} onChange={e => { handleLineChange(idx, 'description', e.target.value); showAt(idx, true); }} onFocus={() => showAt(idx, true)} onBlur={() => { setTimeout(() => showAt(idx, false), 120); tryAutofillUnitPrice(item.description, idx); }} required />
                     {showSuggestions[idx] && item.description && (
                       <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-2xl mt-1 max-h-56 overflow-y-auto">
-                        {filterMatches(item.description).map(s => (
-                          <li key={s.id} className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between" onMouseDown={() => { handleSuggestionSelect(s, idx); }} title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}>
+                        {filterMatches(item.description).map((s, sIdx) => (
+                          <li key={s.id || `sug-${sIdx}`} className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between" onMouseDown={() => { handleSuggestionSelect(s, idx); }} title={`${s.name}${s.partNumber ? ` (${s.partNumber})` : ''}`}>
                             <span className="truncate">{s.name}{s.partNumber ? <span className="text-gray-500"> — {s.partNumber}</span> : null}</span>
                             <span className="text-gray-500 text-sm ml-3">£{s.lastPrice.toFixed(2)}</span>
                           </li>
@@ -989,12 +1177,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                     )}
                   </div>
 
-                  <FormField type="number" label="Quantity" value={item.quantity} onChange={e => handleLineChange(idx, 'quantity', e.target.value)} min="1" inputClassName="w-full" required />
-                  <FormField type="number" label="Unit Price" value={item.unitPrice} onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)} min="0" step="0.01" inputClassName="w-full" required />
-                  <FormField type="number" label="Discount (%)" value={item.discount} onChange={e => handleLineChange(idx, 'discount', e.target.value)} min="0" max="100" step="0.1" inputClassName="w-full" />
+                  <FormField type="number" label="Quantity" value={item.quantity ?? 1} onChange={e => handleLineChange(idx, 'quantity', e.target.value)} min="1" inputClassName="w-full" required />
+                  <FormField type="number" label="Unit Price" value={item.unitPrice ?? 0} onChange={e => handleLineChange(idx, 'unitPrice', e.target.value)} min="0" step="0.01" inputClassName="w-full" required />
+                  <FormField type="number" label="Discount (%)" value={item.discount ?? 0} onChange={e => handleLineChange(idx, 'discount', e.target.value)} min="0" max="100" step="0.1" inputClassName="w-full" />
                   <div className="flex items-center space-x-4 col-span-1 sm:col-span-1">
                     <label className="flex items-center space-x-2">
-                      <input type="checkbox" checked={item.includeVAT} onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked) } className="rounded border-gray-300 text-primary focus:ring-primary" />
+                      <input type="checkbox" checked={Boolean(item.includeVAT)} onChange={e => handleLineChange(idx, 'includeVAT', e.target.checked) } className="rounded border-gray-300 text-primary focus:ring-primary" />
                       <span className="text-sm text-gray-600">+ VAT</span>
                     </label>
                     <button type="button" onClick={() => removeLineItem(idx)} className="text-red-600 hover:text-red-800" title="Remove Line">Remove</button>
@@ -1023,23 +1211,124 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           </div>
         </div>
 
+        {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+        <div className="bg-white p-4 rounded-xl border-2 border-indigo-100 space-y-3 shadow-2xs">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Dealer / Subcontractor Cost & Profit Tracking
+                </h4>
+                <p className="text-[11px] text-slate-500">Live profit margin preview based on updated invoice gross total</p>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+              Billed: {formatCurrency(total)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Dealer / Subcontractor Cost (£)
+              </label>
+              <div className="relative rounded-lg shadow-2xs">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-sm font-bold">
+                  £
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={subcontractorCost}
+                  onChange={(e) => setSubcontractorCost(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Live Profit Preview Badges */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div
+                className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                  profitMetrics.netProfit >= 0
+                    ? 'bg-emerald-50/80 border-emerald-200'
+                    : 'bg-rose-50/80 border-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                  <span>Live Net Profit</span>
+                  {profitMetrics.netProfit >= 0 ? (
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                  )}
+                </div>
+                <p
+                  className={`text-base font-black font-mono mt-0.5 ${
+                    profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {profitMetrics.netProfit >= 0 ? '+' : ''}
+                  {formatCurrency(profitMetrics.netProfit)}
+                </p>
+                <span className="text-[10px] text-slate-500">Customer Billed – Dealer Cost</span>
+              </div>
+
+              <div
+                className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                  profitMetrics.profitMarginPercent >= 0
+                    ? 'bg-indigo-50/80 border-indigo-200'
+                    : 'bg-rose-50/80 border-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                  <span>Profit Margin</span>
+                  <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                </div>
+                <p
+                  className={`text-base font-black font-mono mt-0.5 ${
+                    profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                  }`}
+                >
+                  {profitMetrics.profitMarginPercent.toFixed(1)}%
+                </p>
+                <span className="text-[10px] text-slate-500">Margin on billed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           <div className="flex justify-between text-sm text-[#000000] font-semibold"><span>Net:</span><span className="font-mono">{formatCurrency(subTotal)}</span></div>
           <div className="flex justify-between text-sm text-[#2563EB] font-semibold"><span>VAT:</span><span className="font-mono">{formatCurrency(vatAmount)}</span></div>
           <div className="flex justify-between text-sm text-[#D97706] font-semibold"><span>Discount:</span><span className="font-mono">–{formatCurrency(totalDiscount)}</span></div>
           <div className="flex justify-between text-lg font-bold pt-2 border-t text-[#D97706]"><span>Total:</span><span className="font-mono">{formatCurrency(total)}</span></div>
-          <div className="flex justify-between text-sm text-[#15803D] font-bold"><span>Paid (so far):</span><span className="font-mono">{formatCurrency(invoice.paidAmount || 0)}</span></div>
+          <div className="flex justify-between text-sm text-[#15803D] font-bold"><span>Paid:</span><span className="font-mono">{formatCurrency(invoice.paidAmount || 0)}</span></div>
           <div className="flex justify-between text-sm text-[#DC2626] font-bold"><span>Owing:</span><span className="font-mono">{formatCurrency(Math.max(0, total - (invoice.paidAmount || 0)))}</span></div>
         </div>
 
         <div>
           <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={formData.isAddingPayment} onChange={e => setFormData(fd => ({ ...fd, isAddingPayment: e.target.checked, amountToPay: e.target.checked ? (Math.max(0, total - (invoice.paidAmount || 0))).toFixed(2) : '0' }))} className="rounded border-gray-300 text-primary focus:ring-primary" />
+            <input type="checkbox" checked={Boolean(formData.isAddingPayment)} onChange={e => setFormData(fd => ({ ...fd, isAddingPayment: e.target.checked, amountToPay: e.target.checked ? (Math.max(0, total - (Number(invoice.paidAmount) || 0))).toFixed(2) : '0' }))} className="rounded border-gray-300 text-primary focus:ring-primary" />
             <span className="text-sm text-gray-700">Add Payment</span>
           </label>
         </div>
 
-        <FormField type="number" label="Amount to Pay (£)" value={formData.amountToPay} onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))} min="0" max={Math.max(0, total - (invoice.paidAmount || 0))} step="0.01" disabled={!formData.isAddingPayment} />
+        <FormField 
+          type="number" 
+          label="Amount to Pay (£)" 
+          value={formData.amountToPay || '0'} 
+          onChange={e => setFormData(fd => ({ ...fd, amountToPay: e.target.value }))} 
+          min="0" 
+          max={isNaN(total - (Number(invoice.paidAmount) || 0)) ? 0 : Math.max(0, total - (Number(invoice.paidAmount) || 0))} 
+          step="0.01" 
+          disabled={!formData.isAddingPayment} 
+        />
 
         {parseFloat(formData.amountToPay) > 0 && formData.isAddingPayment && (
           <div className="space-y-4">

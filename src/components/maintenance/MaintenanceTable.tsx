@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { MaintenanceLog, Vehicle, Customer, Rental, isOffRoadAccidentLog } from '../../types';
+import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
 import {
   Eye,
   Pencil,
@@ -29,6 +30,14 @@ import {
   MaintenanceChannelMode,
   MaintenanceRecipientType,
 } from '../../utils/maintenanceCommunication';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import {
+  normalizeMaintenanceStatus,
+  getMaintenanceStatusLabel,
+  isStatusOffRoad,
+  getStatusBadgeStyles,
+  getMaintenanceRowTheme,
+} from '../../utils/maintenanceStatusConfig';
 import MaintenanceRecipientSelectorModal from './MaintenanceRecipientSelectorModal';
 import MaintenanceCommunicationModal from './MaintenanceCommunicationModal';
 import MaintenanceBulkCommunicationModal from './MaintenanceBulkCommunicationModal';
@@ -188,40 +197,18 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   const canSeeCompleted = can('maintenance', 'completed') && !isCompany;
   const canEditStatusFromTable = can('maintenance', 'tableStatus');
 
-  const getStatusColor = (status: string, isScheduledUrgent?: boolean) => {
-    const s = String(status || '').toLowerCase().trim();
-    if (s === 'scheduled' && isScheduledUrgent) {
-      return 'text-red-900 bg-red-100 border-red-400 ring-red-400 font-bold';
-    }
-    switch (s) {
-      case 'completed':
-        return 'text-emerald-900 bg-emerald-100 border-emerald-400 ring-emerald-400 font-bold';
-      case 'in-progress':
-        return 'text-orange-950 bg-orange-100 border-orange-400 ring-orange-400 font-bold';
-      case 'workshop':
-        return 'text-purple-950 bg-purple-100 border-purple-400 ring-purple-400 font-bold';
-      case 'parts-backorder':
-      case 'awaiting-parts':
-        return 'text-amber-950 bg-amber-100 border-amber-400 ring-amber-400 font-bold';
-      case 'bodywork':
-        return 'text-indigo-950 bg-indigo-100 border-indigo-400 ring-indigo-400 font-bold';
-      case 'off-road':
-      case 'off-road (vor)':
-      case 'off road (vor)':
-      case 'vor':
-      case 'off-road-accident':
-        return 'text-rose-950 bg-rose-100 border-rose-400 ring-rose-400 font-bold';
-      case 'pending':
-      case 'awaiting-approval':
-        return 'text-yellow-950 bg-yellow-100 border-yellow-400 ring-yellow-400 font-bold';
-      case 'inspection':
-      case 'diagnostic':
-        return 'text-sky-950 bg-sky-100 border-sky-400 ring-sky-400 font-bold';
-      case 'cancelled':
-        return 'text-slate-700 bg-slate-100 border-slate-300 ring-slate-300';
-      default:
-        return 'text-blue-900 bg-blue-100 border-blue-300 ring-blue-300 font-bold';
-    }
+  const getStatusColor = (
+    status: string,
+    isScheduledUrgent?: boolean,
+    isAccident?: boolean,
+    isOffRoad?: boolean
+  ) => {
+    return getStatusBadgeStyles(status, {
+      isScheduledUrgent,
+      isDarkTheme: false,
+      isAccident,
+      isOffRoad,
+    });
   };
 
   const getTypeBadgeColor = (type: string) => {
@@ -564,7 +551,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       header: <div className="w-36 min-w-[140px]">Status</div>,
       cell: ({ row }: any) => {
         const log = row.original;
-        const isAccidentOffRoad = isOffRoadAccidentLog(log);
+        const isAccidentOffRoad = isOffRoadAccidentLog(log) || normalizeMaintenanceStatus(log.status) === 'accident';
+        const isOffRoad = isStatusOffRoad(log.status, { isAccident: isAccidentOffRoad, isOffRoad: log.isOffRoad });
         const isScheduledUrgent =
           log.status === 'scheduled' &&
           log.date &&
@@ -572,6 +560,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
 
         const getSelectValue = (st: string) => {
           const val = String(st || '').toLowerCase().trim();
+          if (val === 'accident' || val === 'off-road-accident' || (isAccidentOffRoad && (!val || val === 'accident'))) return 'accident';
           if (val === 'off-road' || val === 'off-road (vor)' || val === 'off road (vor)' || val === 'vor') return 'off-road';
           if (val === 'parts-backorder' || val === 'awaiting-parts' || val === 'parts backorder') return 'parts-backorder';
           if (val === 'pending' || val === 'awaiting-approval') return 'pending';
@@ -581,7 +570,8 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
           if (val === 'in-progress') return 'in-progress';
           if (val === 'completed') return 'completed';
           if (val === 'cancelled') return 'cancelled';
-          if (!val && isAccidentOffRoad) return 'off-road';
+          if (!val && isAccidentOffRoad) return 'accident';
+          if (!val && isOffRoad) return 'off-road';
           return val || 'scheduled';
         };
 
@@ -604,7 +594,9 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                 onChange={handleChange}
                 className={`block w-full min-w-[136px] text-xs font-bold rounded-lg border py-1.5 pl-2.5 pr-7 cursor-pointer ring-1 ring-inset shadow-2xs sm:text-xs sm:leading-tight transition-all ${getStatusColor(
                   currentSelectVal,
-                  isScheduledUrgent
+                  isScheduledUrgent,
+                  isAccidentOffRoad,
+                  isOffRoad
                 )}`}
               >
                 <option value="scheduled">Scheduled</option>
@@ -613,6 +605,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                 <option value="parts-backorder">Awaiting Parts</option>
                 <option value="bodywork">Bodywork</option>
                 <option value="off-road">OFF ROAD (VOR)</option>
+                <option value="accident">Accident</option>
                 <option value="pending">Pending Approval</option>
                 <option value="inspection">Inspection / MOT</option>
                 {can('maintenance', 'complete') && (
@@ -623,12 +616,25 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                 )}
               </select>
             ) : (
-              <StatusBadge status={currentSelectVal === 'off-road' ? 'OFF ROAD (VOR)' : log.status} />
+              <StatusBadge
+                status={getMaintenanceStatusLabel(currentSelectVal, {
+                  isAccident: isAccidentOffRoad,
+                  isOffRoad,
+                })}
+              />
             )}
 
             {!isCompany && (
               <div className="pl-0.5">
-                <StatusBadge status={log.paymentStatus} />
+                <StatusBadge
+                  status={derivePaymentStatus({
+                    cost: log.cost,
+                    paidAmount: log.paidAmount,
+                    remainingAmount: log.remainingAmount,
+                    paymentStatus: log.paymentStatus,
+                    payments: log.payments
+                  })}
+                />
               </div>
             )}
 
@@ -665,27 +671,71 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       id: 'cost',
       header: <div className="w-28">Cost</div>,
       cell: ({ row }: any) => {
-        const { cost, paidAmount = 0, remainingAmount } = row.original;
+        const { cost, paidAmount = 0, remainingAmount = 0, subcontractorCost, customerBilled, isProfitEdited } = row.original;
+        const billed = customerBilled !== undefined ? Number(customerBilled) : Number(cost || 0);
+
+        // 1. DEFAULT PROFIT EXCLUSION (IGNORE UNTIL EDITED & SAVED):
+        // For all newly created/unedited data records, default Dealer Cost to match Total price (Profit £0.00 / 0.0% Margin).
+        // The system IGNORES profit calculation UNTIL a user manually opens the record, clicks "Edit", updates info, and hits "Save" / "Update".
+        const hasEditedProfit = isProfitEdited === true;
+        const sub = hasEditedProfit
+          ? (subcontractorCost !== undefined ? Number(subcontractorCost) : billed)
+          : billed;
+        const profitMetrics = hasEditedProfit
+          ? calculateProfitMetrics(billed, sub)
+          : { customerBilled: billed, subcontractorCost: billed, netProfit: 0, profitMarginPercent: 0 };
+        const hasSubcontractorCost = hasEditedProfit && sub > 0 && sub !== billed;
+
         return (
           <div className="space-y-0.5 text-xs w-28">
+            {/* Total / Invoice: Orange / Amber (#D97706) */}
             <div className="flex justify-between font-bold text-[#D97706] border-b border-slate-200/80 pb-0.5">
               <span>Total:</span>
               <span className="font-mono">{formatCurrency(cost)}</span>
             </div>
-            <div className="flex justify-between font-bold text-[#15803D]">
+            {/* Paid: Green (#059669) */}
+            <div className="flex justify-between font-bold text-[#059669]">
               <span>Paid:</span>
               <span className="font-mono">{formatCurrency(paidAmount)}</span>
             </div>
+            {/* Owing / Outstanding: Red (#DC2626) when > 0, Green (#059669) when 0 */}
             <div
               className={`flex justify-between font-bold ${
                 remainingAmount > 0.001
                   ? 'text-[#DC2626]'
-                  : 'text-[#15803D]'
+                  : 'text-[#059669]'
               }`}
             >
               <span>Owing:</span>
               <span className="font-mono">{formatCurrency(remainingAmount)}</span>
             </div>
+            {hasSubcontractorCost && (
+              <div className="pt-0.5 border-t border-dashed border-slate-200 flex justify-between text-[10px] font-medium text-slate-500">
+                <span>Dealer:</span>
+                <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+              </div>
+            )}
+            {hasSubcontractorCost && (
+              <div className="flex justify-between text-[10px] font-bold items-center pt-0.5">
+                <span className={profitMetrics.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}>Profit:</span>
+                <span className={`font-mono ${profitMetrics.netProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+                  {profitMetrics.netProfit >= 0 ? '+' : ''}{formatCurrency(profitMetrics.netProfit)}
+                </span>
+              </div>
+            )}
+            {hasSubcontractorCost && (
+              <div className="flex justify-end pt-0.5">
+                <span
+                  className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
+                    profitMetrics.profitMarginPercent >= 0
+                      ? 'bg-emerald-50 text-[#059669] border-emerald-200'
+                      : 'bg-rose-50 text-[#DC2626] border-rose-200'
+                  }`}
+                >
+                  {profitMetrics.profitMarginPercent.toFixed(1)}% Margin
+                </span>
+              </div>
+            )}
           </div>
         );
       }
@@ -827,52 +877,29 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
   }, [logs, activeHighlightFilter]);
 
   const rowClassName = (row: { original: MaintenanceLog }) => {
-    const { date, status } = row.original;
+    const { date, status, paymentStatus, remainingAmount, cost, paidAmount } = row.original;
 
-    // 0. Off-Road / VOR / Accident (highlight Rose)
-    const isOffRoad = (status === 'off-road' || status === 'OFF ROAD (VOR)' || status === 'vor') || (!status && isOffRoadAccidentLog(row.original));
-    if (isOffRoad && status !== 'completed' && status !== 'cancelled') {
-      return '!bg-[#FFE4E6] hover:!bg-[#FECDD3] text-slate-900 [&>td]:!bg-[#FFE4E6] hover:[&>td]:!bg-[#FECDD3] [&>td]:!border-rose-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-rose-600 transition-colors duration-150';
-    }
+    // Payment status left-border indicator: red for owing, green for paid
+    const dynamicPaymentStatus = derivePaymentStatus({
+      cost,
+      paidAmount,
+      remainingAmount,
+      paymentStatus,
+      payments: row.original.payments
+    });
+    const isPaid = dynamicPaymentStatus === 'paid';
+    const isAccident = isOffRoadAccidentLog(row.original) || normalizeMaintenanceStatus(status) === 'accident';
+    const isOffRoad = isStatusOffRoad(status, { isAccident, isOffRoad: (row.original as any).isOffRoad });
 
-    // 1. Due in ≤7d (highlight Red)
-    if (status === 'scheduled') {
-      if (date) {
-        const days = differenceInCalendarDays(new Date(date), new Date());
-        if (days <= 7) {
-          return '!bg-[#FEE2E2] hover:!bg-[#FECACA] text-slate-900 [&>td]:!bg-[#FEE2E2] hover:[&>td]:!bg-[#FECACA] [&>td]:!border-red-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-red-600 transition-colors duration-150';
-        }
-      }
-      return '';
-    }
+    const theme = getMaintenanceRowTheme(status, {
+      date,
+      isDarkTheme: false,
+      isAccident,
+      isOffRoad,
+      isPaid,
+    });
 
-    // 2. In Progress (highlight Orange)
-    if (status === 'in-progress') {
-      return '!bg-[#FFEDD5] hover:!bg-[#FED7AA] text-slate-900 [&>td]:!bg-[#FFEDD5] hover:[&>td]:!bg-[#FED7AA] [&>td]:!border-orange-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-orange-500 transition-colors duration-150';
-    }
-
-    // 3. Workshop (highlight Purple)
-    if (status === 'workshop') {
-      return '!bg-[#FAF5FF] hover:!bg-[#F3E8FF] text-slate-900 [&>td]:!bg-[#FAF5FF] hover:[&>td]:!bg-[#F3E8FF] [&>td]:!border-purple-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-purple-600 transition-colors duration-150';
-    }
-
-    // 4. Parts Backorder (highlight Amber)
-    if (status === 'parts-backorder' || status === 'awaiting-parts') {
-      return '!bg-[#FFFBEB] hover:!bg-[#FEF3C7] text-slate-900 [&>td]:!bg-[#FFFBEB] hover:[&>td]:!bg-[#FEF3C7] [&>td]:!border-amber-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-amber-600 transition-colors duration-150';
-    }
-
-    // 5. Bodywork (highlight Indigo)
-    if (status === 'bodywork') {
-      return '!bg-[#EEF2FF] hover:!bg-[#E0E7FF] text-slate-900 [&>td]:!bg-[#EEF2FF] hover:[&>td]:!bg-[#E0E7FF] [&>td]:!border-indigo-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-indigo-600 transition-colors duration-150';
-    }
-
-    // 6. Pending (highlight Yellow)
-    if (status === 'pending' || status === 'awaiting-approval') {
-      return '!bg-[#FEFCE8] hover:!bg-[#FEF9C3] text-slate-900 [&>td]:!bg-[#FEFCE8] hover:[&>td]:!bg-[#FEF9C3] [&>td]:!border-yellow-300 [&>td:first-child]:!border-l-4 [&>td:first-child]:!border-l-yellow-500 transition-colors duration-150';
-    }
-
-    // All other: no colour!
-    return '';
+    return theme.rowClass;
   };
 
   return (
@@ -920,8 +947,22 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
       {/* Color Status Legend with Interactive Dynamic Filters Combined in One Line */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 py-2.5 px-3.5 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl shadow-xs text-xs mb-3">
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 mr-0.5">
+            <span className="text-[#475569] font-bold uppercase tracking-wider text-[11px] shrink-0">
+              Payment:
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs" title="Red left-border indicates outstanding balance">
+              <span className="w-1.5 h-3 bg-[#dc2626] rounded-xs inline-block"></span>
+              <span className="text-[#dc2626]">Owing</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs" title="Green left-border indicates paid in full">
+              <span className="w-1.5 h-3 bg-[#059669] rounded-xs inline-block"></span>
+              <span className="text-[#059669]">Paid</span>
+            </span>
+          </div>
+
           <span className="text-[#475569] font-bold uppercase tracking-wider text-[11px] shrink-0 mr-0.5">
-            Row Indicators:
+            Jobs:
           </span>
 
           {/* 1. All Scheduled */}

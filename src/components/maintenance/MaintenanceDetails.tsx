@@ -1,15 +1,19 @@
 // src/components/maintenance/MaintenanceDetails.tsx
 import React, { useState, useEffect } from 'react';
 import { MaintenanceLog, Vehicle, isOffRoadAccidentLog } from '../../types';
+import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import StatusBadge from '../ui/StatusBadge';
-import { Wrench, DollarSign, FileText, Car, Layers, Paperclip, Calendar, Clock, MapPin, Receipt, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react';
+import { Wrench, DollarSign, FileText, Car, Layers, Paperclip, Calendar, Clock, MapPin, Receipt, CheckCircle2, ExternalLink, MessageSquare, TrendingUp, TrendingDown, Percent, Edit2, Check, X, Building2 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions'; 
 import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
+import { calculateProfitMetrics, updateMaintenanceSubcontractorCost } from '../../utils/profitCalculator';
+import { fetchUnifiedProfitAndCosts } from '../../services/unifiedSync.service';
+import toast from 'react-hot-toast';
 
 interface MaintenanceDetailsProps {
   log: MaintenanceLog;
@@ -27,6 +31,64 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
   
   const { formatCurrency } = useFormattedDisplay();
   const { isCompany } = usePermissions(); 
+
+  // Subcontractor Cost & Profit Tracking State
+  const initialSubCost = log.subcontractorCost !== undefined ? Number(log.subcontractorCost) : 0;
+  const initialBilled = log.customerBilled !== undefined ? Number(log.customerBilled) : (log.cost || 0);
+
+  const [subcontractorCost, setSubcontractorCost] = useState<number>(initialSubCost);
+  const [customerBilled, setCustomerBilled] = useState<number>(initialBilled);
+  const [isEditingProfit, setIsEditingProfit] = useState<boolean>(false);
+  const [editSubCost, setEditSubCost] = useState<string>(initialSubCost ? initialSubCost.toFixed(2) : '');
+  const [editCustomerBilled, setEditCustomerBilled] = useState<string>(initialBilled ? initialBilled.toFixed(2) : '');
+  const [isSavingProfit, setIsSavingProfit] = useState<boolean>(false);
+
+  useEffect(() => {
+    const sc = log.subcontractorCost !== undefined ? Number(log.subcontractorCost) : 0;
+    const cb = log.customerBilled !== undefined ? Number(log.customerBilled) : (log.cost || 0);
+    setSubcontractorCost(sc);
+    setCustomerBilled(cb);
+    setEditSubCost(sc ? sc.toFixed(2) : '');
+    setEditCustomerBilled(cb ? cb.toFixed(2) : '');
+
+    if (sc <= 0) {
+      fetchUnifiedProfitAndCosts({
+        id: log.id,
+        orderNumber: log.orderNumber || log.orderId,
+        invoiceNumber: log.invoiceNumber,
+      }).then((unified) => {
+        if (unified && unified.subcontractorCost !== undefined && unified.subcontractorCost > 0) {
+          setSubcontractorCost(unified.subcontractorCost);
+          setEditSubCost(unified.subcontractorCost.toFixed(2));
+          if (unified.customerBilled) {
+            setCustomerBilled(unified.customerBilled);
+            setEditCustomerBilled(unified.customerBilled.toFixed(2));
+          }
+        }
+      });
+    }
+  }, [log.id, log.subcontractorCost, log.customerBilled, log.cost, log.orderNumber, log.orderId, log.invoiceNumber]);
+
+  const profitMetrics = calculateProfitMetrics(customerBilled, subcontractorCost);
+
+  const handleSaveSubcontractorCost = async () => {
+    const numSubCost = Math.max(0, parseFloat(editSubCost) || 0);
+    const numBilled = Math.max(0, parseFloat(editCustomerBilled) || 0);
+    setIsSavingProfit(true);
+    const tId = toast.loading('Saving dealer cost and calculating profit...');
+    try {
+      const updated = await updateMaintenanceSubcontractorCost(log.id, numSubCost, numBilled);
+      setSubcontractorCost(updated.subcontractorCost);
+      setCustomerBilled(updated.customerBilled);
+      setIsEditingProfit(false);
+      toast.success('Dealer cost & profit updated successfully', { id: tId });
+    } catch (err: any) {
+      console.error('Failed to update subcontractor cost:', err);
+      toast.error(err?.message || 'Failed to update cost', { id: tId });
+    } finally {
+      setIsSavingProfit(false);
+    }
+  }; 
 
   useEffect(() => {
     const fetchCreatedByName = async () => {
@@ -235,7 +297,13 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
 
           <div className="flex flex-wrap items-center gap-2">
             {renderDetailsStatusBadge(log.status)}
-            {!isCompany && renderDetailsPaymentBadge(log.paymentStatus)}
+            {!isCompany && renderDetailsPaymentBadge(derivePaymentStatus({
+              cost: log.cost,
+              paidAmount: log.paidAmount,
+              remainingAmount: log.remainingAmount,
+              paymentStatus: log.paymentStatus,
+              payments: log.payments
+            }))}
             {!isCompany && log.cost !== undefined && (
               <div className="ml-auto sm:ml-2 px-3 py-1 bg-white border border-[#E2E8F0] rounded-xl text-right">
                 <span className="text-xs text-slate-500 block leading-tight">Total</span>
@@ -493,10 +561,237 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
                 <h3 className="text-base font-bold text-slate-900">Financial Breakdown</h3>
               </div>
 
+              {/* Subcontractor Cost & Profit Tracking Card */}
+              <div className="bg-white border-2 border-indigo-200/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        Dealer / Subcontractor Cost & Profit Tracking
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wide">
+                          Internal
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Dealer cost tracking vs client billed amount with real-time margins
+                      </p>
+                    </div>
+                  </div>
+
+                  {!isEditingProfit ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSubCost(subcontractorCost ? subcontractorCost.toFixed(2) : '');
+                        setEditCustomerBilled(customerBilled ? customerBilled.toFixed(2) : '');
+                        setIsEditingProfit(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors cursor-pointer self-start sm:self-auto"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      Edit Subcontractor Cost
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveSubcontractorCost}
+                        disabled={isSavingProfit}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Save Cost & Profit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingProfit(false)}
+                        disabled={isSavingProfit}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {isEditingProfit && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 animate-in fade-in duration-150">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        Dealer / Subcontractor Cost (£)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">£</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editSubCost}
+                          onChange={(e) => setEditSubCost(e.target.value)}
+                          placeholder="e.g. 180.00"
+                          className="w-full pl-7 pr-3 py-2 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          autoFocus
+                        />
+                      </div>
+                      <span className="text-[11px] text-slate-500 mt-1 block">The dealer or subcontractor garage charge (e.g. £180.00)</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        Customer Billed Total (£)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">£</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editCustomerBilled}
+                          onChange={(e) => setEditCustomerBilled(e.target.value)}
+                          placeholder="e.g. 250.00"
+                          className="w-full pl-7 pr-3 py-2 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <span className="text-[11px] text-slate-500 mt-1 block">Total amount charged to the client (e.g. £250.00)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subcontractor Cost & Profit Overview Badges */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Card 1: Dealer / Subcontractor Cost */}
+                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                    <span className="text-xs font-bold text-slate-600 block uppercase tracking-wider">
+                      Dealer / Subcontractor Cost
+                    </span>
+                    <span className="text-xl font-mono font-black text-slate-900 mt-1 block">
+                      {formatCurrency(subcontractorCost)}
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-0.5 block">Dealer expense</span>
+                  </div>
+
+                  {/* Card 2: Customer Billed */}
+                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                    <span className="text-xs font-bold text-slate-600 block uppercase tracking-wider">
+                      Customer Billed
+                    </span>
+                    <span className="text-xl font-mono font-black text-blue-700 mt-1 block">
+                      {formatCurrency(customerBilled)}
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-0.5 block">Amount charged</span>
+                  </div>
+
+                  {/* Card 3: Net Profit (£) Display Badge */}
+                  <div
+                    className={`p-3.5 rounded-xl border transition-all ${
+                      profitMetrics.netProfit > 0
+                        ? 'bg-emerald-50/90 border-emerald-300'
+                        : profitMetrics.netProfit < 0
+                        ? 'bg-rose-50/90 border-rose-300'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-xs font-bold block uppercase tracking-wider ${
+                          profitMetrics.netProfit > 0
+                            ? 'text-emerald-800'
+                            : profitMetrics.netProfit < 0
+                            ? 'text-rose-800'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        Net Profit (£)
+                      </span>
+                      {profitMetrics.netProfit > 0 ? (
+                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      ) : profitMetrics.netProfit < 0 ? (
+                        <TrendingDown className="w-4 h-4 text-rose-600" />
+                      ) : (
+                        <DollarSign className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-xl font-mono font-black mt-1 block ${
+                        profitMetrics.netProfit > 0
+                          ? 'text-emerald-700'
+                          : profitMetrics.netProfit < 0
+                          ? 'text-rose-700'
+                          : 'text-slate-800'
+                      }`}
+                    >
+                      {profitMetrics.netProfit >= 0 ? '+' : ''}
+                      {formatCurrency(profitMetrics.netProfit)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase ${
+                        profitMetrics.netProfit > 0
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : profitMetrics.netProfit < 0
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {profitMetrics.netProfit > 0
+                        ? '✓ Profitable'
+                        : profitMetrics.netProfit < 0
+                        ? '⚠ Net Loss'
+                        : 'Break-even'}
+                    </span>
+                  </div>
+
+                  {/* Card 4: Profit Margin (%) Display Badge */}
+                  <div
+                    className={`p-3.5 rounded-xl border transition-all ${
+                      profitMetrics.profitMarginPercent > 0
+                        ? 'bg-indigo-50/90 border-indigo-300'
+                        : profitMetrics.profitMarginPercent < 0
+                        ? 'bg-rose-50/90 border-rose-300'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-xs font-bold block uppercase tracking-wider ${
+                          profitMetrics.profitMarginPercent > 0
+                            ? 'text-indigo-800'
+                            : profitMetrics.profitMarginPercent < 0
+                            ? 'text-rose-800'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        Profit Margin (%)
+                      </span>
+                      <Percent className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <span
+                      className={`text-xl font-mono font-black mt-1 block ${
+                        profitMetrics.profitMarginPercent > 0
+                          ? 'text-indigo-700'
+                          : profitMetrics.profitMarginPercent < 0
+                          ? 'text-rose-700'
+                          : 'text-slate-800'
+                      }`}
+                    >
+                      {profitMetrics.profitMarginPercent.toFixed(1)}%
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-0.5 block">
+                      {customerBilled > 0
+                        ? `${profitMetrics.profitMarginPercent.toFixed(1)}% margin on billed`
+                        : 'No billing recorded'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white border border-[#E2E8F0] p-3.5 rounded-xl">
-                  <span className="text-xs text-[#000000] font-semibold block uppercase tracking-wider">NET Total</span>
-                  <span className="text-lg font-mono font-semibold text-[#000000] mt-1 block">{formatCurrency(log.netAmount || 0)}</span>
+                  <span className="text-xs text-[#2563EB] font-semibold block uppercase tracking-wider">NET Total</span>
+                  <span className="text-lg font-mono font-semibold text-[#2563EB] mt-1 block">{formatCurrency(log.netAmount || 0)}</span>
                 </div>
                 <div className="bg-white border border-[#E2E8F0] p-3.5 rounded-xl">
                   <span className="text-xs text-[#2563EB] font-semibold block uppercase tracking-wider">VAT (20%)</span>
@@ -517,8 +812,8 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex justify-between items-center p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <span className="text-[#15803D] font-bold text-sm">Total Paid:</span>
-                    <span className="font-mono text-[#15803D] font-bold text-lg">{formatCurrency(log.paidAmount || 0)}</span>
+                    <span className="text-[#059669] font-bold text-sm">Total Paid:</span>
+                    <span className="font-mono text-[#059669] font-bold text-lg">{formatCurrency(log.paidAmount || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-rose-50 border border-rose-200 rounded-xl">
                     <span className="text-[#DC2626] font-bold text-sm">Amount Owing:</span>

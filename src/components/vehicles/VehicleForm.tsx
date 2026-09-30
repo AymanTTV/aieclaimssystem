@@ -8,10 +8,10 @@ import {
   MileageUpdate,
   VehicleOwner
 } from '../../types/vehicle';
-import { Account } from '../../types';
+import { Account, SharedOwnerShare } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { Upload, X, Car, Wrench, FileCheck, Tag, User } from 'lucide-react';
+import { Upload, X, Car, Wrench, FileCheck, Tag, User, PieChart, Plus, Trash2 } from 'lucide-react';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import { addMonths, parseISO } from 'date-fns';
@@ -75,6 +75,15 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
 
   const [owner, setOwner] = useState<VehicleOwner>(vehicle?.owner || DEFAULT_OWNER);
   const [isCustomOwner, setIsCustomOwner] = useState(!vehicle?.owner?.isDefault);
+  const [isSharedOwnership, setIsSharedOwnership] = useState<boolean>(
+    vehicle?.isSharedOwnership || Boolean(vehicle?.owner?.sharedOwnership?.length) || false
+  );
+  const [sharedOwners, setSharedOwners] = useState<SharedOwnerShare[]>(
+    vehicle?.sharedOwnership || vehicle?.owner?.sharedOwnership || [
+      { ownerName: 'AIE Skyline Limited', sharePercentage: 60, isCompany: true },
+      { ownerName: vehicle?.owner?.name && vehicle.owner.name !== 'AIE Skyline' ? vehicle.owner.name : 'Partner Co-Owner', sharePercentage: 40, isCompany: false },
+    ]
+  );
 
   const nsl = useDocumentManager(vehicle?.documents?.nslImage || []);
   const mot = useDocumentManager(vehicle?.documents?.motImage || []);
@@ -221,9 +230,25 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
           const selectedAcc = accounts.find(a => a.id === finalOwner.accountId);
           finalOwner.accountName = selectedAcc ? selectedAcc.name : null;
         }
+
+        if (isSharedOwnership) {
+          const sumPct = sharedOwners.reduce((s, o) => s + (Number(o.sharePercentage) || 0), 0);
+          if (Math.abs(sumPct - 100) > 0.01) {
+            toast.error(`Ownership percentages must total exactly 100% (currently ${sumPct}%)`);
+            setLoading(false);
+            return;
+          }
+          finalOwner.isSharedOwnership = true;
+          finalOwner.sharedOwnership = sharedOwners;
+        } else {
+          finalOwner.isSharedOwnership = false;
+          finalOwner.sharedOwnership = null;
+        }
       } else {
         finalOwner.accountId = null;
         finalOwner.accountName = null;
+        finalOwner.isSharedOwnership = false;
+        finalOwner.sharedOwnership = null;
       }
 
       // ✅ Lookup selected group and department
@@ -258,6 +283,8 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
         claimInsuranceAmount: toNumber(formData.claimInsuranceAmount),
 
         owner: finalOwner,
+        isSharedOwnership: isCustomOwner && isSharedOwnership,
+        sharedOwnership: isCustomOwner && isSharedOwnership ? sharedOwners : null,
 
         purchasedDate: formData.purchasedDate ? parseISO(formData.purchasedDate) : undefined,
         firstRegistrationDate: formData.firstRegistrationDate ? parseISO(formData.firstRegistrationDate) : undefined,
@@ -447,6 +474,99 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ vehicle, departments = [], on
                           isClearable
                           label=""
                         />
+                      </div>
+
+                      {/* SHARED OWNERSHIP CONFIGURATION */}
+                      <div className="pt-2 border-t border-slate-200">
+                        <label className="flex items-center space-x-2 text-slate-800 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSharedOwnership}
+                            onChange={(e) => setIsSharedOwnership(e.target.checked)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-white"
+                          />
+                          <span className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-bold text-indigo-900">
+                            <PieChart className="w-3.5 h-3.5 text-indigo-600" /> Designate Shared Ownership
+                          </span>
+                        </label>
+
+                        {isSharedOwnership && (
+                          <div className="mt-3 p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider">
+                                Ownership Split (Total: {sharedOwners.reduce((s, o) => s + (Number(o.sharePercentage) || 0), 0)}%)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSharedOwners([
+                                    ...sharedOwners,
+                                    { ownerName: `Partner ${sharedOwners.length + 1}`, sharePercentage: 0, isCompany: false },
+                                  ]);
+                                }}
+                                className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-0.5 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" /> Add Owner
+                              </button>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {sharedOwners.map((sh, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-indigo-100 shadow-2xs">
+                                  <input
+                                    type="text"
+                                    value={sh.ownerName}
+                                    onChange={(e) => {
+                                      const next = [...sharedOwners];
+                                      next[idx] = { ...next[idx], ownerName: e.target.value };
+                                      setSharedOwners(next);
+                                    }}
+                                    placeholder="Owner Name"
+                                    className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                                  />
+                                  <div className="flex items-center gap-1 w-20">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="1"
+                                      value={sh.sharePercentage}
+                                      onChange={(e) => {
+                                        const next = [...sharedOwners];
+                                        next[idx] = { ...next[idx], sharePercentage: parseFloat(e.target.value) || 0 };
+                                        setSharedOwners(next);
+                                      }}
+                                      className="w-14 px-1.5 py-1 text-xs font-mono font-bold text-right border border-slate-200 rounded-md"
+                                    />
+                                    <span className="text-xs font-bold text-slate-500">%</span>
+                                  </div>
+                                  <label className="text-[10px] font-bold text-slate-600 flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={sh.isCompany ?? false}
+                                      onChange={(e) => {
+                                        const next = [...sharedOwners];
+                                        next[idx] = { ...next[idx], isCompany: e.target.checked };
+                                        setSharedOwners(next);
+                                      }}
+                                      className="w-3 h-3 text-indigo-600 rounded"
+                                    />
+                                    Co.
+                                  </label>
+                                  {sharedOwners.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSharedOwners(sharedOwners.filter((_, i) => i !== idx))}
+                                      className="p-1 text-slate-400 hover:text-rose-600"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (

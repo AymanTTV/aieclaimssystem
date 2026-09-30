@@ -14,8 +14,10 @@ import { formatDateForInput, ensureValidDate } from '../../utils/dateHelpers';
 import { addYears } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { uploadMaintenanceAttachments } from '../../utils/maintenanceUpload';
-import { AlertTriangle, AlertCircle } from 'lucide-react';
+import { AlertTriangle, AlertCircle, TrendingUp, TrendingDown, Percent, DollarSign } from 'lucide-react';
 import { checkVehicleStatus, updateVehicleStatus } from '../../utils/vehicleStatusManager';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { fetchUnifiedProfitAndCosts, syncMaintenanceRecord, sanitizeForFirestore } from '../../services/unifiedSync.service';
 
 interface MaintenanceEditModalProps {
   log: MaintenanceLog;
@@ -85,6 +87,27 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
   const [paymentReference, setPaymentReference] = useState(log.paymentReference || '');
   const [existingTransaction, setExistingTransaction] = useState<any | null>(null);
   const [amountToPay, setAmountToPay] = useState('0');
+  const [subcontractorCost, setSubcontractorCost] = useState<string>(
+    log.subcontractorCost !== undefined && Number(log.subcontractorCost) > 0
+      ? String(log.subcontractorCost)
+      : '0'
+  );
+
+  useEffect(() => {
+    if (log.subcontractorCost !== undefined && Number(log.subcontractorCost) > 0) {
+      setSubcontractorCost(String(log.subcontractorCost));
+    } else {
+      fetchUnifiedProfitAndCosts({
+        id: log.id,
+        orderNumber: log.orderNumber || log.orderId,
+        invoiceNumber: log.invoiceNumber,
+      }).then((unified) => {
+        if (unified && unified.subcontractorCost !== undefined && unified.subcontractorCost > 0) {
+          setSubcontractorCost(String(unified.subcontractorCost));
+        }
+      });
+    }
+  }, [log.id, log.subcontractorCost, log.orderNumber, log.orderId, log.invoiceNumber]);
   const { formatCurrency } = useFormattedDisplay();
   const [attachments, setAttachments] = useState<(File | string)[]>(
     log.attachments?.map(a => a.url) || []
@@ -193,6 +216,9 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
     (costs.totalAmount - paidAmount).toFixed(2)
   );
 
+  const subCostNum = Math.max(0, parseFloat(subcontractorCost) || 0);
+  const profitMetrics = calculateProfitMetrics(costs.totalAmount, subCostNum);
+
 
   const paymentStatus = paidAmount >= costs.totalAmount ? 'paid' :
     paidAmount > 0 ? 'partially_paid' : 'unpaid';
@@ -300,6 +326,12 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         isNonDrivable,
         dueToAccident,
         notes: formData.notes,
+        // Subcontractor Cost & Profit Tracking
+        subcontractorCost: profitMetrics.subcontractorCost,
+        customerBilled: costs.totalAmount,
+        netProfit: profitMetrics.netProfit,
+        profitMarginPercent: profitMetrics.profitMarginPercent,
+        isProfitEdited: true,
         vatDetails: {
           partsVAT: parts.map(part => ({
             partName: part.name,
@@ -308,10 +340,15 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
           laborVAT: includeVATOnLabor
         },
         updatedAt: new Date(),
-        updatedBy: user.id
+        updatedBy: user?.id || (user as any)?.uid || 'system'
       };
 
-      await updateDoc(docRef, maintenanceData);
+      await syncMaintenanceRecord(log.id, {
+        ...maintenanceData,
+        orderId: log.orderNumber || log.id,
+        orderNumber: log.orderNumber || log.id,
+        invoiceNumber: log.invoiceNumber,
+      });
 
       const newFiles = attachments.filter(f => f instanceof File) as File[];
       if (newFiles.length) {
@@ -341,35 +378,61 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
 
       // Handle finance transaction
       if (additionalPayment > 0) {
-      if (existingTransaction) {
-        await updateDoc(doc(db, 'transactions', existingTransaction.id), {
-          amount: existingTransaction.amount + additionalPayment,
-          category: formData.type,
-          description: formData.description,
-          paymentMethod,
-          paymentReference,
-          paymentStatus,
-          updatedAt: new Date()
-        })
-        toast.success('Maintenance and transaction updated successfully')
+        if (existingTransaction) {
+          await updateDoc(
+            doc(db, 'transactions', existingTransaction.id),
+            sanitizeForFirestore({
+              amount: existingTransaction.amount + additionalPayment,
+              category: formData.type,
+              description: formData.description,
+              paymentMethod: paymentMethod || null,
+              paymentReference: paymentReference || null,
+              paymentStatus: paymentStatus || null,
+              dealerCost: profitMetrics.subcontractorCost,
+              subcontractorCost: profitMetrics.subcontractorCost,
+              customerBilled: costs.totalAmount,
+              netProfit: profitMetrics.netProfit,
+              profitMarginPercent: profitMetrics.profitMarginPercent,
+              isProfitEdited: true,
+              isEdited: true,
+              linkedInvoiceRef: log.id,
+              orderId: log.orderNumber || log.id,
+              orderNumber: log.orderNumber || log.id,
+              invoiceNumber: log.invoiceNumber || null,
+              updatedAt: new Date()
+            })
+          );
+          toast.success('Maintenance and transaction updated successfully');
+        } else {
+          await createFinanceTransaction({
+            type: 'expense',
+            category: formData.type,
+            amount: additionalPayment,
+            description: formData.description,
+            referenceId: log.id,
+            sourceReferenceId: log.id,
+            linkedInvoiceRef: log.id,
+            vehicleId: log.vehicleId,
+            vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
+            paymentMethod,
+            paymentReference,
+            paymentStatus,
+            dealerCost: profitMetrics.subcontractorCost,
+            subcontractorCost: profitMetrics.subcontractorCost,
+            customerBilled: costs.totalAmount,
+            netProfit: profitMetrics.netProfit,
+            profitMarginPercent: profitMetrics.profitMarginPercent,
+            isProfitEdited: true,
+            isEdited: true,
+            orderId: log.orderNumber || log.id,
+            orderNumber: log.orderNumber || log.id,
+            invoiceNumber: log.invoiceNumber,
+          });
+          toast.success('Maintenance updated and transaction created successfully');
+        }
       } else {
-        await createFinanceTransaction({
-          type: 'expense',
-          category: formData.type,
-          amount: additionalPayment,
-          description: formData.description,
-          referenceId: log.id,
-          vehicleId: log.vehicleId,
-          vehicleName: `${selectedVehicle.make} ${selectedVehicle.model}`,
-          paymentMethod,
-          paymentReference,
-          paymentStatus
-        })
-        toast.success('Maintenance updated and transaction created successfully')
+        toast.success('Maintenance updated successfully');
       }
-    } else {
-      toast.success('Maintenance updated successfully')
-    }
 
 
       onClose();
@@ -779,6 +842,98 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
               onChange={(e) => setPaymentReference(e.target.value)}
               placeholder="Enter payment reference or transaction ID"
             />
+          </div>
+        </div>
+
+        {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+        <div className="bg-slate-50 p-4 rounded-xl border-2 border-indigo-200/90 space-y-3 text-slate-900 shadow-sm">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Dealer / Subcontractor Cost & Profit Tracking
+                </h4>
+                <p className="text-[11px] text-slate-500">Live profit margin preview based on billed job total</p>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded-md">
+              Billed: {formatCurrency(costs.totalAmount)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Dealer / Subcontractor Cost (£)
+              </label>
+              <div className="relative rounded-lg shadow-2xs">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-sm font-bold">
+                  £
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={subcontractorCost}
+                  onChange={(e) => setSubcontractorCost(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold font-mono text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Live Profit Preview Badges */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div
+                className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                  profitMetrics.netProfit >= 0
+                    ? 'bg-emerald-50/80 border-emerald-200'
+                    : 'bg-rose-50/80 border-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                  <span>Live Net Profit</span>
+                  {profitMetrics.netProfit >= 0 ? (
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                  )}
+                </div>
+                <p
+                  className={`text-base font-black font-mono mt-0.5 ${
+                    profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {profitMetrics.netProfit >= 0 ? '+' : ''}
+                  {formatCurrency(profitMetrics.netProfit)}
+                </p>
+                <span className="text-[10px] text-slate-500">Billed – Dealer Cost</span>
+              </div>
+
+              <div
+                className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                  profitMetrics.profitMarginPercent >= 0
+                    ? 'bg-indigo-50/80 border-indigo-200'
+                    : 'bg-rose-50/80 border-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
+                  <span>Profit Margin</span>
+                  <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                </div>
+                <p
+                  className={`text-base font-black font-mono mt-0.5 ${
+                    profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                  }`}
+                >
+                  {profitMetrics.profitMarginPercent.toFixed(1)}%
+                </p>
+                <span className="text-[10px] text-slate-500">Margin on billed</span>
+              </div>
+            </div>
           </div>
         </div>
 

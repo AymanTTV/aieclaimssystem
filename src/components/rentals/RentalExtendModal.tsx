@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { addDays, addWeeks, format } from 'date-fns';
 import { calculateRentalCost, RENTAL_RATES, type RentalType } from '../../utils/rentalCalculations';
+import { syncRentalRecord } from '../../services/unifiedSync.service';
 import toast from 'react-hot-toast';
 import FormField from '../ui/FormField';
 
@@ -62,6 +63,14 @@ const RentalExtendModal: React.FC<RentalExtendModalProps> = ({ rental, onClose }
         updatedAt: new Date(),
         updatedBy: user?.id
       });
+
+      // Synchronize extended cost and dates with Central Finance Ledger
+      syncRentalRecord(rental.id, {
+        cost: totalCost,
+        customerBilled: totalCost,
+        endDate: newEndDate,
+        updatedBy: user?.id,
+      }).catch((err) => console.warn('Background sync error for rental extension:', err));
 
       toast.success('Rental extended successfully');
       onClose();

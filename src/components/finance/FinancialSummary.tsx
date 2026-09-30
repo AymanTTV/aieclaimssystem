@@ -11,50 +11,143 @@ import {
   AlertCircle,
   Search,
   FileText,
+  Building2,
+  Percent,
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Account, Transaction } from '../../types';
+import { calculateDeduplicatedSummaryMetrics } from '../../utils/profitCalculator';
 
 interface FinancialSummaryProps {
-  totalIncome: number;
+  totalIncome?: number;
   totalIncomeNet?: number;
   totalIncomeVat?: number;
-  totalExpenses: number;
+  totalExpenses?: number;
   totalExpenseNet?: number;
   totalExpenseVat?: number;
-  netIncome: number;
+  netIncome?: number;
   netIncomeNet?: number;
   totalVatLiability?: number;
-  profitMargin: number;
+  profitMargin?: number | string;
   totalOwingFromOwners: number;
   totalOwingFromAccounts: number;
   accounts: Account[];
   transactions: Transaction[];
+  // Display Mode: 'all' | 'top_cards_only' | 'accounts_only'
+  displayMode?: 'all' | 'top_cards_only' | 'accounts_only';
+  // Dynamic summary metrics
+  summaryMetrics?: {
+    totalIncome?: number;
+    totalExpenses?: number;
+    totalOutstanding: number;
+    dealerCost: number;
+    netProfit: number;
+    grossBilling?: number;
+    totalReceived?: number;
+  };
+  // Dual-mode Subcontractor & Standard Expense Tracking
+  totalRevenue?: number;
+  totalCombinedExpenses?: number;
+  standardExpenses?: number;
+  verifiedSubcontractorExpenses?: number;
+  totalSubcontractorExpenses?: number;
+  totalSubcontractorNetProfit?: number;
+  subcontractorProfitMargin?: number;
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({
-  totalIncome,
+  totalIncome = 0,
   totalIncomeNet = 0,
   totalIncomeVat = 0,
-  totalExpenses,
+  totalExpenses = 0,
   totalExpenseNet = 0,
   totalExpenseVat = 0,
-  netIncome,
+  netIncome = 0,
   netIncomeNet = 0,
   totalVatLiability = 0,
   totalOwingFromOwners,
   totalOwingFromAccounts,
   accounts = [],
   transactions = [],
+  displayMode = 'all',
+  summaryMetrics: propSummaryMetrics,
+  totalRevenue,
+  totalCombinedExpenses,
+  standardExpenses,
+  verifiedSubcontractorExpenses,
+  totalSubcontractorExpenses,
+  totalSubcontractorNetProfit,
+  subcontractorProfitMargin,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
 
-  const [showOtherBalances, setShowOtherBalances] = useState(false);
+  // Standard 5-Card Profit & Loss (P&L) Summary Metrics calculation:
+  // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
+  // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit)
+  // 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows
+  // 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost field (gracefully treats missing/null as £0.00)
+  // 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost)
+  const computedSummaryMetrics = useMemo(() => {
+    return calculateDeduplicatedSummaryMetrics(transactions);
+  }, [transactions]);
+
+  const activeSummaryMetrics = useMemo(() => {
+    const metrics = propSummaryMetrics || computedSummaryMetrics;
+    const inc = metrics.totalIncome ?? (metrics as any).grossBilling ?? 0;
+    const exp = metrics.totalExpenses ?? 0;
+    const out = metrics.totalOutstanding ?? 0;
+    const dealer = metrics.dealerCost ?? 0;
+    const profit = metrics.netProfit !== undefined ? metrics.netProfit : Number((inc - exp - dealer).toFixed(2));
+
+    return {
+      totalIncome: inc,
+      totalExpenses: exp,
+      totalOutstanding: out,
+      dealerCost: dealer,
+      netProfit: profit,
+      grossBilling: inc,
+      totalReceived: (metrics as any).totalReceived ?? inc,
+    };
+  }, [propSummaryMetrics, computedSummaryMetrics]);
+
+  const dynamicProfitMargin =
+    activeSummaryMetrics.totalIncome > 0
+      ? ((activeSummaryMetrics.netProfit / activeSummaryMetrics.totalIncome) * 100).toFixed(1)
+      : '0.0';
+
+  const effectiveRevenue = totalRevenue !== undefined ? totalRevenue : totalIncome;
+  const effectiveTotalExpenses =
+    totalCombinedExpenses !== undefined
+      ? totalCombinedExpenses
+      : totalExpenses;
+  const effectiveStandardExpenses =
+    standardExpenses !== undefined
+      ? standardExpenses
+      : Math.max(0, effectiveTotalExpenses - (totalSubcontractorExpenses || 0));
+  const effectiveSubExpenses =
+    verifiedSubcontractorExpenses !== undefined
+      ? verifiedSubcontractorExpenses
+      : (totalSubcontractorExpenses !== undefined ? totalSubcontractorExpenses : 0);
+
+  const effectiveSubNetProfit =
+    totalSubcontractorNetProfit !== undefined
+      ? totalSubcontractorNetProfit
+      : effectiveRevenue - effectiveTotalExpenses;
+
+  const effectiveSubMargin =
+    subcontractorProfitMargin !== undefined
+      ? subcontractorProfitMargin
+      : effectiveRevenue > 0
+      ? (effectiveSubNetProfit / effectiveRevenue) * 100
+      : 0;
+
+  const [showOtherBalances, setShowOtherBalances] = useState(() => displayMode === 'accounts_only');
   const [showAllOtherAccounts, setShowAllOtherAccounts] = useState(false);
   const [accountSearch, setAccountSearch] = useState('');
   const [showOutstandingDebts, setShowOutstandingDebts] = useState<boolean>(() => {
+    if (displayMode === 'accounts_only') return true;
     try {
       const saved = localStorage.getItem('finance_show_debts_operating');
       return saved !== null ? saved === 'true' : true;
@@ -158,52 +251,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 
   if (!can('finance', 'cards')) return null;
 
-  const mainStats = [
-    {
-      key: 'income',
-      label: 'Income (Gross)',
-      value: formatCurrency(totalIncome),
-      tone: 'text-slate-900',
-      icon: <TrendingUp className="w-5 h-5 text-emerald-600" />,
-      iconBg: 'bg-emerald-50 border-emerald-200 text-emerald-600',
-      subtext: `Net: ${formatCurrency(totalIncomeNet)} | VAT: ${formatCurrency(totalIncomeVat)}`,
-    },
-    {
-      key: 'expenses',
-      label: 'Expenses (Gross)',
-      value: formatCurrency(totalExpenses),
-      tone: 'text-slate-900',
-      icon: <TrendingDown className="w-5 h-5 text-rose-600" />,
-      iconBg: 'bg-rose-50 border-rose-200 text-rose-600',
-      subtext: `Net: ${formatCurrency(totalExpenseNet)} | VAT: ${formatCurrency(totalExpenseVat)}`,
-    },
-    {
-      key: 'net',
-      label: 'Net Profit (Gross)',
-      value: formatCurrency(netIncome),
-      tone: netIncome >= 0 ? 'text-emerald-600' : 'text-rose-600',
-      icon: <DollarSign className="w-5 h-5 text-blue-600" />,
-      iconBg: 'bg-blue-50 border-blue-200 text-blue-600',
-      subtext: `Net Profit (Ex. VAT): ${formatCurrency(netIncomeNet)}`,
-    },
-    {
-      key: 'vat_liability',
-      label: 'VAT Liability',
-      value: formatCurrency(totalVatLiability),
-      tone: totalVatLiability > 0 ? 'text-amber-600' : 'text-emerald-600',
-      icon: <FileText className="w-5 h-5 text-amber-600" />,
-      iconBg: 'bg-amber-50 border-amber-200 text-amber-600',
-      subtext: `Collected: ${formatCurrency(totalIncomeVat)} | Paid: ${formatCurrency(totalExpenseVat)}`,
-    },
-  ];
-
-  // Secondary summary cards requested directly under summary cards:
-  // 1. Owing from Owners
-  // 2. Owing from Accounts
-  // 3. AIE SKYLINE ACCOUNTS
   const aieBalance = aieSkylineData.balance;
-  const aieTone = aieBalance > 0 ? 'text-emerald-600' : aieBalance < 0 ? 'text-[#DC2626]' : 'text-slate-700';
-  const aieIconBg = aieBalance < 0 ? 'bg-rose-50 border-rose-200 text-[#DC2626]' : 'bg-indigo-50 border-indigo-200 text-indigo-600';
 
   const secondarySummaryCards = [
     {
@@ -226,9 +274,9 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       key: 'aie_skyline',
       label: aieSkylineData.label,
       value: formatCurrency(aieBalance),
-      tone: aieTone,
-      icon: <Banknote className={`w-5 h-5 ${aieBalance < 0 ? 'text-[#DC2626]' : 'text-indigo-600'}`} />,
-      iconBg: aieIconBg,
+      tone: aieBalance > 0 ? 'text-[#059669]' : aieBalance < 0 ? 'text-[#DC2626]' : 'text-slate-700',
+      icon: <Banknote className={`w-5 h-5 ${aieBalance > 0 ? 'text-[#059669]' : aieBalance < 0 ? 'text-[#DC2626]' : 'text-indigo-600'}`} />,
+      iconBg: aieBalance > 0 ? 'bg-emerald-50 border-emerald-200 text-[#059669]' : aieBalance < 0 ? 'bg-rose-50 border-rose-200 text-[#DC2626]' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
     },
   ];
 
@@ -244,9 +292,9 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       key: acc.id,
       label: acc.name,
       value: formatCurrency(acc.balance),
-      tone: acc.balance > 0 ? 'text-emerald-600' : acc.balance < 0 ? 'text-rose-600' : 'text-slate-600',
-      icon: <Banknote className={`w-5 h-5 ${acc.balance < 0 ? 'text-rose-600' : 'text-indigo-600'}`} />,
-      iconBg: acc.balance < 0 ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
+      tone: acc.balance > 0 ? 'text-[#059669]' : acc.balance < 0 ? 'text-[#DC2626]' : 'text-slate-600',
+      icon: <Banknote className={`w-5 h-5 ${acc.balance > 0 ? 'text-[#059669]' : acc.balance < 0 ? 'text-[#DC2626]' : 'text-indigo-600'}`} />,
+      iconBg: acc.balance > 0 ? 'bg-emerald-50 border-emerald-200 text-[#059669]' : acc.balance < 0 ? 'bg-rose-50 border-rose-200 text-[#DC2626]' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
     }))
     .filter((card) => {
       const searchLower = accountSearch.trim().toLowerCase();
@@ -259,42 +307,161 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     ? otherAccountCards
     : otherAccountCards.slice(0, VISIBLE_LIMIT);
 
-  return (
-    <div className="space-y-4 mb-6">
-      {/* ROW 1: Performance Summary Cards */}
-      <div>
-        <div className="mb-2 p-1">
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Performance Summary</h3>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {mainStats.map((c) => (
-            <div
-              key={c.key}
-              className="bg-white rounded-2xl shadow-xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex flex-col justify-between transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{c.label}</p>
-                  <p className={`mt-1 text-xl sm:text-2xl font-black font-mono tracking-tight ${c.tone}`}>
-                    {c.value}
-                  </p>
-                </div>
-                <div className={`p-2.5 rounded-xl border shadow-xs ${c.iconBg}`}>{c.icon}</div>
-              </div>
-              {c.subtext && (
-                <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] sm:text-xs text-slate-500 font-medium whitespace-nowrap">
-                  {c.subtext}
-                </div>
-              )}
+  // TOP 5-CARD PERFORMANCE SUMMARY DASHBOARD (P&L Tracking Model)
+  const topFiveCards = (
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {/* CARD 1: TOTAL INCOME */}
+      <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-emerald-300 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+              TOTAL INCOME
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-100/90 border border-emerald-300/80 text-emerald-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+              £
             </div>
-          ))}
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 block tracking-tight">
+              {formatCurrency(activeSummaryMetrics.totalIncome)}
+            </span>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              Income / Credit
+            </span>
+          </div>
         </div>
       </div>
 
+      {/* CARD 2: TOTAL EXPENSES */}
+      <div className="bg-rose-50/50 border border-rose-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-rose-300 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+              TOTAL EXPENSES
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-rose-100/90 border border-rose-300/80 text-rose-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+              £
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black font-mono text-rose-700 block tracking-tight">
+              -{formatCurrency(activeSummaryMetrics.totalExpenses)}
+            </span>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+              Cash Out (Debit)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* CARD 3: TOTAL OUTSTANDING */}
+      <div className="bg-amber-50/50 border border-amber-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-amber-300 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+              TOTAL OUTSTANDING
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100/90 border border-amber-300/80 text-amber-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+              £
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black font-mono text-amber-900 block tracking-tight">
+              {formatCurrency(activeSummaryMetrics.totalOutstanding)}
+            </span>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+              Unpaid / Owing Balance
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* CARD 4: DEALER / SUBCONTRACTOR COST */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-slate-300 transition-all flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              DEALER / SUBCONTRACTOR COST
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-slate-200/90 border border-slate-300 text-slate-700 shadow-2xs flex items-center justify-center font-bold text-sm">
+              $
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black font-mono text-slate-800 block tracking-tight">
+              {formatCurrency(activeSummaryMetrics.dealerCost)}
+            </span>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              Verified Subcontractor
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* CARD 5: NET PROFIT */}
+      <div className={`border rounded-2xl shadow-xs p-4 sm:p-5 transition-all flex flex-col justify-between ${
+        activeSummaryMetrics.netProfit >= 0
+          ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'
+          : 'bg-rose-50 border-rose-300 hover:border-rose-400'
+      }`}>
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className={`text-xs font-bold uppercase tracking-wider ${
+              activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+            }`}>
+              NET PROFIT
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                activeSummaryMetrics.netProfit >= 0
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  : 'bg-rose-100 text-rose-800 border-rose-200'
+              }`}>
+                {activeSummaryMetrics.netProfit >= 0 ? (
+                  <TrendingUp className="w-3 h-3 mr-0.5" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 mr-0.5" />
+                )}
+                {dynamicProfitMargin}%
+              </span>
+              <div className={`w-8 h-8 rounded-xl border shadow-2xs flex items-center justify-center font-bold text-sm ${
+                activeSummaryMetrics.netProfit >= 0
+                  ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                  : 'bg-rose-100 border-rose-300 text-rose-800'
+              }`}>
+                {activeSummaryMetrics.netProfit >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className={`text-2xl sm:text-3xl font-black font-mono block tracking-tight ${
+              activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'
+            }`}>
+              {activeSummaryMetrics.netProfit >= 0 ? '+' : ''}{formatCurrency(activeSummaryMetrics.netProfit)}
+            </span>
+            <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeSummaryMetrics.netProfit >= 0
+                ? 'bg-emerald-200/70 text-emerald-900'
+                : 'bg-rose-200/70 text-rose-900'
+            }`}>
+              Income - Expenses - Dealer Cost
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // OUTSTANDING DEBTS & OPERATING ACCOUNT + OTHER ACCOUNT BALANCES
+  const debtsAndAccountsSection = (
+    <div className="space-y-6">
       {/* ROW 2: Under Summary Cards: Owing from Owners, Owing from Accounts, AIE SKYLINE ACCOUNTS (Collapsible) */}
-      <div>
-        <div className="flex items-center justify-between mb-2 p-1">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center justify-between mb-3 p-1">
           <button
             type="button"
             onClick={() => {
@@ -320,7 +487,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             </span>
             {!showOutstandingDebts && (
               <span className="hidden sm:inline-block text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md ml-1">
-                Hidden to save space • Click to expand
+                Hidden • Click to expand
               </span>
             )}
           </button>
@@ -347,7 +514,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             {secondarySummaryCards.map((c) => (
               <div
                 key={c.key}
-                className="bg-white rounded-2xl shadow-xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
+                className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
               >
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{c.label}</p>
@@ -362,13 +529,13 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         )}
       </div>
 
-      {/* ROW 3: Optional Expandable Other Account Balances (if other accounts exist) */}
+      {/* ROW 3: Expandable Other Account Balances (if other accounts exist) */}
       {otherAccountCards.length > 0 && (
-        <div className="pt-1">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
             <button
               type="button"
-              className="flex items-center cursor-pointer hover:bg-slate-100 p-2 rounded-xl transition-colors w-full sm:w-auto text-left"
+              className="flex items-center cursor-pointer hover:bg-slate-100 p-1.5 rounded-xl transition-colors w-full sm:w-auto text-left"
               onClick={() => setShowOtherBalances(!showOtherBalances)}
             >
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mr-2">
@@ -418,7 +585,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
               {displayedOtherCards.map((c) => (
                 <div
                   key={c.key}
-                  className="bg-white rounded-2xl shadow-xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
+                  className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">
@@ -435,6 +602,29 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
           )}
         </div>
       )}
+    </div>
+  );
+
+  if (displayMode === 'top_cards_only') {
+    return (
+      <div className="space-y-4 mb-2">
+        {topFiveCards}
+      </div>
+    );
+  }
+
+  if (displayMode === 'accounts_only') {
+    return (
+      <div className="space-y-6">
+        {debtsAndAccountsSection}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 mb-6">
+      {topFiveCards}
+      {debtsAndAccountsSection}
     </div>
   );
 };

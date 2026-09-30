@@ -63,7 +63,7 @@ export const storageMetadata = {
 
 // 4. Auth Settings
 export const passwordResetSettings: ActionCodeSettings = {
-  url: `${window.location.origin}/login`, 
+  url: typeof window !== 'undefined' ? `${window.location.origin}/login` : 'http://localhost:3000/login', 
   handleCodeInApp: false 
 };
 

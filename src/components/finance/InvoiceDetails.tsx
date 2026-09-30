@@ -4,6 +4,7 @@ import { Invoice, Vehicle, Customer } from '../../types/finance';
 import { Account } from '../../types';
 import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
+import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
 import InvoicePaymentHistory from './InvoicePaymentHistory';
 import {
   Receipt,
@@ -32,12 +33,23 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   AlertTriangle,
-  History
+  History,
+  Edit2,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  Building2,
+  X,
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import toast from 'react-hot-toast';
 import { useCommunicationLogs } from '../../hooks/useCommunicationLogs';
 import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
+import {
+  calculateProfitMetrics,
+  updateInvoiceSubcontractorCost,
+  updateInvoiceLineItemSubcontractorCost,
+} from '../../utils/profitCalculator';
 
 export type InvoiceDetailTab =
   | 'overview'
@@ -70,6 +82,108 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const [activeTab, setActiveTab] = useState<InvoiceDetailTab>('overview');
   const [copiedId, setCopiedId] = useState(false);
+
+  // Subcontractor Cost & Profit Tracking State
+  const initialInvoiceSubCost =
+    invoice.subcontractorCost !== undefined ? Number(invoice.subcontractorCost) : 0;
+  const initialInvoiceBilled =
+    invoice.customerBilled !== undefined
+      ? Number(invoice.customerBilled)
+      : invoice.total || invoice.amount || 0;
+
+  const [invoiceSubCost, setInvoiceSubCost] = useState<number>(initialInvoiceSubCost);
+  const [invoiceBilled, setInvoiceBilled] = useState<number>(initialInvoiceBilled);
+  const [isEditingInvoiceProfit, setIsEditingInvoiceProfit] = useState<boolean>(false);
+  const [editInvoiceSubCostInput, setEditInvoiceSubCostInput] = useState<string>(
+    initialInvoiceSubCost ? initialInvoiceSubCost.toFixed(2) : ''
+  );
+  const [editInvoiceBilledInput, setEditInvoiceBilledInput] = useState<string>(
+    initialInvoiceBilled ? initialInvoiceBilled.toFixed(2) : ''
+  );
+  const [isSavingInvoiceProfit, setIsSavingInvoiceProfit] = useState<boolean>(false);
+
+  // Line item editing state
+  const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
+  const [lineItemSubCostInput, setLineItemSubCostInput] = useState<string>('');
+  const [lineItemBilledInput, setLineItemBilledInput] = useState<string>('');
+  const [isSavingLineItem, setIsSavingLineItem] = useState<boolean>(false);
+  const [lineItemsState, setLineItemsState] = useState(invoice.lineItems || []);
+
+  React.useEffect(() => {
+    const sc =
+      invoice.subcontractorCost !== undefined ? Number(invoice.subcontractorCost) : 0;
+    const cb =
+      invoice.customerBilled !== undefined
+        ? Number(invoice.customerBilled)
+        : invoice.total || invoice.amount || 0;
+    setInvoiceSubCost(sc);
+    setInvoiceBilled(cb);
+    setEditInvoiceSubCostInput(sc ? sc.toFixed(2) : '');
+    setEditInvoiceBilledInput(cb ? cb.toFixed(2) : '');
+    setLineItemsState(invoice.lineItems || []);
+  }, [
+    invoice.subcontractorCost,
+    invoice.customerBilled,
+    invoice.total,
+    invoice.amount,
+    invoice.lineItems,
+  ]);
+
+  const invoiceProfitMetrics = calculateProfitMetrics(invoiceBilled, invoiceSubCost);
+
+  const handleSaveInvoiceSubCost = async () => {
+    const cost = Math.max(0, parseFloat(editInvoiceSubCostInput) || 0);
+    const billed = Math.max(0, parseFloat(editInvoiceBilledInput) || 0);
+    setIsSavingInvoiceProfit(true);
+    const tId = toast.loading('Updating invoice subcontractor cost & profit...');
+    try {
+      const updated = await updateInvoiceSubcontractorCost(invoice.id, cost, billed);
+      setInvoiceSubCost(updated.subcontractorCost);
+      setInvoiceBilled(updated.customerBilled);
+      setIsEditingInvoiceProfit(false);
+      toast.success('Invoice subcontractor cost & profit updated successfully', { id: tId });
+    } catch (err: any) {
+      console.error('Error saving invoice subcontractor cost:', err);
+      toast.error(err?.message || 'Failed to update cost', { id: tId });
+    } finally {
+      setIsSavingInvoiceProfit(false);
+    }
+  };
+
+  const handleSaveLineItemSubCost = async (lineItemId: string) => {
+    const cost = Math.max(0, parseFloat(lineItemSubCostInput) || 0);
+    const billed = Math.max(0, parseFloat(lineItemBilledInput) || 0);
+    setIsSavingLineItem(true);
+    const tId = toast.loading('Updating line item subcontractor cost...');
+    try {
+      const updated = await updateInvoiceLineItemSubcontractorCost(
+        invoice.id,
+        lineItemId,
+        cost,
+        billed
+      );
+      setLineItemsState((prev) =>
+        prev.map((it) =>
+          it.id === lineItemId
+            ? {
+                ...it,
+                subcontractorCost: updated.subcontractorCost,
+                customerBilled: updated.customerBilled,
+                netProfit: updated.netProfit,
+                profitMarginPercent: updated.profitMarginPercent,
+              }
+            : it
+        )
+      );
+      setEditingLineItemId(null);
+      toast.success('Line item subcontractor cost updated successfully', { id: tId });
+    } catch (err: any) {
+      console.error('Error saving line item cost:', err);
+      toast.error(err?.message || 'Failed to update cost', { id: tId });
+    } finally {
+      setIsSavingLineItem(false);
+    }
+  };
 
   const formatDate = (date: any): string => {
     if (!date) return 'N/A';
@@ -217,10 +331,14 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               <span className="font-mono text-sm font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
                 #{invoice.invoiceNumber || 'DRAFT'}
               </span>
-              <StatusBadge status={invoice.paymentStatus} />
+              <StatusBadge status={derivePaymentStatus(invoice)} />
               {invoice.isLoan && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
-                  Loan Account
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                  invoice.loanTransactionType === 'income'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-200'
+                }`}>
+                  Loan Account ({invoice.loanTransactionType === 'income' ? 'Income' : 'Expense'})
                 </span>
               )}
               {invoice.isRecurring && (
@@ -232,30 +350,34 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
 
             <div className="mt-2.5 flex items-baseline gap-3 flex-wrap">
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Total Due
+                <span className="text-[11px] font-bold text-[#D97706] uppercase tracking-wider block">
+                  Total:
                 </span>
-                <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
+                <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#D97706]">
                   {formatCurrency(total)}
                 </p>
               </div>
 
               <div className="pl-3 sm:pl-5 border-l border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Paid
+                <span className="text-[11px] font-bold text-[#15803D] uppercase tracking-wider block">
+                  Paid:
                 </span>
-                <p className="text-lg sm:text-xl font-bold font-mono text-emerald-600">
+                <p className="text-lg sm:text-xl font-bold font-mono text-[#15803D]">
                   {formatCurrency(paid)}
                 </p>
               </div>
 
               <div className="pl-3 sm:pl-5 border-l border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Outstanding
+                <span
+                  className={`text-[11px] font-bold uppercase tracking-wider block ${
+                    owing > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'
+                  }`}
+                >
+                  Owing:
                 </span>
                 <p
                   className={`text-lg sm:text-xl font-bold font-mono ${
-                    owing > 0.001 ? 'text-rose-600' : 'text-emerald-600'
+                    owing > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'
                   }`}
                 >
                   {formatCurrency(owing)}
@@ -370,11 +492,195 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           )}
         </div>
       </div>
+
+      {/* Internal Subcontractor Cost & Profit Overview Card */}
+      <div className="bg-white p-4 rounded-xl border border-indigo-200/80 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-indigo-600" />
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Internal Subcontractor Cost & Profit
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase">
+              Admin Only
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('line_items')}
+            className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+          >
+            Manage item costs →
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase block">Subcontractor Base</span>
+            <span className="text-base font-mono font-bold text-slate-900 mt-0.5 block">
+              {formatCurrency(invoiceSubCost)}
+            </span>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase block">Customer Billed</span>
+            <span className="text-base font-mono font-bold text-blue-700 mt-0.5 block">
+              {formatCurrency(invoiceBilled)}
+            </span>
+          </div>
+          <div
+            className={`p-3 rounded-lg border ${
+              invoiceProfitMetrics.netProfit >= 0
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}
+          >
+            <span className="text-[11px] font-semibold uppercase block">Net Profit</span>
+            <span className="text-base font-mono font-bold mt-0.5 block">
+              {invoiceProfitMetrics.netProfit >= 0 ? '+' : ''}
+              {formatCurrency(invoiceProfitMetrics.netProfit)}
+              <span className="text-xs font-sans font-normal ml-1">
+                ({invoiceProfitMetrics.profitMarginPercent.toFixed(1)}%)
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
   const renderLineItemsContent = () => (
     <div className="space-y-4">
+      {/* Internal Admin Profit & Subcontractor Tracking Header Card */}
+      <div className="bg-white border-2 border-indigo-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                Internal Admin Subcontractor Cost & Profit Breakdown
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 uppercase tracking-wide">
+                  Confidential
+                </span>
+              </h4>
+              <p className="text-xs text-slate-500">
+                Dealer/subcontractor base cost vs. billed client charges. (Never printed on customer PDFs)
+              </p>
+            </div>
+          </div>
+          {!isEditingInvoiceProfit ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditInvoiceSubCostInput(invoiceSubCost ? invoiceSubCost.toFixed(2) : '');
+                setEditInvoiceBilledInput(invoiceBilled ? invoiceBilled.toFixed(2) : '');
+                setIsEditingInvoiceProfit(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              Edit Subcontractor Cost
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveInvoiceSubCost}
+                disabled={isSavingInvoiceProfit}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingInvoiceProfit(false)}
+                disabled={isSavingInvoiceProfit}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        {isEditingInvoiceProfit && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Base Subcontractor Cost (£)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editInvoiceSubCostInput}
+                onChange={(e) => setEditInvoiceSubCostInput(e.target.value)}
+                placeholder="e.g. 180.00"
+                className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Billed Customer Total (£)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editInvoiceBilledInput}
+                onChange={(e) => setEditInvoiceBilledInput(e.target.value)}
+                placeholder="e.g. 250.00"
+                className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Overview metric cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Base Subcontractor Cost
+            </span>
+            <span className="text-base font-mono font-black text-slate-900 mt-0.5 block">
+              {formatCurrency(invoiceSubCost)}
+            </span>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Billed Customer Total
+            </span>
+            <span className="text-base font-mono font-black text-blue-700 mt-0.5 block">
+              {formatCurrency(invoiceBilled)}
+            </span>
+          </div>
+          <div
+            className={`p-3 rounded-lg border ${
+              invoiceProfitMetrics.netProfit > 0
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : invoiceProfitMetrics.netProfit < 0
+                ? 'bg-rose-50 border-rose-300 text-rose-800'
+                : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}
+          >
+            <span className="text-[11px] font-bold uppercase tracking-wider block">
+              Calculated Net Profit
+            </span>
+            <span className="text-base font-mono font-black mt-0.5 block">
+              {invoiceProfitMetrics.netProfit >= 0 ? '+' : ''}
+              {formatCurrency(invoiceProfitMetrics.netProfit)}
+              <span className="text-xs font-sans font-semibold ml-1.5 opacity-80">
+                ({invoiceProfitMetrics.profitMarginPercent.toFixed(1)}%)
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -402,14 +708,25 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {invoice.lineItems && invoice.lineItems.length > 0 ? (
-                invoice.lineItems.map((item, idx) => {
+              {lineItemsState && lineItemsState.length > 0 ? (
+                lineItemsState.map((item, idx) => {
                   const gross = (item.quantity || 0) * (item.unitPrice || 0);
                   const discountAmt = ((item.discount || 0) / 100) * gross;
                   const netAfterDiscount = gross - discountAmt;
                   const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
                   const totalLine = netAfterDiscount + vatAmt;
                   const isEven = idx % 2 === 1;
+
+                  // Subcontractor calculation for this line item
+                  const itemSubCost =
+                    item.subcontractorCost !== undefined
+                      ? Number(item.subcontractorCost)
+                      : lineItemsState.length === 1 && invoiceSubCost > 0
+                      ? invoiceSubCost
+                      : 0;
+                  const itemBilledTotal =
+                    item.customerBilled !== undefined ? Number(item.customerBilled) : totalLine;
+                  const itemMetrics = calculateProfitMetrics(itemBilledTotal, itemSubCost);
 
                   return (
                     <tr
@@ -419,7 +736,105 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                       }`}
                     >
                       <td className="px-4 py-3 text-sm text-slate-900 font-bold">
-                        {item.description || 'Item'}
+                        <div>{item.description || 'Item'}</div>
+
+                        {/* Internal Admin Line Item Breakdown Badge */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
+                            <span className="text-[10px] font-sans font-bold bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded uppercase tracking-wide">
+                              Admin
+                            </span>
+                            <span>Base Subcontractor Cost ({formatCurrency(itemSubCost)})</span>
+                            <span className="text-slate-400 font-sans">vs.</span>
+                            <span className="text-blue-700">Billed Customer Total ({formatCurrency(itemBilledTotal)})</span>
+                            <span className="text-slate-300">|</span>
+                            <span
+                              className={
+                                itemMetrics.netProfit >= 0
+                                  ? 'text-emerald-700 font-black'
+                                  : 'text-rose-700 font-black'
+                              }
+                            >
+                              Calculated Profit ({itemMetrics.netProfit >= 0 ? '+' : ''}
+                              {formatCurrency(itemMetrics.netProfit)})
+                            </span>
+                            {itemBilledTotal > 0 && (
+                              <span className="text-[11px] text-slate-500 font-sans">
+                                ({itemMetrics.profitMarginPercent.toFixed(1)}%)
+                              </span>
+                            )}
+                          </div>
+
+                          {editingLineItemId !== item.id ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingLineItemId(item.id);
+                                setLineItemSubCostInput(itemSubCost ? itemSubCost.toFixed(2) : '');
+                                setLineItemBilledInput(
+                                  itemBilledTotal ? itemBilledTotal.toFixed(2) : ''
+                                );
+                              }}
+                              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 underline underline-offset-2 cursor-pointer"
+                              title="Edit line item subcontractor cost"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              Edit Cost
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {editingLineItemId === item.id && (
+                          <div className="mt-2.5 p-3 rounded-lg bg-indigo-50/70 border border-indigo-200 flex flex-wrap items-end gap-3 text-xs">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                                Base Subcontractor Cost (£)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={lineItemSubCostInput}
+                                onChange={(e) => setLineItemSubCostInput(e.target.value)}
+                                placeholder="e.g. 180.00"
+                                className="px-2.5 py-1 text-xs font-mono font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-indigo-500"
+                                autoFocus
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                                Billed Customer Total (£)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={lineItemBilledInput}
+                                onChange={(e) => setLineItemBilledInput(e.target.value)}
+                                placeholder="e.g. 250.00"
+                                className="px-2.5 py-1 text-xs font-mono font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 pb-0.5">
+                              <button
+                                type="button"
+                                disabled={isSavingLineItem}
+                                onClick={() => handleSaveLineItemSubCost(item.id)}
+                                className="px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition cursor-pointer"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isSavingLineItem}
+                                onClick={() => setEditingLineItemId(null)}
+                                className="px-2 py-1 text-xs font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded transition cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600 font-medium">
                         {item.vehicleName ? (
@@ -471,7 +886,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             Total items listed: <span className="font-bold text-slate-800">{lineItemsCount}</span>
           </div>
 
-          <div className="w-full sm:w-72 space-y-1.5 text-xs text-slate-700">
+          <div className="w-full sm:w-80 space-y-1.5 text-xs text-slate-700">
             <div className="flex justify-between">
               <span className="text-slate-500">Subtotal (Net):</span>
               <span className="font-mono font-bold text-slate-900">{formatCurrency(net)}</span>
@@ -489,6 +904,30 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             <div className="flex justify-between pt-1.5 border-t border-slate-200 text-sm font-black text-slate-900">
               <span>Grand Total:</span>
               <span className="font-mono text-base">{formatCurrency(total)}</span>
+            </div>
+
+            {/* Internal Admin Profit Summary In Footer */}
+            <div className="pt-2 mt-2 border-t border-dashed border-indigo-200 text-indigo-950 space-y-1 bg-indigo-50/50 p-2.5 rounded-lg">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                Internal Profit Audit
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Base Subcontractor Cost:</span>
+                <span className="font-mono font-semibold">{formatCurrency(invoiceSubCost)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Customer Billed:</span>
+                <span className="font-mono font-semibold">{formatCurrency(invoiceBilled)}</span>
+              </div>
+              <div className="flex justify-between font-bold pt-1 border-t border-indigo-200">
+                <span className={invoiceProfitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                  Net Calculated Profit:
+                </span>
+                <span className={`font-mono font-black ${invoiceProfitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {invoiceProfitMetrics.netProfit >= 0 ? '+' : ''}{formatCurrency(invoiceProfitMetrics.netProfit)}
+                  <span className="text-[10px] ml-1 font-sans">({invoiceProfitMetrics.profitMarginPercent.toFixed(1)}%)</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -781,10 +1220,14 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
                 <Hash className="h-4 w-4 text-indigo-500 mr-0.5" />
                 {invoice.invoiceNumber || 'Draft Invoice'}
               </h3>
-              <StatusBadge status={invoice.paymentStatus} />
+              <StatusBadge status={derivePaymentStatus(invoice)} />
               {invoice.isLoan && (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                  Loan
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                  invoice.loanTransactionType === 'income'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-200'
+                }`}>
+                  Loan ({invoice.loanTransactionType === 'income' ? 'Income' : 'Expense'})
                 </span>
               )}
             </div>

@@ -1,26 +1,23 @@
 // src/components/finance/FinanceFilters.tsx
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import SearchableSelect from '../ui/SearchableSelect';
+import DateRangePicker from '../ui/DateRangePicker';
 import {
-  Calendar,
   SlidersHorizontal,
   ChevronDown,
-  X,
   RotateCcw,
+  X,
   Building2,
   Car,
   Repeat,
-  Check,
 } from 'lucide-react';
 import {
-  startOfDay,
-  endOfDay,
+  format,
   startOfMonth,
   endOfMonth,
   subMonths,
   startOfYear,
   endOfYear,
-  format,
 } from 'date-fns';
 
 interface FinanceFiltersProps {
@@ -60,6 +57,8 @@ interface FinanceFiltersProps {
   onRecurringFilterChange: (value: string) => void;
   recurringFrequency: string;
   onRecurringFrequencyChange: (value: string) => void;
+  profitTrackingFilter?: 'all' | 'has_profit' | 'legacy';
+  onProfitTrackingFilterChange?: (value: 'all' | 'has_profit' | 'legacy') => void;
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
@@ -96,25 +95,10 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   onRecurringFilterChange,
   recurringFrequency,
   onRecurringFrequencyChange,
+  profitTrackingFilter = 'all',
+  onProfitTrackingFilterChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const datePickerRef = useRef<HTMLDivElement>(null);
-
-  // Close date picker popover on click outside
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
-        setShowDatePicker(false);
-      }
-    };
-    if (showDatePicker) {
-      document.addEventListener('mousedown', handleOutsideClick);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, [showDatePicker]);
 
   const categoryOptions = useMemo(
     () => [{ id: 'all', label: 'All Categories' }, ...categories.map((cat) => ({ id: cat, label: cat }))],
@@ -212,31 +196,6 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     return onAccountFilterChange(val);
   };
 
-  // Date Range Presets
-  const applyPreset = (preset: 'all' | 'today' | 'this_month' | 'last_month' | 'this_year') => {
-    const now = new Date();
-    switch (preset) {
-      case 'all':
-        onDateRangeChange({ start: null, end: null });
-        break;
-      case 'today':
-        onDateRangeChange({ start: startOfDay(now), end: endOfDay(now) });
-        break;
-      case 'this_month':
-        onDateRangeChange({ start: startOfMonth(now), end: endOfMonth(now) });
-        break;
-      case 'last_month': {
-        const lastMonth = subMonths(now, 1);
-        onDateRangeChange({ start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) });
-        break;
-      }
-      case 'this_year':
-        onDateRangeChange({ start: startOfYear(now), end: endOfYear(now) });
-        break;
-    }
-    setShowDatePicker(false);
-  };
-
   const dateDisplayLabel = useMemo(() => {
     if (!dateRange.start && !dateRange.end) return 'All Dates';
     const now = new Date();
@@ -293,6 +252,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     if (showLinked !== 'all') count++;
     if (recurringFilter !== 'all') count++;
     if (recurringFrequency !== 'all') count++;
+    if (profitTrackingFilter !== 'all') count++;
     return count;
   }, [
     accountFilter,
@@ -305,6 +265,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     showLinked,
     recurringFilter,
     recurringFrequency,
+    profitTrackingFilter,
   ]);
 
   // Active chips for 1-click removal
@@ -465,6 +426,14 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
       });
     }
 
+    if (profitTrackingFilter !== 'all') {
+      chips.push({
+        id: 'profitTracking',
+        label: `Profit: ${profitTrackingFilter === 'has_profit' ? 'Has Net Profit' : 'Legacy / Uncalculated'}`,
+        onClear: () => onProfitTrackingFilterChange?.('all'),
+      });
+    }
+
     return chips;
   }, [
     type,
@@ -487,6 +456,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     showLinked,
     recurringFilter,
     recurringFrequency,
+    profitTrackingFilter,
     onTypeChange,
     onDateRangeChange,
     onStatusFilterChange,
@@ -500,6 +470,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     onShowLinkedChange,
     onRecurringFilterChange,
     onRecurringFrequencyChange,
+    onProfitTrackingFilterChange,
   ]);
 
   const handleClearAll = () => {
@@ -516,6 +487,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     onShowLinkedChange('all');
     onRecurringFilterChange('all');
     onRecurringFrequencyChange('all');
+    onProfitTrackingFilterChange?.('all');
   };
 
   return (
@@ -563,120 +535,12 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </button>
           </div>
 
-          {/* B. Date Range Presets Dropdown */}
-          <div className="relative" ref={datePickerRef}>
-            <button
-              type="button"
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              className={`h-9 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                dateRange.start || dateRange.end
-                  ? 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-100/80'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <span>{dateDisplayLabel}</span>
-              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Date Picker Popover */}
-            {showDatePicker && (
-              <div className="absolute left-0 top-full mt-1.5 z-50 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-100">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1 border-b border-slate-100">
-                  Quick Presets
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('all')}
-                    className="px-2.5 py-1.5 text-xs text-left font-medium rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
-                  >
-                    All Time
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('today')}
-                    className="px-2.5 py-1.5 text-xs text-left font-medium rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
-                  >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('this_month')}
-                    className="px-2.5 py-1.5 text-xs text-left font-medium rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
-                  >
-                    This Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('last_month')}
-                    className="px-2.5 py-1.5 text-xs text-left font-medium rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
-                  >
-                    Last Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('this_year')}
-                    className="col-span-2 px-2.5 py-1.5 text-xs text-left font-medium rounded-lg hover:bg-slate-100 text-slate-700 transition-colors"
-                  >
-                    This Year
-                  </button>
-                </div>
-
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-2 pb-1 border-t border-slate-100">
-                  Custom Range
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">From</label>
-                    <input
-                      type="date"
-                      value={dateRange.start ? format(dateRange.start, 'yyyy-MM-dd') : ''}
-                      onChange={(e) =>
-                        onDateRangeChange({
-                          ...dateRange,
-                          start: e.target.value ? new Date(e.target.value) : null,
-                        })
-                      }
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">To</label>
-                    <input
-                      type="date"
-                      value={dateRange.end ? format(dateRange.end, 'yyyy-MM-dd') : ''}
-                      onChange={(e) =>
-                        onDateRangeChange({
-                          ...dateRange,
-                          end: e.target.value ? new Date(e.target.value) : null,
-                        })
-                      }
-                      min={dateRange.start ? format(dateRange.start, 'yyyy-MM-dd') : undefined}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('all')}
-                    className="text-xs text-slate-500 hover:text-slate-800 font-medium"
-                  >
-                    Reset Date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDatePicker(false)}
-                    className="px-3 py-1 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* B. Date Range Presets & Month/Year Drilldown Picker */}
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            align="left"
+          />
 
           {/* C. Payment Status Dropdown */}
           <div className="relative">
@@ -693,6 +557,24 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
               <option value="partially_paid">Partially Paid</option>
+            </select>
+          </div>
+
+          {/* D. Profit Tracking Dropdown */}
+          <div className="relative">
+            <select
+              value={profitTrackingFilter}
+              onChange={(e) => onProfitTrackingFilterChange?.(e.target.value as any)}
+              className={`h-9 px-3 py-1.5 text-xs font-bold border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer shadow-2xs ${
+                profitTrackingFilter !== 'all'
+                  ? 'border-emerald-500 text-emerald-900 bg-emerald-50/70 ring-1 ring-emerald-200'
+                  : 'border-slate-300 text-slate-700 hover:border-slate-400'
+              }`}
+              title="Profit Tracking"
+            >
+              <option value="all">Profit Tracking: All Records</option>
+              <option value="has_profit">Has Net Profit</option>
+              <option value="legacy">Legacy / Uncalculated</option>
             </select>
           </div>
         </div>
@@ -955,6 +837,21 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
                     </select>
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Profit Tracking
+                  </label>
+                  <select
+                    value={profitTrackingFilter}
+                    onChange={(e) => onProfitTrackingFilterChange?.(e.target.value as any)}
+                    className="block w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs shadow-2xs cursor-pointer"
+                  >
+                    <option value="all">All Records</option>
+                    <option value="has_profit">Has Net Profit</option>
+                    <option value="legacy">Legacy / Uncalculated</option>
+                  </select>
+                </div>
               </div>
             </div>
 

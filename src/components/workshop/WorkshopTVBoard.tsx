@@ -24,6 +24,10 @@ import {
   Calendar,
   RefreshCw,
   Tv,
+  Volume2,
+  VolumeX,
+  Search,
+  ZoomIn,
 } from 'lucide-react';
 import {
   format,
@@ -42,6 +46,38 @@ import {
   filterTVItemsByCategory,
   subscribeTVMirrorData,
 } from '../../utils/tvMirrorService';
+import {
+  normalizeMaintenanceStatus,
+  getMaintenanceStatusLabel,
+  isStatusOffRoad,
+  isStatusUrgentScheduled,
+  getStatusBadgeStyles,
+  getMaintenanceRowTheme,
+} from '../../utils/maintenanceStatusConfig';
+
+export type TVDisplayScale = 'standard' | 'large' | 'compact';
+
+// Audio chime using Web Audio API for auto-rotation and urgent notices (zero dependencies)
+const playRotationChime = (isAlert = false) => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = isAlert ? 'triangle' : 'sine';
+    const startFreq = isAlert ? 880 : 587.33;
+    const endFreq = isAlert ? 440 : 880;
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + (isAlert ? 0.3 : 0.15));
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (isAlert ? 0.6 : 0.4));
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + (isAlert ? 0.6 : 0.4));
+  } catch {}
+};
 
 // ─────────────────────────────────────────────────────────────
 // EXACT COLOR HELPERS MATCHING LIVE PUBLIC MIRROR
@@ -163,112 +199,66 @@ const getTypeBadgeColor = (type: string) => {
   return 'bg-slate-800 text-slate-300 border-slate-700';
 };
 
-const getRelativeBadge = (d: Date, status: string, isOverdue?: boolean) => {
-  if (status === 'in-progress') {
-    return (
-      <LiveTypingBadge
-        messages={['IN PROGRESS', 'ACTIVE SERVICE', 'IN WORKSHOP']}
-        variant="in-progress"
-      />
-    );
-  }
+const getRelativeBadge = (d: Date, item: any, isOverdue?: boolean) => {
+  const isAccident = item?.isAccident || normalizeMaintenanceStatus(item?.status) === 'accident';
+  const isOffRoad = isStatusOffRoad(item?.status, { isAccident, isOffRoad: item?.isOffRoad });
+  const isUrgent = item?.isUrgent || isOverdue || isStatusUrgentScheduled(item?.status, d, { isAccident, isOffRoad });
+  const statusLabel =
+    item?.statusLabel ||
+    getMaintenanceStatusLabel(item?.status, {
+      isAccident,
+      isOffRoad,
+    });
 
-  const days = isValid(d) ? differenceInCalendarDays(d, new Date()) : null;
+  const badgeClass = getStatusBadgeStyles(item?.status, {
+    isScheduledUrgent: isUrgent,
+    isDarkTheme: true,
+    isAccident,
+    isOffRoad,
+  });
 
-  if (days !== null && days < 8) {
-    const scheduleMessages =
-      days < 0
-        ? [`${Math.abs(days)}D OVERDUE`, `${format(d, 'dd/MM HH:mm')}`, `${Math.abs(days)}D OVERDUE`]
-        : days === 0
-        ? ['DUE TODAY', `${format(d, 'HH:mm')} TODAY`, 'DUE TODAY']
-        : [`DUE IN ${days}D`, `${format(d, 'dd/MM HH:mm')}`, `DUE IN ${days}D`];
-
-    return (
-      <LiveTypingBadge
-        messages={scheduleMessages}
-        variant="urgent"
-      />
-    );
-  }
-
-  if (isOverdue) {
-    return (
-      <LiveTypingBadge
-        messages={['PENDING / DUE', 'OVERDUE NOTICE']}
-        variant="urgent"
-      />
-    );
-  }
-  if (isToday(d)) {
-    return (
-      <LiveTypingBadge
-        messages={['SCHEDULED TODAY', format(d, 'HH:mm')]}
-        variant="scheduled"
-        className="bg-blue-600/90 text-white border-blue-400/80 shadow-xs"
-      />
-    );
-  }
-  if (isTomorrow(d)) {
-    return (
-      <LiveTypingBadge
-        messages={['TOMORROW', format(d, 'HH:mm')]}
-        variant="scheduled"
-        className="bg-indigo-600/90 text-white border-indigo-400/80 shadow-xs"
-      />
-    );
-  }
   return (
-    <LiveTypingBadge
-      messages={[
-        days !== null ? `In ${days}d (${format(d, 'dd MMM')})` : format(d, 'dd MMM (EEE)'),
-        format(d, 'dd/MM/yyyy HH:mm'),
-      ]}
-      variant="scheduled"
-      showDot={false}
-    />
+    <span
+      className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${badgeClass}`}
+    >
+      {isOffRoad ? (
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
+      ) : isUrgent ? (
+        <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-slow-fade-blink-dot shrink-0" />
+      ) : null}
+      <span className="truncate">{statusLabel}</span>
+    </span>
   );
 };
 
-const getLiveStatusBadge = (item: any, isUrgent: boolean, isInProgress: boolean) => {
-  if (isInProgress) {
-    return (
-      <LiveTypingBadge
-        messages={['IN PROGRESS', 'ACTIVE JOB', 'WORKSHOP IN-PROGRESS']}
-        variant="in-progress"
-      />
-    );
-  }
-  if (item?.status === 'completed') {
-    return (
-      <LiveTypingBadge
-        messages={['COMPLETED', 'READY FOR DISPATCH']}
-        variant="scheduled"
-        className="bg-emerald-900/90 text-white border-emerald-500/60 shadow-xs"
-      />
-    );
-  }
-  if (item?.category === 'available' || item?.status === 'available') {
-    return (
-      <LiveTypingBadge
-        messages={['DEPOT READY', 'AVAILABLE', 'INSPECTED']}
-        variant="scheduled"
-        className="bg-teal-900/80 text-teal-200 border-teal-500/50 shadow-xs"
-      />
-    );
-  }
-  if (isUrgent) {
-    return (
-      <LiveTypingBadge
-        messages={['SCHEDULED', 'ON SCHEDULE', 'LIVE DISPATCH', 'CONFIRMED']}
-        variant="urgent"
-      />
-    );
-  }
+const getLiveStatusBadge = (item: any, isUrgent: boolean, isWorkshop: boolean) => {
+  const isAccident = item?.isAccident || normalizeMaintenanceStatus(item?.status) === 'accident';
+  const isOffRoad = isStatusOffRoad(item?.status, { isAccident, isOffRoad: item?.isOffRoad });
+  const statusLabel =
+    item?.statusLabel ||
+    getMaintenanceStatusLabel(item?.status, {
+      isAccident,
+      isOffRoad,
+    });
+
+  const badgeClass = getStatusBadgeStyles(item?.status, {
+    isScheduledUrgent: isUrgent,
+    isDarkTheme: true,
+    isAccident,
+    isOffRoad,
+  });
+
   return (
-    <LiveTypingBadge
-      messages={['SCHEDULED', 'ON SCHEDULE', 'CONFIRMED']}
-      variant="scheduled"
-    />
+    <span
+      className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${badgeClass}`}
+    >
+      {isOffRoad ? (
+        <span className="h-2 w-2 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
+      ) : isUrgent ? (
+        <span className="h-2 w-2 rounded-full bg-red-400 animate-slow-fade-blink-dot shrink-0" />
+      ) : null}
+      <span className="truncate">{statusLabel}</span>
+    </span>
   );
 };
 
@@ -308,19 +298,30 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
       return initialJobs.map((j) => {
         const jDate = j.scheduledDate ? new Date(j.scheduledDate) : new Date();
         const daysRemaining = differenceInCalendarDays(jDate, todayStart);
-        const isInProgress = j.status === 'in-progress';
+        const isAccident = (j as any).isAccident || j.status === 'accident' || j.status === 'off-road-accident';
+        const isOffRoad = isStatusOffRoad(j.status, { isAccident, isOffRoad: j.isOffRoad });
+        const normalizedStatus = normalizeMaintenanceStatus(j.status, { isAccident, isOffRoad });
+        const statusLabel =
+          (j as any).statusLabel ||
+          getMaintenanceStatusLabel(j.status, { isAccident, isOffRoad });
+        const isUrgent = isStatusUrgentScheduled(j.status, jDate, { isAccident, isOffRoad });
+        const isWorkshop = normalizedStatus === 'workshop' || normalizedStatus === 'in-progress';
+
         return {
           id: j.id,
-          category: j.source === 'rental' ? 'rental' : 'maintenance',
+          category: j.source === 'rental' ? 'rental' : j.source === 'vehicle' ? 'available' : 'maintenance',
           source: j.source || 'maintenance',
-          title: j.title || 'WORKSHOP JOB',
-          type: j.type || 'Service',
+          title: isOffRoad ? '🚨 OFF ROAD (VOR) WORKSHOP' : (j.title || 'WORKSHOP JOB'),
+          type: isOffRoad ? 'OFF ROAD (VOR)' : (j.type || 'Service'),
           description: j.description,
-          status: isInProgress ? 'in-progress' : 'scheduled',
+          status: j.status || normalizedStatus,
+          statusLabel,
           scheduledDate: jDate,
           daysRemaining,
-          isUrgent: !isInProgress && daysRemaining < 7,
-          isWorkshop: isInProgress,
+          isUrgent,
+          isWorkshop,
+          isOffRoad,
+          isAccident,
           vehicleMake: j.vehicleMake,
           vehicleModel: j.vehicleModel,
           vehicleReg: j.vehicleReg,
@@ -342,10 +343,25 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
   // - AVAILABLE VEHICLES (Unassigned, depot-ready vehicles)
   // ─────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<TVFilterCategory>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showSearch, setShowSearch] = useState<boolean>(false);
 
   const filteredItems = useMemo(() => {
-    return filterTVItemsByCategory(allBoardItems, activeFilter);
-  }, [allBoardItems, activeFilter]);
+    let list = filterTVItemsByCategory(allBoardItems, activeFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((i) =>
+        (i.vehicleReg && i.vehicleReg.toLowerCase().includes(q)) ||
+        (i.vehicleMake && i.vehicleMake.toLowerCase().includes(q)) ||
+        (i.vehicleModel && i.vehicleModel.toLowerCase().includes(q)) ||
+        (i.customerName && i.customerName.toLowerCase().includes(q)) ||
+        (i.orderNumber && i.orderNumber.toLowerCase().includes(q)) ||
+        (i.description && i.description.toLowerCase().includes(q)) ||
+        (i.type && i.type.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [allBoardItems, activeFilter, searchQuery]);
 
   const categoryCounts = useMemo(() => {
     return {
@@ -353,15 +369,22 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
       maintenance: allBoardItems.filter((i) => i.category === 'maintenance').length,
       rentSchedule: allBoardItems.filter((i) => i.category === 'rental').length,
       availableVehicles: allBoardItems.filter((i) => i.category === 'available').length,
+      offRoad: allBoardItems.filter((i) => i.isOffRoad).length,
     };
   }, [allBoardItems]);
 
   const totalInProgressCount = useMemo(() => {
-    return allBoardItems.filter((i) => i.status === 'in-progress' || i.isWorkshop).length;
+    return allBoardItems.filter(
+      (i) =>
+        normalizeMaintenanceStatus(i.status) === 'in-progress' ||
+        normalizeMaintenanceStatus(i.status) === 'workshop'
+    ).length;
   }, [allBoardItems]);
 
   const totalActiveScheduledCount = useMemo(() => {
-    return allBoardItems.filter((i) => i.status === 'scheduled').length;
+    return allBoardItems.filter(
+      (i) => normalizeMaintenanceStatus(i.status) === 'scheduled'
+    ).length;
   }, [allBoardItems]);
 
   // ─────────────────────────────────────────────────────────────
@@ -405,8 +428,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
   }, [filteredItems, currentPageIndex, linesPerPage]);
 
   // ─────────────────────────────────────────────────────────────
-  // 4. DYNAMIC AUTO-ROTATION & TIMER
-  // - Options: 15 Seconds (Default), 30 Seconds, 1 Minute, 2 Minutes
+  // 4. DYNAMIC AUTO-ROTATION, SOUND & DISPLAY SCALE
   // ─────────────────────────────────────────────────────────────
   const [rotationSpeed, setRotationSpeed] = useState<TVRotationSpeed>(() => {
     try {
@@ -426,6 +448,44 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
     } catch {}
     slideStartTimeRef.current = Date.now();
     setSecondsRemaining(Math.ceil(speed / 1000));
+  };
+
+  // Sound chime toggle
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('workshop_tv_sound') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('workshop_tv_sound', String(next));
+      } catch {}
+      if (next) {
+        playRotationChime(false);
+      }
+      return next;
+    });
+  };
+
+  // Display Scale: 'standard' | 'large' | 'compact'
+  const [displayScale, setDisplayScale] = useState<TVDisplayScale>(() => {
+    try {
+      const saved = localStorage.getItem('workshop_tv_scale') as TVDisplayScale;
+      if (['standard', 'large', 'compact'].includes(saved)) return saved;
+    } catch {}
+    return 'standard';
+  });
+
+  const handleScaleChange = (scale: TVDisplayScale) => {
+    setDisplayScale(scale);
+    try {
+      localStorage.setItem('workshop_tv_scale', scale);
+    } catch {}
   };
 
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -450,14 +510,20 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
     slideStartTimeRef.current = Date.now();
     setProgressPercent(0);
     setSecondsRemaining(Math.ceil(rotationSpeed / 1000));
-  }, [totalPages, rotationSpeed]);
+    if (soundEnabled) {
+      playRotationChime(false);
+    }
+  }, [totalPages, rotationSpeed, soundEnabled]);
 
   const prevPage = useCallback(() => {
     setCurrentPageIndex((prev) => (prev - 1 + totalPages) % totalPages);
     slideStartTimeRef.current = Date.now();
     setProgressPercent(0);
     setSecondsRemaining(Math.ceil(rotationSpeed / 1000));
-  }, [totalPages, rotationSpeed]);
+    if (soundEnabled) {
+      playRotationChime(false);
+    }
+  }, [totalPages, rotationSpeed, soundEnabled]);
 
   // Auto-rotation loop
   useEffect(() => {
@@ -503,6 +569,15 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        if (e.key === 'Escape') {
+          setShowSearch(false);
+          setSearchQuery('');
+        }
+        return;
+      }
+
       if (e.key === 'ArrowRight' || e.key === ' ') {
         nextPage();
       } else if (e.key === 'ArrowLeft') {
@@ -511,14 +586,27 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
         setIsPaused((p) => !p);
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
+      } else if (e.key === 'm' || e.key === 'M') {
+        toggleSound();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        setShowSearch(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextPage, prevPage]);
 
+  // Dynamic Scale Classes
+  const scaleClasses =
+    displayScale === 'large'
+      ? 'scale-large text-sm'
+      : displayScale === 'compact'
+      ? 'scale-compact text-xs'
+      : 'scale-standard text-xs';
+
   return (
-    <div className="relative min-h-screen bg-[#0A0C14] text-white flex flex-col font-sans select-none overflow-x-hidden p-3 sm:p-5 md:p-6 w-full max-w-full box-border public-mirror-root">
+    <div className={`relative min-h-screen bg-[#0A0C14] text-white flex flex-col font-sans select-none overflow-x-hidden p-3 sm:p-5 md:p-6 w-full max-w-full box-border public-mirror-root ${scaleClasses}`}>
       {/* ─────────────────────────────────────────────────────────────
           1. TOP ANIMATED COUNTDOWN PROGRESS BAR
          ───────────────────────────────────────────────────────────── */}
@@ -530,20 +618,20 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. LIVE HEADER BAR - EXACT MATCH TO LIVE PUBLIC MIRROR
+          2. LIVE HEADER BAR - WORKSHOP TV DISPLAY BOARD
          ───────────────────────────────────────────────────────────── */}
       <header className="bg-[#121524] border border-[#2B314E] rounded-2xl p-4 md:p-6 shadow-2xl mb-5 w-full max-w-full min-w-0 shrink-0">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 min-w-0">
-          {/* Title & Live Badge */}
+          {/* Title & Live Badges */}
           <div className="flex items-center gap-3 md:gap-4 flex-wrap min-w-0 flex-1">
-            <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg border border-blue-400/30 flex items-center justify-center shrink-0">
-              <Radio className="w-6 h-6 text-white animate-pulse" />
+            <div className="p-3 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-xl shadow-lg border border-emerald-400/30 flex items-center justify-center shrink-0">
+              <Tv className="w-6 h-6 text-white animate-pulse" />
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                  Real-Time Public Mirror
+                  Workshop TV Display Board
                 </h1>
                 <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-black bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 shadow-sm shrink-0">
                   <span className="relative flex h-2 w-2">
@@ -559,9 +647,15 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                   <Tv className="w-3 h-3 text-emerald-400" />
                   <span>TV AUTO-ROTATION</span>
                 </span>
+                {categoryCounts.offRoad > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-wider bg-rose-950/90 text-rose-300 border border-rose-500/80 shadow-md animate-more-color-blink-red shrink-0">
+                    <AlertTriangle className="w-3 h-3 text-rose-400" />
+                    <span>{categoryCounts.offRoad} VOR OFF-ROAD</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs md:text-sm text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
-                <span>Workshop Maintenance &amp; Fleet Dispatch Scheduler</span>
+                <span>Workshop Floor Auto-Rotation Board • Live Fleet Synchronization</span>
                 <span className="hidden sm:inline">•</span>
                 <span className="text-slate-300 font-mono">
                   {format(currentTime, 'EEEE, dd MMMM yyyy • HH:mm:ss')}
@@ -589,6 +683,45 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                 <p className="text-base sm:text-lg font-black text-white leading-none">{totalActiveScheduledCount}</p>
               </div>
             </div>
+
+            {/* Sound Chime Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleSound}
+              className={`p-2.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition border cursor-pointer flex items-center gap-1.5 ${
+                soundEnabled
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/50 shadow-md'
+                  : 'bg-[#1A1E35] text-slate-400 border-[#2B314E] hover:text-white'
+              }`}
+              title={soundEnabled ? 'Rotation Audio Chime: ON (Click to Mute / M key)' : 'Rotation Audio Chime: OFF (Click to Enable / M key)'}
+            >
+              {soundEnabled ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Chime ON</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">Chime OFF</span>
+                </>
+              )}
+            </button>
+
+            {/* Search Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setShowSearch((prev) => !prev)}
+              className={`p-2.5 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold transition border cursor-pointer flex items-center gap-1.5 ${
+                showSearch || searchQuery
+                  ? 'bg-blue-600/30 text-blue-300 border-blue-500/60'
+                  : 'bg-[#1A1E35] text-slate-300 hover:text-white border-[#2B314E]'
+              }`}
+              title="Quick Search / Filter Plate or Vehicle (Shortcut: /)"
+            >
+              <Search className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden sm:inline">{searchQuery ? 'Filtered' : 'Search'}</span>
+            </button>
 
             {/* Play/Pause Auto-Rotation Button */}
             <button
@@ -633,7 +766,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
               type="button"
               onClick={() => setShowSettingsModal(true)}
               className="p-2.5 sm:px-3 sm:py-2 bg-[#1A1E35] hover:bg-[#252B4D] border border-[#2B314E] text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
-              title="Configure Lines Per Page & Rotation Speed"
+              title="Configure Lines Per Page, Scale & Rotation Speed"
             >
               <Sliders className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden sm:inline">Settings</span>
@@ -664,12 +797,52 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
           </div>
         </div>
 
+        {/* Optional Search Bar Input Row */}
+        {showSearch && (
+          <div className="mt-3 pt-3 border-t border-[#2B314E]/60 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPageIndex(0);
+                  slideStartTimeRef.current = Date.now();
+                }}
+                placeholder="Filter TV board by registration plate, make, model, order #, or customer name..."
+                className="w-full pl-9 pr-8 py-2 bg-[#0F111A] border border-blue-500/60 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSearch(false);
+                setSearchQuery('');
+              }}
+              className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl bg-slate-800"
+            >
+              Close
+            </button>
+          </div>
+        )}
+
         {/* Sync Status Banner */}
         <div className="mt-4 pt-3 border-t border-[#2B314E]/60 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 gap-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>
-              Real-time Firestore synchronization active. Showing active workshop jobs and fleet dispatch schedules.
+              Real-time Firestore synchronization active. Showing active workshop jobs, fleet rentals, and depot vehicles.
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -686,11 +859,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
       </header>
 
       {/* ─────────────────────────────────────────────────────────────
-          3. VISUAL TOGGLE FILTERS (4 VIEWS)
-          - ALL (Shows all records)
-          - MAINTENANCE (MOT, Mileage Service, Control Arms, Repairs, Road Tax)
-          - RENT SCHEDULE (Active driver rentals, taxi contracts, fleet hires)
-          - AVAILABLE VEHICLES (Unassigned, depot-ready vehicles)
+          3. VISUAL TOGGLE FILTERS (4 VIEWS + VOR ALERT)
          ───────────────────────────────────────────────────────────── */}
       <nav className="bg-[#121524] border border-[#2B314E] rounded-2xl px-4 sm:px-6 py-3 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-xl z-20 shrink-0">
         <div className="flex items-center gap-2 overflow-x-auto">
@@ -754,8 +923,6 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
       {/* ─────────────────────────────────────────────────────────────
           4. MAIN TV DISPLAY TABLE - EXACT MATCH TO LIVE PUBLIC MIRROR
-          HEADER MATCHES:
-          ORDER # | VEHICLE | CATEGORY | JOB DETAILS & CUSTOMER | SCHEDULED DATE & TIME | LIVE STATUS
          ───────────────────────────────────────────────────────────── */}
       <main className="flex-1 p-3 sm:p-5 flex flex-col justify-start overflow-hidden">
         {currentPageItems.length === 0 ? (
@@ -766,7 +933,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
             <div>
               <h3 className="text-xl font-bold text-white mb-1">No Active Records Found</h3>
               <p className="text-sm text-slate-400 max-w-md">
-                No jobs or fleet records match the selected category filter at this time.
+                No jobs or fleet records match the selected category filter {searchQuery ? `or query "${searchQuery}"` : ''} at this time.
               </p>
             </div>
           </div>
@@ -806,31 +973,32 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                    ───────────────────────────────────────────────────────────── */}
                 <tbody>
                   {currentPageItems.map((item) => {
-                    const isWorkshop = item.isWorkshop || item.status === 'in-progress';
+                    const isAccident = item.isAccident || normalizeMaintenanceStatus(item.status) === 'accident';
+                    const isOffRoad = isStatusOffRoad(item.status, { isAccident, isOffRoad: item.isOffRoad });
+                    const isWorkshop =
+                      item.isWorkshop ||
+                      normalizeMaintenanceStatus(item.status) === 'in-progress' ||
+                      normalizeMaintenanceStatus(item.status) === 'workshop';
                     const daysRemaining = item.daysRemaining;
                     const jobDate = item.scheduledDate;
-                    const isUrgent = !isWorkshop && (daysRemaining < 8 || item.status === 'overdue');
+                    const isUrgent = isOffRoad || isStatusUrgentScheduled(item.status, jobDate, { isAccident, isOffRoad });
+
+                    const rowTheme = getMaintenanceRowTheme(item.status, {
+                      date: jobDate,
+                      isScheduledUrgent: isUrgent,
+                      isDarkTheme: true,
+                      isAccident,
+                      isOffRoad,
+                    });
 
                     return (
                       <tr
                         key={item.id}
-                        className={`group transition-all duration-150 rounded-xl cursor-default ${
-                          isUrgent
-                            ? 'row-urgent animate-slow-fade-blink-table'
-                            : isWorkshop
-                            ? 'row-in-progress bg-amber-500/[0.08]'
-                            : 'row-normal bg-[#121524]'
-                        }`}
+                        className={`group transition-all duration-150 rounded-xl cursor-default ${rowTheme.rowClass}`}
                       >
                         {/* 1. ORDER # (First cell: rounded-l-xl with left border) */}
                         <td
-                          className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-l-4 !border-l-red-500 border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
-                              : isWorkshop
-                              ? 'border-l-4 !border-l-amber-500 border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${rowTheme.firstCellClass}`}
                         >
                           <div className="truncate">
                             {item.orderNumber ? (
@@ -847,13 +1015,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
                         {/* 2. VEHICLE (Plate + Make & Model) */}
                         <td
-                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
-                              : isWorkshop
-                              ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${rowTheme.middleCellClass}`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             {/* UK Yellow Number Plate */}
@@ -865,7 +1027,9 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                                 {item.vehicleMake} {item.vehicleModel || 'Vehicle'}
                               </div>
                               <div className="text-[10px] text-slate-400 uppercase font-medium truncate mt-0.5">
-                                {item.category === 'maintenance'
+                                {isOffRoad
+                                  ? 'VOR Emergency'
+                                  : item.category === 'maintenance'
                                   ? 'Workshop Log'
                                   : item.category === 'rental'
                                   ? 'Fleet Rental'
@@ -877,21 +1041,19 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
                         {/* 3. CATEGORY */}
                         <td
-                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
-                              : isWorkshop
-                              ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${rowTheme.middleCellClass}`}
                         >
                           <div className="truncate">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wide border truncate ${getTypeBadgeColor(
-                                item.type
-                              )}`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wide border truncate ${
+                                isOffRoad
+                                  ? 'bg-rose-950/90 text-rose-300 border-rose-500/70 shadow-xs'
+                                  : getTypeBadgeColor(item.type)
+                              }`}
                             >
-                              {item.category === 'rental' ? (
+                              {isOffRoad ? (
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              ) : item.category === 'rental' ? (
                                 <Car className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                               ) : item.category === 'available' ? (
                                 <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
@@ -905,13 +1067,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
                         {/* 4. JOB DETAILS & CUSTOMER */}
                         <td
-                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
-                              : isWorkshop
-                              ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${rowTheme.middleCellClass}`}
                         >
                           <div className="min-w-0">
                             <p className="text-xs sm:text-sm text-slate-200 font-semibold truncate">
@@ -935,41 +1091,31 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
 
                         {/* 5. SCHEDULED DATE & TIME */}
                         <td
-                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
-                              : isWorkshop
-                              ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${rowTheme.middleCellClass}`}
                         >
                           <div className="min-w-0">
                             <span
                               className={`text-xs sm:text-sm block truncate select-none ${
-                                isUrgent
+                                isOffRoad
+                                  ? 'text-rose-200 font-black tracking-wide'
+                                  : isUrgent
                                   ? 'text-red-200 font-black tracking-wide'
                                   : isWorkshop
-                                  ? 'text-amber-200 font-bold'
+                                  ? 'text-orange-200 font-bold'
                                   : 'text-slate-100 font-bold'
                               }`}
                             >
                               {isValid(jobDate) ? format(jobDate, 'dd/MM/yyyy HH:mm') : 'TBD'}
                             </span>
                             <div className="mt-1 truncate select-none">
-                              {getRelativeBadge(jobDate, item.status, daysRemaining < 0)}
+                              {getRelativeBadge(jobDate, item, daysRemaining < 0)}
                             </div>
                           </div>
                         </td>
 
                         {/* 6. LIVE STATUS (Last cell: rounded-r-xl with right border) */}
                         <td
-                          className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${
-                            isUrgent
-                              ? 'border-r border-y-red-700/80 border-r-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
-                              : isWorkshop
-                              ? 'border-r border-y-amber-500/30 border-r-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50 group-hover:border-r-amber-400/50'
-                              : 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]'
-                          }`}
+                          className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${rowTheme.lastCellClass}`}
                         >
                           <div className="truncate select-none">
                             {getLiveStatusBadge(item, isUrgent, isWorkshop)}
@@ -989,7 +1135,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
           5. FOOTER STATUS BAR
          ───────────────────────────────────────────────────────────── */}
       <footer className="bg-[#121524]/90 border-t border-[#2B314E] px-4 sm:px-6 py-2.5 flex items-center justify-between text-xs text-slate-400 z-20">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span>
             Lines/Page: <strong className="text-white">{linesPerPage}</strong> (Default: 6)
           </span>
@@ -998,14 +1144,20 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
             Auto-Rotation Speed: <strong className="text-white">{rotationSpeed / 1000}s</strong>
           </span>
           <span className="text-slate-600">•</span>
-          <span className="hidden sm:inline">
-            Press <strong className="text-slate-300 font-mono">P</strong> to Pause,{' '}
-            <strong className="text-slate-300 font-mono">F</strong> for Fullscreen
+          <span>
+            Audio: <strong className={soundEnabled ? 'text-emerald-400' : 'text-slate-400'}>{soundEnabled ? 'ON' : 'Muted'}</strong>
+          </span>
+          <span className="text-slate-600 hidden md:inline">•</span>
+          <span className="hidden md:inline">
+            Shortcuts: <strong className="text-slate-300 font-mono">P</strong> Pause,{' '}
+            <strong className="text-slate-300 font-mono">F</strong> Fullscreen,{' '}
+            <strong className="text-slate-300 font-mono">M</strong> Mute,{' '}
+            <strong className="text-slate-300 font-mono">/</strong> Search
           </span>
         </div>
 
         {/* Page dot indicators */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {Array.from({ length: totalPages }).map((_, pIdx) => (
             <button
               key={pIdx}
@@ -1026,7 +1178,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
       </footer>
 
       {/* ─────────────────────────────────────────────────────────────
-          6. SETTINGS MODAL (LINES 1-20 & ROTATION SPEED)
+          6. SETTINGS MODAL (LINES 1-20, ROTATION SPEED, DISPLAY SCALE, SOUND)
          ───────────────────────────────────────────────────────────── */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1034,7 +1186,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
             <div className="flex items-center justify-between border-b border-[#2B314E] pb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-blue-400" />
-                <h3 className="text-lg font-bold text-white">TV Mirror Settings</h3>
+                <h3 className="text-lg font-bold text-white">Workshop TV Settings</h3>
               </div>
               <button
                 type="button"
@@ -1076,7 +1228,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
               </div>
 
               {/* Quick Presets */}
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 pt-1 flex-wrap">
                 {[4, 6, 8, 10, 12, 16, 20].map((preset) => (
                   <button
                     key={preset}
@@ -1094,14 +1246,39 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
               </div>
             </div>
 
+            {/* Display Scaling Presets */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-200 block">
+                Display Size &amp; Distance
+              </label>
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {[
+                  { id: 'standard' as const, label: 'Standard', desc: '1080p Normal' },
+                  { id: 'large' as const, label: 'Large TV', desc: 'Wall Mount 4K' },
+                  { id: 'compact' as const, label: 'Compact', desc: 'Dense Display' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleScaleChange(s.id)}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition text-left cursor-pointer ${
+                      displayScale === s.id
+                        ? 'bg-blue-600/30 text-blue-300 border-blue-500/60 shadow-sm'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    <div>{s.label}</div>
+                    <div className="text-[10px] text-slate-400 font-normal">{s.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Dynamic Auto-Rotation Speed */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-200 block">
                 Auto-Rotation Speed
               </label>
-              <p className="text-xs text-slate-400">
-                Timer duration before automatically transitioning to the next page.
-              </p>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 {TV_ROTATION_SPEED_OPTIONS.map((opt) => (
                   <button
@@ -1121,6 +1298,26 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Audio Chime Notification */}
+            <div className="pt-2 border-t border-[#2B314E] flex items-center justify-between">
+              <div>
+                <span className="text-sm font-semibold text-slate-200 block">Page Transition Chime</span>
+                <span className="text-xs text-slate-400 block">Play sound when TV board rotates to next page</span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSound}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                  soundEnabled
+                    ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/60'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                }`}
+              >
+                {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+                <span>{soundEnabled ? 'Enabled' : 'Muted'}</span>
+              </button>
             </div>
 
             <div className="pt-2">

@@ -164,8 +164,15 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
             )}
             <div>
               {!isCompany && (
-                <div className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-slate-400 italic'}`}>
-                  {row.original.owner?.accountName || 'No Account Assigned'}
+                <div className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 flex flex-wrap items-center gap-1.5 ${row.original.owner?.accountName ? 'text-blue-600' : 'text-slate-400 italic'}`}>
+                  <span>{row.original.owner?.accountName || 'No Account Assigned'}</span>
+                  {(row.original.isSharedOwnership || (row.original.sharedOwnership && row.original.sharedOwnership.length > 0) || (row.original.owner?.sharedOwnership && row.original.owner.sharedOwnership.length > 0)) && (
+                    <span className="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-extrabold rounded-md uppercase tracking-normal">
+                      Shared: {(row.original.sharedOwnership || row.original.owner?.sharedOwnership || []).length > 0
+                        ? (row.original.sharedOwnership || row.original.owner?.sharedOwnership || []).map((s: any) => `${s.sharePercentage}% ${(s.ownerName || '').split(' ')[0]}`).join(' / ')
+                        : 'Co-Owned'}
+                    </span>
+                  )}
                 </div>
               )}
               <div className="font-bold text-slate-900 text-sm tracking-tight leading-snug">
@@ -215,13 +222,26 @@ const VehicleTable: React.FC<VehicleTableProps> = ({
 
       (!isCompany && can('vehicles', 'owner')) ? {
         header: 'Owner',
-        cell: ({ row }: any) => (
-          <div>
-            <div className="font-semibold text-slate-800 text-sm whitespace-nowrap">
-              {row.original.owner?.name || 'AIE Skyline'}
+        cell: ({ row }: any) => {
+          const shares = row.original.sharedOwnership || row.original.owner?.sharedOwnership || [];
+          const isShared = row.original.isSharedOwnership || shares.length > 0 || row.original.owner?.isSharedOwnership;
+          return (
+            <div>
+              <div className="font-semibold text-slate-800 text-sm whitespace-nowrap">
+                {row.original.owner?.name || 'AIE Skyline'}
+              </div>
+              {isShared && (
+                <div className="mt-0.5">
+                  <span className="inline-block px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-extrabold rounded-md uppercase tracking-normal">
+                    {shares.length > 0
+                      ? shares.map((s: any) => `${s.sharePercentage}% ${(s.ownerName || '').split(' ')[0]}`).join(' / ')
+                      : 'Shared'}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-        ),
+          );
+        },
       } : null,
 
       {

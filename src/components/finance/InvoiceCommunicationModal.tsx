@@ -983,12 +983,16 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
             </span>
           </div>
           <div>
-            <span className="text-gray-500 block text-xs">Total:</span>
-            <span className="font-bold text-gray-900">{formatCurrency(invoice.total ?? 0)}</span>
+            <span className="text-[#D97706] block text-xs font-bold">Total:</span>
+            <span className="font-bold font-mono text-[#D97706]">{formatCurrency(invoice.total ?? 0)}</span>
           </div>
           <div>
-            <span className="text-gray-500 block text-xs">Owing:</span>
-            <span className={`font-bold ${Number(invoice.remainingAmount ?? 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <span className="text-[#15803D] block text-xs font-bold">Paid:</span>
+            <span className="font-bold font-mono text-[#15803D]">{formatCurrency(invoice.paidAmount ?? 0)}</span>
+          </div>
+          <div>
+            <span className={`block text-xs font-bold ${Number(invoice.remainingAmount ?? 0) > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>Owing:</span>
+            <span className={`font-bold font-mono ${Number(invoice.remainingAmount ?? 0) > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
               {formatCurrency(invoice.remainingAmount ?? 0)}
             </span>
           </div>

@@ -195,6 +195,11 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    match /finance_ledger/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
     match /trash/{id} {
       allow read: if true;
       allow write: if isAuthenticated();

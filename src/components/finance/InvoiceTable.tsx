@@ -10,10 +10,14 @@ import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import toast from 'react-hot-toast';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 
+import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
+
 interface InvoiceTableProps {
   invoices: Invoice[];
   vehicles: Vehicle[];
   customers: Customer[];
+  accounts?: any[];
+  groups?: { id: string; name: string }[];
   onView: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
   onDelete: (invoice: Invoice) => void;
@@ -24,6 +28,7 @@ interface InvoiceTableProps {
   onGenerateDocument: (invoice: Invoice) => void;
   onViewDocument: (invoice: Invoice) => void;
   onAssignDepartment: (invoice: Invoice) => void; // NEW
+  onStatusChange?: (invoice: Invoice, newStatus: string) => void;
   
   isManager: boolean;
   selectedIds: Set<string>;
@@ -32,7 +37,7 @@ interface InvoiceTableProps {
 }
 
 const InvoiceTable: React.FC<InvoiceTableProps> = ({
-  invoices, vehicles, customers, onView, onEdit, onDelete, onDownload,
+  invoices, vehicles, customers, accounts = [], groups = [], onView, onEdit, onDelete, onDownload,
   onRecordPayment, onApplyDiscount, onDeletePayment, onGenerateDocument,
   onViewDocument, onAssignDepartment, isManager, selectedIds, onToggleAll, onToggleOne,
 }) => {
@@ -116,11 +121,35 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         ),
       },
       {
-          header: 'Invoice #',
+          header: 'Order / Invoice Ref',
           cell: ({ row }: any) => {
+            const invNum = row.original.invoiceNumber;
+            const ordNum = row.original.orderNumber || row.original.orderId;
+            const refId = row.original.referenceId;
+            const showRef = refId && refId !== ordNum && refId !== invNum;
+
             return (
-              <div className="font-medium text-gray-800">
-                {row.original.invoiceNumber || 'N/A'}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {invNum ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+                      <FileText className="w-3 h-3 mr-1 text-indigo-600 shrink-0" />
+                      #{invNum}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 font-mono text-xs">N/A</span>
+                  )}
+                  {ordNum && ordNum !== invNum && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                      Ord: {ordNum}
+                    </span>
+                  )}
+                  {showRef && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 bg-slate-50 border border-slate-200">
+                      Ref: {refId.slice(-6).toUpperCase()}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           },
@@ -150,35 +179,66 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
           return (
             <div>
               {content}
-              {row.original.departmentName && (
-                <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-800">
-                  {row.original.departmentName}
-                </div>
-              )}
             </div>
           );
         },
       },
       {
-        header: 'Vehicle',
+        header: 'Vehicle & Account',
         cell: ({ row }: { row: { original: Invoice } }) => {
           const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
           const regNumber = vehicle?.registrationNumber;
           const fullDetails = row.original.vehicleName || (vehicle ? `${vehicle.make} ${vehicle.model} (${regNumber})` : '');
 
-          if (regNumber) {
-            return <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit" title={fullDetails}>{regNumber}</div>;
-          }
-          if (row.original.vehicleName) {
-               return <div title={row.original.vehicleName}>{row.original.vehicleName}</div>
-          }
-          return <div className="text-gray-400">N/A</div>;
+          const accId = row.original.accountFrom || row.original.accountTo || vehicle?.owner?.accountId;
+          const assignedAccount = accounts.find(a => a.id === accId);
+          const accountName = assignedAccount?.name || vehicle?.owner?.name;
+          const groupName = row.original.groupName || (row.original.groupId ? groups.find(g => g.id === row.original.groupId)?.name : undefined) || vehicle?.assignedGroupName;
+          const deptName = row.original.departmentName || vehicle?.assignedDepartmentName;
+
+          return (
+            <div className="flex flex-col gap-1 min-w-[130px]">
+              {regNumber ? (
+                <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-gray-800 w-fit" title={fullDetails}>
+                  {regNumber}
+                </div>
+              ) : row.original.vehicleName ? (
+                <div className="text-xs font-semibold text-gray-800" title={row.original.vehicleName}>
+                  {row.original.vehicleName}
+                </div>
+              ) : (
+                <span className="text-gray-400 text-xs">No Vehicle</span>
+              )}
+
+              {accountName && (
+                <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit font-medium truncate max-w-[160px]" title={`Pre-assigned Account: ${accountName}`}>
+                  Acc: {accountName}
+                </span>
+              )}
+              {deptName && (
+                <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 w-fit font-medium truncate max-w-[160px]" title={`Department: ${deptName}`}>
+                  Dept: {deptName}
+                </span>
+              )}
+              {groupName && !accountName && (
+                <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit font-medium truncate max-w-[160px]">
+                  Grp: {groupName}
+                </span>
+              )}
+            </div>
+          );
         },
       },
       { 
         header: 'Type',
         cell: ({ row }: any) => {
-          if (row.original.isLoan) return <span className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-full">Loan</span>;
+          if (row.original.isLoan) {
+            return (
+              <span className="px-2 py-0.5 text-xs font-semibold rounded-full border text-rose-800 bg-rose-100 border-rose-200">
+                Loan (Expense)
+              </span>
+            );
+          }
           return <span className="text-gray-400 text-sm">-</span>;
         },
       },
@@ -192,9 +252,17 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Status',
         cell: ({ row }: any) => {
           const inv = row.original;
-          let displayStatus = 'unpaid';
-          if (inv.paidAmount >= inv.total - 0.01 && inv.total > 0) displayStatus = 'paid';
-          else if (inv.paidAmount > 0) displayStatus = 'partially_paid';
+          // Dynamic Status Calculation: Derive status from owing (if owing <= 0 -> 'PAID', if paid > 0 -> 'PARTIALLY_PAID', else -> 'UNPAID')
+          const displayStatus = derivePaymentStatus({
+            customerBilled: inv.customerBilled,
+            total: inv.total,
+            amount: inv.amount,
+            paidAmount: inv.paidAmount,
+            remainingAmount: inv.remainingAmount,
+            amountOwing: inv.amountOwing,
+            owing: inv.owing,
+            payments: inv.payments
+          });
 
           const overdue = isOverdue(inv);
           const currentStatus = overdue && displayStatus !== 'paid' ? 'overdue' : displayStatus;
@@ -213,20 +281,54 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Cost Breakdown',
         cell: ({ row }: any) => {
           const inv = row.original;
+          let sub = inv.subcontractorCost !== undefined ? Number(inv.subcontractorCost) : 0;
+          if (sub <= 0 && Array.isArray(inv.lineItems)) {
+            sub = inv.lineItems.reduce((acc: number, li: any) => acc + (Number(li.subcontractorCost) || 0), 0);
+          }
+          const billed = inv.customerBilled !== undefined ? Number(inv.customerBilled) : (inv.total || inv.amount || 0);
+          const netProfit = inv.netProfit !== undefined ? Number(inv.netProfit) : (billed - sub);
+          const margin = inv.profitMarginPercent !== undefined ? Number(inv.profitMarginPercent) : (billed > 0 ? (netProfit / billed) * 100 : 0);
+          const hasSub = sub > 0;
+
           return (
-            <div className="text-sm space-y-0.5">
+            <div className="text-sm space-y-0.5 min-w-[130px]">
               <div className="flex justify-between font-bold text-[#D97706] border-b border-gray-100 pb-0.5">
-                <span>Total:</span>
-                <span className="font-mono">{formatCurrency(inv.total)}</span>
+                <span>Billed Total:</span>
+                <span className="font-mono">{formatCurrency(billed)}</span>
               </div>
-              <div className="flex justify-between text-[#15803D] font-bold">
+              <div className="flex justify-between text-[#15803D] font-bold text-xs">
                 <span>Paid:</span>
                 <span className="font-mono">{formatCurrency(inv.paidAmount)}</span>
               </div>
-              <div className={`flex justify-between font-bold ${inv.remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+              <div className={`flex justify-between font-bold text-xs ${inv.remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
                 <span>Owing:</span>
                 <span className="font-mono">{formatCurrency(inv.remainingAmount)}</span>
               </div>
+              {hasSub && (
+                <>
+                  <div className="pt-0.5 border-t border-dashed border-slate-200 flex justify-between text-[11px] font-medium text-slate-500">
+                    <span>Dealer Cost:</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] font-bold items-center pt-0.5">
+                    <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>Net Profit:</span>
+                    <span className={`font-mono ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-end pt-0.5">
+                    <span
+                      className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
+                        margin >= 0
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                      }`}
+                    >
+                      {margin.toFixed(1)}% Margin
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           );
         },

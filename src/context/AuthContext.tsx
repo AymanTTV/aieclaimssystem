@@ -20,6 +20,54 @@ export interface AuthContextType {
   refreshUser: () => Promise<void>;
 }
 
+export const checkUserPermission = (user: User | null | undefined, permission: string): boolean => {
+  if (!user) return false;
+  if (typeof user.hasPermission === 'function') {
+    return user.hasPermission(permission);
+  }
+  const role = user.role || 'member';
+  const isFinanceOrAdmin = ['admin', 'superadmin', 'manager', 'finance', 'accountant'].includes(role);
+  if (permission === 'can_process_profit_payout') {
+    return Boolean(user.can_process_profit_payout ?? isFinanceOrAdmin);
+  }
+  if (permission in (user as any)) {
+    return Boolean((user as any)[permission]);
+  }
+  return isFinanceOrAdmin;
+};
+
+const buildUserObject = (id: string, userData: any): User => {
+  const role = userData?.role || 'member';
+  const isFinanceOrAdmin = ['admin', 'superadmin', 'manager', 'finance', 'accountant'].includes(role);
+  const canProcessProfitPayout = Boolean(
+    userData?.can_process_profit_payout ?? isFinanceOrAdmin
+  );
+
+  const userObj: User = {
+    id,
+    ...userData,
+    role,
+    createdAt: userData?.createdAt?.toDate ? userData.createdAt.toDate() : (userData?.createdAt ? new Date(userData.createdAt) : new Date()),
+    can_process_profit_payout: canProcessProfitPayout,
+    hasPermission: (permission: string): boolean => {
+      if (permission === 'can_process_profit_payout') {
+        return Boolean(userData?.can_process_profit_payout ?? isFinanceOrAdmin);
+      }
+      if (permission === 'can_delete_payments') {
+        return Boolean(userData?.can_delete_payments ?? ['admin', 'superadmin'].includes(role));
+      }
+      if (userData && permission in userData) {
+        return Boolean(userData[permission]);
+      }
+      if (userData?.permissions && (userData.permissions as any)[permission] !== undefined) {
+        return Boolean((userData.permissions as any)[permission]);
+      }
+      return isFinanceOrAdmin;
+    },
+  };
+  return userObj;
+};
+
 const AuthContext = createContext<AuthContextType>({ 
   user: null, 
   loading: true,
@@ -68,11 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const snap = await getDoc(doc(db, 'users', currentFbUser.uid));
       if (snap.exists()) {
         const userData = snap.data();
-        setUser({
-          id: snap.id,
-          ...userData,
-          createdAt: userData.createdAt?.toDate() || new Date(),
-        } as User);
+        setUser(buildUserObject(snap.id, userData));
         setPermissionsEpoch((prev) => prev + 1);
       }
     } catch (err) {
@@ -97,11 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (userDoc) => {
             if (userDoc.exists()) {
               const userData = userDoc.data();
-              setUser({
-                id: userDoc.id,
-                ...userData,
-                createdAt: userData.createdAt?.toDate() || new Date(),
-              } as User);
+              setUser(buildUserObject(userDoc.id, userData));
               setError(null);
               setPermissionsEpoch((prev) => prev + 1);
             } else {

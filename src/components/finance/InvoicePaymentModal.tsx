@@ -12,6 +12,11 @@ import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { generateAndUploadDocument, getCompanyDetails } from '../../utils/documentGenerator';
 import { InvoiceDocument } from '../pdf/documents';
+import { DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { fetchUnifiedProfitAndCosts, syncInvoiceRecord } from '../../services/unifiedSync.service';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { useRecordInvoicePayment } from '../../hooks/useRecordInvoicePayment';
 
 interface InvoicePaymentModalProps {
   invoice: Invoice;
@@ -33,7 +38,35 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
   onClose
 }) => {
   const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
+  const { recordInvoicePayment } = useRecordInvoicePayment();
   const [loading, setLoading] = useState(false);
+  const [subcontractorCost, setSubcontractorCost] = useState<string>(
+    invoice.subcontractorCost !== undefined && Number(invoice.subcontractorCost) > 0
+      ? String(invoice.subcontractorCost)
+      : '0'
+  );
+
+  useEffect(() => {
+    if (invoice.subcontractorCost !== undefined && Number(invoice.subcontractorCost) > 0) {
+      setSubcontractorCost(String(invoice.subcontractorCost));
+    } else {
+      fetchUnifiedProfitAndCosts({
+        id: invoice.id,
+        referenceId: invoice.referenceId,
+        orderNumber: invoice.orderNumber || invoice.orderId,
+        invoiceNumber: invoice.invoiceNumber,
+      }).then((unified) => {
+        if (unified && unified.subcontractorCost !== undefined && unified.subcontractorCost > 0) {
+          setSubcontractorCost(String(unified.subcontractorCost));
+        }
+      });
+    }
+  }, [invoice.id, invoice.subcontractorCost, invoice.referenceId, invoice.orderNumber, invoice.orderId, invoice.invoiceNumber]);
+  
+  const billedAmount = invoice.total || invoice.customerBilled || invoice.amount || 0;
+  const subCostNum = Math.max(0, parseFloat(subcontractorCost) || 0);
+  const profitMetrics = calculateProfitMetrics(billedAmount, subCostNum);
   
   const [accountName, setAccountName] = useState(invoice.accountName || '');
   const [accountTo, setAccountTo] = useState((invoice as any).accountTo || invoice.accountId || '');
@@ -47,7 +80,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
   const [selectedLineItemId, setSelectedLineItemId] = useState<string>('');
 
   const [formData, setFormData] = useState({
-    amountToPay: invoice.remainingAmount.toString(),
+    amountToPay: (invoice.remainingAmount !== undefined && !isNaN(invoice.remainingAmount)) ? invoice.remainingAmount.toString() : '0',
     method: 'cash' as const,
     reference: '',
     notes: '',
@@ -95,135 +128,67 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         documentUrl = await getDownloadURL(snap.ref);
       }
 
-      const targetVehicle = formData.allocatedVehicleId ? vehicles.find(v => v.id === formData.allocatedVehicleId) : vehicle;
-      const allocatedVehicleName = targetVehicle ? `${targetVehicle.make} ${targetVehicle.model} (${targetVehicle.registrationNumber})` : undefined;
-
-      const selectedPaymentDate = new Date(formData.paymentDate);
-      const newPaymentId = `inv_pay_${Date.now()}_${uuidv4().substring(0,6)}`;
-
-      const actualReference = formData.reference || formData.notes || invoice.invoiceNumber || 'N/A';
-
-      const newPayment = {
-        id: newPaymentId,
-        date: selectedPaymentDate,
-        amount: paymentAmount,
-        method: formData.method,
-        reference: actualReference, 
-        document: documentUrl || null, 
-        notes: formData.notes || null, 
-        createdAt: new Date(),
-        createdBy: user.id,
-        allocatedVehicleId: targetVehicle?.id || null, 
-        allocatedVehicleName: allocatedVehicleName || null
-      };
-
-      const newPaidAmount = (invoice.paidAmount || 0) + paymentAmount;
-      const newRemaining = invoice.total - newPaidAmount;
-      
-      let newStatus = 'unpaid';
-      if (newPaidAmount >= invoice.total - 0.01 && invoice.total > 0) newStatus = 'paid';
-      else if (newPaidAmount > 0) newStatus = 'partially_paid';
-
-      await updateDoc(doc(db, 'invoices', invoice.id), {
-        paidAmount: newPaidAmount,
-        remainingAmount: newRemaining < 0 ? 0 : newRemaining,
-        paymentStatus: newStatus,
-        payments: [...(invoice.payments || []), newPayment],
-        updatedAt: new Date()
-      });
-
-      const totalLogCost = invoice.total || 1; 
-      const vatRatio = (invoice.vatAmount || 0) / totalLogCost;
-      const netRatio = (invoice.subTotal || invoice.total || 0) / totalLogCost;
-
-      const paymentVatAmount = paymentAmount * vatRatio;
-      const paymentNetAmount = paymentAmount * netRatio;
-
-      let finalAccountId = accountTo;
-      if (!finalAccountId) {
-          const defaultAcc = accounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
-          if (defaultAcc) finalAccountId = defaultAcc.id;
-      }
-
-      const mergedAccountsTo = [];
-      if (finalAccountId) mergedAccountsTo.push(finalAccountId);
-      if (accountTo2) mergedAccountsTo.push(accountTo2);
-
-      let mappedVehicleOwner = undefined;
-      if (targetVehicle) {
-         if (targetVehicle.owner) {
-             mappedVehicleOwner = { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false };
-         } else {
-             mappedVehicleOwner = { name: 'AIE Skyline Limited', isDefault: true };
-         }
-      }
-
-      const actualCategory = invoice.category === 'Other' && invoice.customCategory 
-        ? invoice.customCategory 
-        : (invoice.category || 'Invoice Payment');
-
-      const rawGroupId = targetVehicle?.assignedGroupId || invoice.groupId;
-      const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name || ((invoice as any).groupName !== rawGroupId ? (invoice as any).groupName : undefined);
-
-      const targetDeptId = invoice.departmentId || targetVehicle?.assignedDepartmentId;
-      const targetDeptName = invoice.departmentName || targetVehicle?.assignedDepartmentName;
-
-      await createFinanceTransaction({
-        type: 'income',
-        category: actualCategory,
-        amount: paymentAmount,
-        netAmount: parseFloat(paymentNetAmount.toFixed(2)),
-        vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
-        description: [invoice.invoiceNumber, invoice.description, formData.notes, formData.reference ? `Ref: ${formData.reference}` : ''].filter(Boolean).join(' - ') || `Payment for ${invoice.invoiceNumber || 'Invoice'}`,
-        referenceId: invoice.id,
-        vehicleId: targetVehicle?.id || invoice.vehicleId,
-        vehicleName: allocatedVehicleName || invoice.vehicleName || undefined,
-        vehicleOwner: mappedVehicleOwner, 
-        customerId: invoice.customerId,
-        customerName: invoice.customerName,
-        groupId: rawGroupId || undefined, 
-        groupName: resolvedGroupName || undefined, 
-        departmentId: targetDeptId || undefined, 
-        departmentName: targetDeptName || undefined, 
+      // Execute unified automatic invoice payment to Finance Ledger sync
+      const res = await recordInvoicePayment({
+        invoice,
+        paymentAmount,
         paymentMethod: formData.method,
-        paymentReference: actualReference, // ✅ Restored human-readable invoice reference
-        paymentId: newPaymentId, // ✅ Dedicated system link for strict deletion tracking
-        status: 'completed',
-        paymentStatus: newStatus as any,
-        date: selectedPaymentDate,
-        accountsTo: mergedAccountsTo 
+        paymentDate: formData.paymentDate,
+        paymentReference: formData.reference,
+        notes: formData.notes,
+        documentUrl,
+        allocatedVehicleId: formData.allocatedVehicleId,
+        accountToId: accountTo,
+        accountTo2Id: accountTo2,
+        vehicles,
+        accounts,
+        customers,
+        groups,
       });
 
-      // Automatically update the invoice document with the new payment
-      try {
-        const companyDetails = await getCompanyDetails();
-        const updatedInvoice = {
-          ...invoice,
-          paidAmount: newPaidAmount,
-          remainingAmount: newRemaining < 0 ? 0 : newRemaining,
-          paymentStatus: newStatus as any,
-          payments: [...(invoice.payments || []), newPayment],
-          vehicle: targetVehicle || vehicle,
-          customer: customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined)
-        };
-        await generateAndUploadDocument(
-          InvoiceDocument,
-          updatedInvoice,
-          'invoices',
-          invoice.id,
-          'invoices',
-          companyDetails,
-          'documentUrl'
-        );
-      } catch (docErr) {
-        console.warn('Background invoice document update error:', docErr);
-      }
+      if (res.success) {
+        // Automatically update the invoice document with the new payment
+        try {
+          const companyDetails = await getCompanyDetails();
+          const targetVehicle = formData.allocatedVehicleId ? vehicles.find(v => v.id === formData.allocatedVehicleId) : vehicle;
+          const updatedInvoice = {
+            ...invoice,
+            paidAmount: res.newPaidAmount ?? ((invoice.paidAmount || 0) + paymentAmount),
+            remainingAmount: res.newRemaining ?? Math.max(0, invoice.total - ((invoice.paidAmount || 0) + paymentAmount)),
+            paymentStatus: (res.paymentStatus as any) || 'paid',
+            payments: [
+              ...(invoice.payments || []),
+              {
+                id: res.paymentId,
+                date: new Date(formData.paymentDate),
+                amount: paymentAmount,
+                method: formData.method,
+                reference: formData.reference || 'N/A',
+                document: documentUrl || null,
+                notes: formData.notes || null,
+              }
+            ],
+            vehicle: targetVehicle || vehicle,
+            customer: customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined)
+          };
+          await generateAndUploadDocument(
+            InvoiceDocument,
+            updatedInvoice,
+            'invoices',
+            invoice.id,
+            'invoices',
+            companyDetails,
+            'documentUrl'
+          );
+        } catch (docErr) {
+          console.warn('Background invoice document update error:', docErr);
+        }
 
-      toast.success('Payment recorded');
-      onClose();
+        onClose();
+      }
     } catch (error: any) {
       console.error('Error recording payment:', error);
-      toast.error('Failed to record payment: ' + error.message);
+      toast.error('Failed to record payment: ' + (error?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -231,18 +196,18 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-gray-50 p-4 rounded mb-4">
-        <div className="flex justify-between text-sm">
+      <div className="bg-gray-50 p-4 rounded-xl border border-slate-200 mb-4 space-y-1.5">
+        <div className="flex justify-between text-sm font-bold text-[#D97706]">
           <span>Total:</span>
-          <span className="font-bold">£{invoice.total.toFixed(2)}</span>
+          <span className="font-mono">£{invoice.total.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm text-green-600">
+        <div className="flex justify-between text-sm text-[#15803D] font-bold">
           <span>Paid:</span>
-          <span>£{(invoice.paidAmount || 0).toFixed(2)}</span>
+          <span className="font-mono">£{(invoice.paidAmount || 0).toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm text-red-600 border-t pt-2 mt-2">
-          <span>Remaining:</span>
-          <span className="font-bold">£{invoice.remainingAmount.toFixed(2)}</span>
+        <div className={`flex justify-between text-sm font-bold pt-2 border-t border-slate-200 ${invoice.remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+          <span>Owing:</span>
+          <span className="font-mono">£{invoice.remainingAmount.toFixed(2)}</span>
         </div>
         
         {accountName && (
@@ -311,15 +276,16 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
               className="block w-full rounded-md border-blue-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
             >
               <option value="">-- Select Item to Pay --</option>
-              {invoice.lineItems?.map(item => {
-                const gross = item.quantity * item.unitPrice;
-                const discountAmt = (item.discount / 100) * gross;
+              {invoice.lineItems?.map((item, idx) => {
+                const gross = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                const discountAmt = ((Number(item.discount) || 0) / 100) * gross;
                 const netAfterDiscount = gross - discountAmt;
                 const vatAmt = item.includeVAT ? netAfterDiscount * 0.2 : 0;
                 const totalLine = netAfterDiscount + vatAmt;
+                const itemKey = item.id || `line-item-${idx}`;
                 return (
-                  <option key={item.id} value={item.id}>
-                    {item.description} - £{totalLine.toFixed(2)} {item.vehicleName ? `(${item.vehicleName})` : ''}
+                  <option key={itemKey} value={item.id || String(idx)}>
+                    {item.description || `Item #${idx + 1}`} - £{totalLine.toFixed(2)} {item.vehicleName ? `(${item.vehicleName})` : ''}
                   </option>
                 );
               })}
@@ -383,7 +349,7 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
         type="number" 
         value={formData.amountToPay} 
         onChange={e => setFormData({...formData, amountToPay: e.target.value})} 
-        max={invoice.remainingAmount}
+        max={isNaN(Number(invoice.remainingAmount)) ? 0 : Number(invoice.remainingAmount)}
       />
       
       <div>
@@ -415,6 +381,100 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
           rows={2} 
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2"
         />
+      </div>
+
+      {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+      <div className="bg-slate-50 p-3.5 rounded-xl border-2 border-indigo-200/90 space-y-2.5 shadow-2xs">
+        <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+          <div className="flex items-center gap-1.5">
+            <div className="p-1 bg-indigo-100 text-indigo-700 rounded-md">
+              <DollarSign className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Dealer / Subcontractor Cost & Profit Tracking
+              </h4>
+              <p className="text-[10px] text-slate-500">
+                Adjust subcontractor cost at payment recording to update live profit metrics
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded">
+            Invoice Total: {formatCurrency(billedAmount)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2.5">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Dealer / Subcontractor Cost (£)
+            </label>
+            <div className="relative rounded-lg shadow-2xs">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs font-bold">
+                £
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={subcontractorCost}
+                onChange={(e) => setSubcontractorCost(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold font-mono text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Live Profit Preview Badges */}
+          <div className="grid grid-cols-2 gap-2">
+            <div
+              className={`p-2 rounded-lg border flex flex-col justify-between ${
+                profitMetrics.netProfit >= 0
+                  ? 'bg-emerald-50/80 border-emerald-200'
+                  : 'bg-rose-50/80 border-rose-200'
+              }`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                <span>Live Net Profit</span>
+                {profitMetrics.netProfit >= 0 ? (
+                  <TrendingUp className="w-3 h-3 text-emerald-600" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 text-rose-600" />
+                )}
+              </div>
+              <p
+                className={`text-sm font-black font-mono mt-0.5 ${
+                  profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                }`}
+              >
+                {profitMetrics.netProfit >= 0 ? '+' : ''}
+                {formatCurrency(profitMetrics.netProfit)}
+              </p>
+              <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+            </div>
+
+            <div
+              className={`p-2 rounded-lg border flex flex-col justify-between ${
+                profitMetrics.profitMarginPercent >= 0
+                  ? 'bg-indigo-50/80 border-indigo-200'
+                  : 'bg-rose-50/80 border-rose-200'
+              }`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                <span>Profit Margin</span>
+                <Percent className="w-3 h-3 text-indigo-600" />
+              </div>
+              <p
+                className={`text-sm font-black font-mono mt-0.5 ${
+                  profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                }`}
+              >
+                {profitMetrics.profitMarginPercent.toFixed(1)}%
+              </p>
+              <span className="text-[9px] text-slate-500">Margin on billed</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">

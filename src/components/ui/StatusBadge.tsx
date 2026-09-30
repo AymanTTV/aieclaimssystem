@@ -60,7 +60,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'breakdown':
         return 'bg-red-100 text-red-900 border border-red-300 font-bold';
       case 'completed':
-        return 'bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD] font-semibold';
+        return 'bg-[#DCFCE7] text-[#059669] border border-[#86EFAC] font-semibold';
       case 'claim':
         return 'bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A] font-semibold';
       case 'unavailable':
@@ -71,9 +71,15 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       
       // Payment statuses
       case 'paid':
-        return 'bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC] font-semibold';
+        return 'bg-[#DCFCE7] text-[#059669] border border-[#86EFAC] font-semibold';
+      case 'expense':
+        return 'bg-rose-100 text-rose-800 border border-rose-300 font-bold';
       case 'unpaid':
-        return 'bg-[#FEE2E2] text-[#B91C1C] border border-[#FCA5A5] font-bold';
+      case 'owing':
+      case 'outstanding':
+      case 'unpaid / outstanding':
+      case 'unpaid/outstanding':
+        return 'bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] font-bold';
       case 'partially_paid':
       case 'partially paid':
         return 'bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] font-semibold';
@@ -81,7 +87,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
       case 'payment-pending':
         return 'bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] font-medium';
       case 'overdue':
-        return 'bg-[#FEE2E2] text-[#B91C1C] border border-[#FCA5A5] font-bold';
+        return 'bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] font-bold';
 
       // Claim statuses
       case 'your claim has started':
@@ -141,13 +147,21 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
 
   const getDisplayLabel = (val: string): string => {
     const s = String(val).toLowerCase();
+    if (s === 'expense') return 'Expense';
+    if (s === 'unpaid' || s === 'outstanding' || s === 'unpaid / outstanding' || s === 'unpaid/outstanding' || s === 'owing') {
+      return 'Unpaid / Outstanding';
+    }
+    if (s === 'paid') return 'Paid';
+    if (s === 'partially_paid' || s === 'partially paid') return 'Partially Paid';
     if (s === 'superadmin') return 'Super Admin';
     if (s === 'supervisor') return 'Supervisor';
     if (s === 'staff') return 'Staff';
     if (s === 'accountant') return 'Accountant';
+    if (s === 'accident') return 'Accident';
+    if (s === 'off-road-accident') return 'Accident';
     if (s === 'parts-backorder' || s === 'parts backorder' || s === 'backorder' || s === 'awaiting-parts' || s === 'awaiting parts') return 'Awaiting Parts';
     if (s === 'workshop') return 'In Workshop';
-    if (s === 'off-road' || s === 'off road' || s === 'off-road (vor)' || s === 'off road (vor)' || s === 'vor' || s === 'off-road-accident') return 'OFF ROAD (VOR)';
+    if (s === 'off-road' || s === 'off road' || s === 'off-road (vor)' || s === 'off road (vor)' || s === 'vor') return 'OFF ROAD (VOR)';
     if (s === 'pending' || s === 'awaiting-approval' || s === 'awaiting approval') return 'Pending Approval';
     if (s === 'inspection' || s === 'diagnostic') return 'Inspection / MOT';
     if (s === 'in-transit' || s === 'in transit' || s === 'recovery') return 'In Transit';

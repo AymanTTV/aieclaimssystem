@@ -27,6 +27,7 @@ export const useFinanceFilters = (
   const [showLinked, setShowLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [recurringFilter, setRecurringFilter] = useState<string>('all');
   const [recurringFrequency, setRecurringFrequency] = useState<string>('all');
+  const [profitTrackingFilter, setProfitTrackingFilter] = useState<'all' | 'has_profit' | 'legacy'>('all');
 
   const normalizeFilter = (val: string | string[], defaultVal = 'all') => {
     if (Array.isArray(val)) {
@@ -242,6 +243,26 @@ export const useFinanceFilters = (
         }
       }
 
+      // Profit Tracking Filter
+      // Option 1: "All Records" (Default)
+      // Option 2: "Has Net Profit" (Filters rows where netProfit or dealerCost explicitly exists / is recorded)
+      // Option 3: "Legacy / Uncalculated" (Filters rows where dealerCost is null/undefined or £0.00 / not yet recorded)
+      const hasExplicitDealerCost =
+        (transaction.dealerCost !== null && transaction.dealerCost !== undefined && transaction.dealerCost !== '' && Number(transaction.dealerCost) > 0) ||
+        (transaction.subcontractorCost !== null && transaction.subcontractorCost !== undefined && transaction.subcontractorCost !== '' && Number(transaction.subcontractorCost) > 0);
+
+      const hasExplicitProfit =
+        hasExplicitDealerCost ||
+        (transaction.isProfitEdited === true && transaction.netProfit !== null && transaction.netProfit !== undefined && Number(transaction.netProfit) !== 0) ||
+        (transaction.netProfit !== null && transaction.netProfit !== undefined && hasExplicitDealerCost);
+
+      let matchesProfitTracking = true;
+      if (profitTrackingFilter === 'has_profit') {
+        matchesProfitTracking = hasExplicitProfit;
+      } else if (profitTrackingFilter === 'legacy') {
+        matchesProfitTracking = !hasExplicitDealerCost;
+      }
+
       return (
         matchesSearch &&
         matchesType &&
@@ -256,7 +277,8 @@ export const useFinanceFilters = (
         matchesDepartment && // ✅ Added
         matchesLinked &&
         matchesRecurring &&
-        matchesFrequency
+        matchesFrequency &&
+        matchesProfitTracking
       );
     });
 
@@ -272,7 +294,7 @@ export const useFinanceFilters = (
   }, [
     transactions, searchQuery, type, category, paymentStatus, selectedOwner,
     accountFilter, customerFilter, vehicleFilter, startDate, endDate, groupFilter, departmentFilter, 
-    showLinked, recurringFilter, recurringFrequency, vehicles, accounts
+    showLinked, recurringFilter, recurringFrequency, profitTrackingFilter, vehicles, accounts
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
@@ -394,6 +416,7 @@ export const useFinanceFilters = (
     showLinked, setShowLinked,
     recurringFilter, setRecurringFilter,
     recurringFrequency, setRecurringFrequency,
+    profitTrackingFilter, setProfitTrackingFilter,
     owners,
     filteredTransactions,
     accountSummary,

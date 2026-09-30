@@ -18,7 +18,9 @@ export interface InvoicePayment {
 
 export interface Transaction {
   id: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'EXPENSE' | 'INCOME';
+  transactionType?: 'EXPENSE' | 'INCOME';
+  entryType?: 'DEBIT' | 'CREDIT';
   netAmount?: number;
   vatAmount?: number;
   
@@ -29,12 +31,16 @@ export interface Transaction {
   description: string;
   date: Date;
   referenceId?: string;
+  invoiceId?: string;
+  orderId?: string;
+  orderNumber?: string;
+  invoiceNumber?: string;
   vehicleId?: string;
   vehicleName?: string;
   groupId?: string;
   groupName?: string;
-  departmentId?: string; // NEW
-  departmentName?: string; // NEW
+  departmentId?: string;
+  departmentName?: string;
   vehicleOwner?: {
     name: string;
     isDefault: boolean;
@@ -58,20 +64,89 @@ export interface Transaction {
   recurringFrequency?: RecurringFrequency;
   nextRecurringDate?: Date | any;
 
+  // Subcontractor Cost & Profit Tracking
+  grossBilling?: number;
+  paid?: number;
+  subcontractorCost?: number;
+  dealerCost?: number;
+  customerBilled?: number;
+  netProfit?: number;
+  profitMarginPercent?: number;
+  profitMargin?: number;
+  isProfitEdited?: boolean;
+  isEdited?: boolean;
+  linkedInvoiceRef?: string;
+  linkedMaintenanceRecord?: any;
+
+  // Unified Financial Record Schema & Cross-Module Synchronization Fields
+  entityId?: string;
+  entityType?: 'RENTAL' | 'INVOICE' | 'MAINTENANCE';
+  vatType?: string;
+  completionStatus?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  auditLogs?: Array<{
+    id?: string;
+    timestamp: Date | string | any;
+    modifiedBy: string;
+    modifiedByName?: string;
+    field?: string;
+    previousValue: any;
+    newValue: any;
+    reason?: string;
+  }>;
+
   documentUrl?: string;
   receiptUrl?: string;
+}
+
+export interface SharedOwnerShare {
+  accountId?: string;
+  ownerName: string;
+  sharePercentage: number;
+  isCompany?: boolean;
+}
+
+export interface ProfitPayoutRecord {
+  id: string;
+  vehicleId?: string;
+  vehicleName?: string;
+  accountId?: string;
+  accountName?: string;
+  datePaid: Date | any;
+  periodCovered: string;
+  grossBilled: number;
+  expenses: number;
+  totalProfit: number;
+  companySharePct: number;
+  companyShareAmount: number;
+  companyAccountId?: string;
+  companyAccountName?: string;
+  ownerSharePct: number;
+  ownerShareAmount: number;
+  ownerName: string;
+  payoutReference: string;
+  transferTransactionId?: string;
+  payoutTransactionId?: string;
+  clearedBalanceAmount?: number;
+  status: 'completed' | 'cleared';
+  createdAt: Date | any;
+  createdBy?: string;
+  notes?: string;
 }
 
 export interface Account {
   id: string;
   name: string;
   balance: number;
+  vehicleId?: string | null;
+  vehicleName?: string | null;
+  isSharedOwnership?: boolean;
+  sharedOwnership?: SharedOwnerShare[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface TransferHistory {
-  id:string;
+  id: string;
   fromAccount: string;
   toAccount: string;
   amount: number;
@@ -90,19 +165,39 @@ export interface InvoiceLineItem {
   includeVAT: boolean;
   vehicleId?: string;
   vehicleName?: string;
+  subcontractorCost?: number;
+  customerBilled?: number;
+  netProfit?: number;
+  profitMarginPercent?: number;
 }
 
 export interface Invoice {
   id: string;
+  orderId?: string;
+  orderNumber?: string;
   invoiceNumber?: string;
+  referenceId?: string;
   date: Date;
   dueDate: Date;
   isLoan?: boolean;
+  loanTransactionType?: 'expense' | 'income';
   lineItems: InvoiceLineItem[];
   subTotal: number;
   vatAmount: number;
   total: number;
   amount: number;
+  subcontractorCost?: number;
+  dealerCost?: number;
+  customerBilled?: number;
+  netProfit?: number;
+  profitMarginPercent?: number;
+  profitMargin?: number;
+  isProfitEdited?: boolean;
+  isEdited?: boolean;
+  entityId?: string;
+  entityType?: 'INVOICE';
+  vatType?: string;
+  completionStatus?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   paidAmount: number;
   remainingAmount: number;
   category: string;
@@ -110,8 +205,8 @@ export interface Invoice {
   
   description?: string;
   groupId?: string;
-  departmentId?: string; // NEW
-  departmentName?: string; // NEW
+  departmentId?: string;
+  departmentName?: string;
 
   vehicleId?: string;
   vehicleName?: string;

@@ -299,12 +299,10 @@ const ClaimForm: React.FC<ClaimFormProps> = ({ onClose }) => {
         )}
         {/* Compulsory Fields Guide Banner */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs">
-              <span className="text-red-600 font-black text-xs leading-none">*</span> Must fill in
-            </span>
-            <span className="font-bold text-gray-950">
-              All fields with the red <span className="text-red-600 font-extrabold">* Must fill in</span> badge and red indicator are compulsory.
+          <div className="flex items-center gap-2">
+            <span className="text-red-500 font-bold text-sm select-none">*</span>
+            <span className="font-semibold text-gray-800">
+              Fields marked with a red asterisk (<span className="text-red-500 font-bold">*</span>) are mandatory.
             </span>
           </div>
           <span className="text-gray-700 font-semibold">

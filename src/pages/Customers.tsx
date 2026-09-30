@@ -9,10 +9,11 @@ import CustomerFilters from '../components/customers/CustomerFilters';
 import CustomerForm from '../components/customers/CustomerForm';
 import CustomerDetails from '../components/customers/CustomerDetails';
 import { GroupMessagingModal } from '../components/customers/GroupMessagingModal';
+import { BulkWhatsAppModal } from '../components/customers/BulkWhatsAppModal';
 import Modal from '../components/ui/Modal';
 import { Customer } from '../types/customer';
 import { handleCustomerExport } from '../utils/customerHelpers';
-import { Plus, Download, CheckCircle, XCircle, Edit3, Radio, LayoutGrid, List } from 'lucide-react';
+import { Plus, Download, CheckCircle, XCircle, Edit3, Radio, LayoutGrid, List, MessageCircle, X } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { db } from '../lib/firebase';
@@ -45,6 +46,7 @@ const Customers = () => {
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
   const [assigningCustomer, setAssigningCustomer] = useState<Customer | null>(null);
   const [isGroupMessagingOpen, setIsGroupMessagingOpen] = useState(false);
+  const [isBulkWhatsAppOpen, setIsBulkWhatsAppOpen] = useState(false);
   
   // [NEW] Bill Copy Tracker State
   const [updatingBillCopy, setUpdatingBillCopy] = useState<Customer | null>(null);
@@ -62,11 +64,17 @@ const Customers = () => {
   }, [updatingBillCopy]);
 
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
   const visibleCustomers = useMemo(() => {
     return filteredCustomers;
   }, [filteredCustomers]);
+
+  const selectedCustomerList = useMemo(() => {
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    if (selectedIds.length === 0) return [];
+    return customers.filter((c) => selectedIds.includes(c.id));
+  }, [customers, rowSelection]);
 
   const handleBulkStatusUpdate = async (newStatus: 'active' | 'inactive') => {
     const selectedIds = Object.keys(rowSelection);
@@ -161,17 +169,60 @@ const Customers = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {selectedCount > 0 && can('customers', 'update') && (
-             <div className="flex items-center bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 mr-2 shadow-xs">
-               <span className="text-sm text-blue-800 font-semibold mr-3">{selectedCount} selected</span>
-               <button onClick={() => setIsStatusModalOpen(true)} className="text-sm bg-[#2563EB] text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg flex items-center font-bold transition-colors">
-                 <Edit3 className="w-4 h-4 mr-2"/> Update Status
-               </button>
-             </div>
+          {selectedCount > 0 ? (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 shadow-xs">
+              <span className="text-xs sm:text-sm text-emerald-900 font-bold mr-1">
+                {selectedCount} selected
+              </span>
+
+              {/* Bulk WhatsApp Button */}
+              <button
+                type="button"
+                onClick={() => setIsBulkWhatsAppOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                title="Send personalized bulk WhatsApp messages to selected customers"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Bulk WhatsApp</span>
+              </button>
+
+              {/* Update Status Button */}
+              {can('customers', 'update') && (
+                <button
+                  type="button"
+                  onClick={() => setIsStatusModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Update Status</span>
+                </button>
+              )}
+
+              {/* Clear selection */}
+              <button
+                type="button"
+                onClick={() => setRowSelection({})}
+                className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100/80 rounded-md transition cursor-pointer"
+                title="Clear selection"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            /* When none selected, still allow opening Bulk WhatsApp to select recipients inside */
+            <button
+              type="button"
+              onClick={() => setIsBulkWhatsAppOpen(true)}
+              className="inline-flex items-center px-4 py-2.5 border border-emerald-200 rounded-xl shadow-xs text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer gap-2"
+              title="Launch Bulk WhatsApp Messenger"
+            >
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              <span>Bulk WhatsApp</span>
+            </button>
           )}
 
           {can('customers', 'export') && (
-            <button onClick={() => handleCustomerExport(customers)} className="inline-flex items-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors">
+            <button onClick={() => handleCustomerExport(customers)} className="inline-flex items-center px-4 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer">
               <Download className="h-5 w-5 mr-2 text-[#64748B]" /> Export
             </button>
           )}
@@ -179,7 +230,7 @@ const Customers = () => {
           {can('customers', 'groupMessaging') && (
             <button
               onClick={() => setIsGroupMessagingOpen(true)}
-              className="inline-flex items-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+              className="inline-flex items-center px-4 py-2.5 border border-purple-200 rounded-xl shadow-xs text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer"
             >
               <Radio className="h-4 w-4 mr-2 text-purple-600" /> Group Messaging / News Flash
             </button>
@@ -378,6 +429,57 @@ const Customers = () => {
         claims={claims}
         preselectedCustomerIds={Object.keys(rowSelection)}
       />
+
+      {/* Dedicated Bulk WhatsApp Messenger Modal */}
+      <BulkWhatsAppModal
+        isOpen={isBulkWhatsAppOpen}
+        onClose={() => setIsBulkWhatsAppOpen(false)}
+        selectedCustomers={selectedCustomerList}
+        allCustomers={customers}
+        onClearSelection={() => setRowSelection({})}
+      />
+
+      {/* Floating Selection Action Bar (when rows are checked) */}
+      {selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs sm:text-sm font-bold text-slate-100">
+              {selectedCount} customer{selectedCount !== 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700" />
+
+          <button
+            type="button"
+            onClick={() => setIsBulkWhatsAppOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Send Bulk WhatsApp</span>
+          </button>
+
+          {can('customers', 'update') && (
+            <button
+              type="button"
+              onClick={() => setIsStatusModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Update Status</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setRowSelection({})}
+            className="text-xs text-slate-400 hover:text-white px-2 py-1 transition cursor-pointer"
+          >
+            Deselect All
+          </button>
+        </div>
+      )}
     </div>
   );
 };

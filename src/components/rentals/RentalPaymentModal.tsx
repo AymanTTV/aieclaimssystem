@@ -6,6 +6,7 @@ import { Rental, RentalPayment, Vehicle } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { syncRentalRecord } from '../../services/unifiedSync.service';
 import FormField from '../ui/FormField';
 import { calculateOverdueCost, calculateRentalCostDetailed } from '../../utils/rentalCalculations'; 
 import { isAfter } from 'date-fns';
@@ -250,6 +251,13 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         payments: [...(rental.payments || []), payment],
         updatedAt: new Date()
       });
+
+      // Synchronize updated payment amounts and payment status with Central Finance Ledger
+      syncRentalRecord(rental.id, {
+        paidAmount: newPaidAmount,
+        remainingAmount: Math.max(newRemainingAmount, 0),
+        paymentStatus: newPaymentStatus,
+      }).catch((err) => console.warn('Background sync error on rental payment:', err));
 
       const ongoingNet = rental.includeVAT ? ongoingCharges / 1.2 : ongoingCharges;
       const returnNet = rental.includeVAT ? totalReturnCharges / 1.2 : totalReturnCharges;

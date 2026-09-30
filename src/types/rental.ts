@@ -270,6 +270,20 @@ export interface Rental {
   paymentNotes?: string | null;
 
   enable_monday_auto_email?: boolean;
+
+  // Unified Financial Record Schema & Cross-Module Synchronization Fields
+  entityId?: string;
+  entityType?: 'RENTAL';
+  customerBilled?: number;
+  dealerCost?: number;
+  subcontractorCost?: number;
+  netProfit?: number;
+  profitMargin?: number;
+  profitMarginPercent?: number;
+  isEdited?: boolean;
+  vatAmount?: number;
+  vatType?: string;
+  completionStatus?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 }
 
 export const DEFAULT_RENTAL_PRICES = {

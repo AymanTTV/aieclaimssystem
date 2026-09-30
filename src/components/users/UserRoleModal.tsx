@@ -147,6 +147,8 @@ export const FRIENDLY_LABELS: Record<string, string> = {
   viewPayment: 'View Payments',
   editPayment: 'Edit Payments',
   deletePayment: 'Delete Payments',
+  can_delete_payments: 'Delete Payments (Permission)',
+  manage_maintenance_finance: 'Manage Maintenance Finance',
   accounts: 'Accounts Ledger',
   period: 'Pay Period',
   reoccurring: 'Recurring Rules',
@@ -224,6 +226,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   viewPayment: 'Allows inspecting payment logs, receipts, and allocation history.',
   editPayment: 'Allows amending payment amounts, methods, or dates.',
   deletePayment: 'Allows voiding or deleting recorded payment entries.',
+  can_delete_payments: 'Authorizes deleting payment history entries and reversing ledger records.',
+  manage_maintenance_finance: 'Grants full access to maintenance payment schedules, subcontractor costs, dealer rates, and financial adjustments.',
   accounts: 'Enables managing the chart of accounts, bank transfers, and ledgers.',
   period: 'Allows filtering and generating settlements by specific pay periods.',
   reoccurring: 'Allows creating and managing automated recurring billing schedules.',
@@ -537,9 +541,22 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
 
     setLoading(true);
     try {
+      const canDeletePaymentsVal = Boolean(
+        customPermissions.maintenance?.can_delete_payments ||
+        customPermissions.maintenance?.deletePayment ||
+        customPermissions.finance?.can_delete_payments ||
+        customPermissions.finance?.deletePayment
+      );
+      const manageMaintenanceFinanceVal = Boolean(
+        customPermissions.maintenance?.manage_maintenance_finance ||
+        customPermissions.finance?.manage_maintenance_finance
+      );
+
       await updateDoc(doc(db, 'users', user.id), {
         role,
         permissions: customPermissions,
+        can_delete_payments: canDeletePaymentsVal,
+        manage_maintenance_finance: manageMaintenanceFinanceVal,
         updatedAt: new Date(),
       });
       toast.success('User permissions matrix updated successfully');

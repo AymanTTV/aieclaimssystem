@@ -21,4 +21,8 @@ export interface User {
   profileCompleted?: boolean;
   permissions?: RolePermissions;
   companyName?: string; // ✅ Added for the new Company role
+  can_delete_payments?: boolean;
+  manage_maintenance_finance?: boolean;
+  can_process_profit_payout?: boolean;
+  hasPermission?: (permission: string) => boolean;
 }

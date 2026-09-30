@@ -16,9 +16,11 @@ import productService from '../../services/product.service';
 import unifiedCategoryService from '../../services/unifiedCategory.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
-import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2 } from 'lucide-react';
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, UserCheck, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2, TrendingUp, TrendingDown, Percent, DollarSign } from 'lucide-react';
 import Modal from '../ui/Modal';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { syncInvoiceRecord } from '../../services/unifiedSync.service';
 
 interface InvoiceFormProps {
   vehicles: Vehicle[];
@@ -59,6 +61,42 @@ const getNextInvoiceNumber = async (): Promise<string> => {
   return `INV${String(nextNum).padStart(4, '0')}`;
 };
 
+/**
+ * Diagnostic test function that audits and logs the complete payload structure
+ * being passed to syncFinancialRecord / central Finance Ledger before dispatch.
+ * Verifies that the 'Is this a Loan Account?' checkbox toggle is correctly mapped
+ * to transactionType ('EXPENSE' vs 'INCOME').
+ */
+export function auditAndLogFinancialPayload(invoiceId: string, payload: Record<string, any>) {
+  const transactionType = payload.transactionType || (payload.isLoan ? 'EXPENSE' : 'INCOME');
+  const mappedLedgerType = transactionType === 'EXPENSE' ? 'expense' : 'income';
+
+  console.group(`[DIAGNOSTIC TEST] syncFinancialRecord Payload Audit: Invoice ${payload.invoiceNumber || invoiceId}`);
+  console.log('Target Invoice ID:', invoiceId);
+  console.log('Invoice Number:', payload.invoiceNumber);
+  console.log('Is Loan Account Checkbox (isLoan):', Boolean(payload.isLoan));
+  console.log('transactionType Flag (Verified):', transactionType);
+  console.log('Mapped Ledger Transaction Type (type):', mappedLedgerType);
+  console.log('Billed Total:', payload.total ?? payload.customerBilled);
+  console.log('Paid Amount:', payload.paidAmount);
+  console.log('Payment Status:', payload.paymentStatus);
+  console.log('Full Dispatched Payload Object:', payload);
+  console.groupEnd();
+
+  return {
+    invoiceId,
+    invoiceNumber: payload.invoiceNumber,
+    isLoan: Boolean(payload.isLoan),
+    transactionType,
+    mappedLedgerType,
+    verified: payload.isLoan ? transactionType === 'EXPENSE' : transactionType === 'INCOME',
+  };
+}
+
+if (typeof window !== 'undefined') {
+  (window as any).__testInvoiceFinancialPayload = auditAndLogFinancialPayload;
+}
+
 type InvoiceFormTab = 'client_accounts' | 'line_items' | 'payment_settlement' | 'documents_actions';
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts: propAccounts = [], groups = [], departments = [], onClose }) => {
@@ -89,6 +127,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
     { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false, vehicleId: '', vehicleName: '' }
   ]);
+  const [subcontractorCost, setSubcontractorCost] = useState<string>('0');
 
   // Share Modal & Post-Save trigger states
   const [showShareModal, setShowShareModal] = useState(false);
@@ -129,6 +168,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     paymentReference: '',
     paymentNotes: '',
     isLoan: false, 
+    transactionType: 'INCOME' as 'EXPENSE' | 'INCOME',
+    loanTransactionType: 'expense' as 'expense' | 'income',
     groupId: '',
     departmentId: '',
     accountFrom: '',
@@ -260,6 +301,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const paidNow = parseFloat(formData.amountToPay) || 0;
   const owing = total - paidNow;
 
+  const subCostNum = Math.max(0, parseFloat(subcontractorCost) || 0);
+  const profitMetrics = calculateProfitMetrics(total, subCostNum);
+
   useEffect(() => {
     if (formData.isPaid) {
       setFormData(fd => ({ ...fd, amountToPay: total.toFixed(2) }));
@@ -390,6 +434,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           vatAmount,
           total,
           amount: total,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          customerBilled: total,
+          netProfit: profitMetrics.netProfit,
+          profitMarginPercent: profitMetrics.profitMarginPercent,
           paidAmount: paidNow,
           remainingAmount: remaining,
           paymentStatus: status,
@@ -411,6 +459,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             : customers.find(c => c.id === formData.customerId)?.mobile || '',
           payments,
           isLoan: formData.isLoan,
+          loanTransactionType: formData.isLoan ? (formData.loanTransactionType || 'expense') : null,
+          transactionType: formData.isLoan 
+            ? (formData.loanTransactionType === 'income' ? 'INCOME' : 'EXPENSE')
+            : 'INCOME',
+          type: formData.isLoan 
+            ? (formData.loanTransactionType === 'income' ? 'income' : 'expense')
+            : 'income',
           accountFrom: formData.accountFrom || null,
           accountTo: formData.accountTo || null,
           isRecurring: formData.isRecurring,
@@ -419,6 +474,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           updatedAt: new Date(),
           createdBy: user!.id
         };
+
+        console.log(
+          `[InvoiceForm Submission Handler] Pre-dispatch payload check -> ` +
+          `Invoice: ${newInvoiceNumber} | isLoan: ${Boolean(payload.isLoan)} | ` +
+          `loanTransactionType: "${payload.loanTransactionType}" | ` +
+          `transactionType (Verified): "${payload.transactionType}" (type: "${payload.type}")`
+        );
 
         const docRef = await addDoc(collection(db, 'invoices'), payload);
 
@@ -458,7 +520,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             group.gross += itemTotal;
         });
 
+        let finalAccountId = formData.accountTo;
+        if (!finalAccountId) {
+            const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
+            if (defaultAcc) finalAccountId = defaultAcc.id;
+        }
+
         if (formData.isLoan) {
+            const loanType: 'expense' | 'income' = formData.loanTransactionType === 'income' ? 'income' : 'expense';
+            const defaultCategory = loanType === 'income' ? 'Loan Received' : 'Loan Provided';
+            const loanLabel = loanType === 'income' ? 'Loan Received (Income)' : 'Loan Provided (Expense)';
+
             for (const [vId, totals] of groupsByVehicle.entries()) {
                 const targetVehicle = vehicles.find(v => v.id === vId);
                 const vehicleOwner = targetVehicle?.owner 
@@ -471,21 +543,33 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
 
                 await createFinanceTransaction({
-                    type: 'expense',
-                    category: formData.category || 'Loan Provided',
+                    type: loanType,
+                    transactionType: loanType === 'income' ? 'INCOME' : 'EXPENSE',
+                    category: formData.category || defaultCategory,
                     amount: totals.gross,
-                    description: [formData.description, `Loan for Invoice ${newInvoiceNumber}`].filter(Boolean).join(' - '),
+                    description: [newInvoiceNumber, formData.description, `${loanLabel} for Invoice ${newInvoiceNumber}`].filter(Boolean).join(' - '),
                     referenceId: docRef.id,
+                    linkedInvoiceRef: docRef.id,
+                    entityId: docRef.id,
+                    entityType: 'INVOICE',
+                    invoiceNumber: newInvoiceNumber,
+                    documentUrl: documentUrl || undefined,
                     vehicleId: vId === 'unassigned' ? undefined : vId,
                     vehicleName: totals.vehicleName,
                     vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
                     customerId: payload.customerId || undefined,
                     customerName: payload.customerName || undefined,
                     paymentMethod: 'internal',
+                    paymentReference: newInvoiceNumber,
                     paymentStatus: 'paid',
                     date: new Date(formData.date),
+                    subcontractorCost: profitMetrics.subcontractorCost,
+                    dealerCost: profitMetrics.subcontractorCost,
+                    customerBilled: total,
+                    netProfit: profitMetrics.netProfit,
+                    profitMarginPercent: profitMetrics.profitMarginPercent,
                     accountFrom: formData.accountFrom || undefined,
-                    accountTo: formData.accountTo || undefined,
+                    accountTo: finalAccountId || formData.accountTo || undefined,
                     groupId: rawGroupId || undefined, 
                     groupName: resolvedGroupName || undefined, 
                     departmentId: targetDeptId || undefined, 
@@ -494,13 +578,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
             }
         }
 
-        let finalAccountId = formData.accountTo;
-        if (!finalAccountId) {
-            const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
-            if (defaultAcc) finalAccountId = defaultAcc.id;
-        }
-
-        if (paidNow > 0) {
+        if (!formData.isLoan && paidNow > 0) {
             for (const [vId, totals] of groupsByVehicle.entries()) {
                 const targetVehicle = vehicles.find(v => v.id === vId);
                 const vehicleOwner = targetVehicle?.owner 
@@ -518,20 +596,33 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 if (allocatedPayment > 0) {
                     await createFinanceTransaction({
                         type: 'income',
+                        transactionType: 'INCOME',
                         category: formData.category,
                         amount: allocatedPayment,
-                        description: [formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${newInvoiceNumber}`,
-                        referenceId: docRef.id, 
+                        description: [newInvoiceNumber, formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${newInvoiceNumber}`,
+                        referenceId: docRef.id,
+                        linkedInvoiceRef: docRef.id,
+                        entityId: docRef.id,
+                        entityType: 'INVOICE',
+                        invoiceNumber: newInvoiceNumber,
+                        documentUrl: documentUrl || undefined,
                         vehicleId: vId === 'unassigned' ? undefined : vId,
                         vehicleName: totals.vehicleName,
                         vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
                         customerId: payload.customerId || undefined,
                         customerName: payload.customerName || undefined,
                         paymentMethod: formData.method,
-                        paymentReference: actualReference, // ✅ Restored human-readable invoice reference
+                        paymentReference: newInvoiceNumber || actualReference, // ✅ Restored human-readable invoice reference
                         paymentId: newPaymentId, // ✅ Dedicated system link for strict deletion tracking
                         paymentStatus: status as any,
                         date: new Date(formData.date), 
+                        subcontractorCost: profitMetrics.subcontractorCost,
+                        dealerCost: profitMetrics.subcontractorCost,
+                        customerBilled: total,
+                        netProfit: profitMetrics.netProfit,
+                        profitMarginPercent: profitMetrics.profitMarginPercent,
+                        orderId: payload.orderNumber || payload.orderId,
+                        orderNumber: payload.orderNumber || payload.orderId,
                         accountTo: finalAccountId || undefined,
                         groupId: rawGroupId || undefined, 
                         groupName: resolvedGroupName || undefined, 
@@ -547,6 +638,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           ...payload,
           documentUrl: documentUrl,
         } as Invoice;
+
+        // Run diagnostic test audit on payload structure before dispatching
+        const fullSyncPayload = { ...payload, documentUrl };
+        const auditDiag = auditAndLogFinancialPayload(docRef.id, fullSyncPayload);
+        console.log(
+          `[InvoiceForm Submission Handler] Pre-dispatch verification -> transactionType: "${auditDiag.transactionType}" (isLoan: ${auditDiag.isLoan}) | Mapping valid: ${auditDiag.verified}`
+        );
+
+        // Synchronize immediately with Central Finance Ledger and linked maintenance records
+        syncInvoiceRecord(docRef.id, fullSyncPayload).catch((err) =>
+          console.warn('Background sync error for new invoice:', err)
+        );
 
         setSavedInvoiceForShare(savedInvoiceObj);
         setShowConfirmModal(false);
@@ -571,7 +674,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           onClose();
         }
 
-        toast.success(`Invoice ${newInvoiceNumber} created successfully!`);
+        const expectedTransactionType = formData.isLoan ? 'EXPENSE' : 'INCOME';
+        console.log(
+          `[InvoiceForm Audit] Pre-save verification: Invoice ${newInvoiceNumber} | isLoan=${formData.isLoan} ` +
+          `=> Ledger transactionType verified as: ${expectedTransactionType}`
+        );
+
+        toast.success(
+          `Invoice ${newInvoiceNumber} created! Ledger transactionType: ${expectedTransactionType}`,
+          { duration: 4500 }
+        );
     } catch (err: any) {
         console.error(err);
         toast.error('Failed to create invoice: ' + err.message);
@@ -772,18 +884,83 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 </div>
             </div>
 
-            <div className="flex items-start space-x-3 p-4 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
-                <input 
-                  type="checkbox" 
-                  id="confirmLoan" 
-                  checked={formData.isLoan} 
-                  onChange={e => setFormData(fd => ({ ...fd, isLoan: e.target.checked }))} 
-                  className="mt-1 h-5 w-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer" 
-                />
-                <label htmlFor="confirmLoan" className="text-sm font-bold text-amber-900 cursor-pointer">
-                  Is this a Loan Account? <br/>
-                  <span className="font-normal text-amber-700">Check this if an expense transaction should be recorded to the ledger.</span>
-                </label>
+            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 shadow-xs space-y-3">
+                <div className="flex items-start space-x-3">
+                  <input 
+                    type="checkbox" 
+                    id="confirmLoan" 
+                    checked={formData.isLoan} 
+                    onChange={e => {
+                      const isChecked = e.target.checked;
+                      setFormData(fd => ({
+                        ...fd,
+                        isLoan: isChecked,
+                        loanTransactionType: isChecked ? (fd.loanTransactionType || 'expense') : 'expense',
+                        transactionType: isChecked ? (fd.loanTransactionType === 'income' ? 'INCOME' : 'EXPENSE') : 'INCOME'
+                      }));
+                    }} 
+                    className="mt-1 h-5 w-5 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer" 
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="confirmLoan" className="text-sm font-bold text-amber-900 cursor-pointer select-none block">
+                      Is this a Loan Account?
+                    </label>
+                    <span className="text-xs text-amber-700 block mt-0.5">
+                      {formData.isLoan 
+                        ? 'Loan account enabled. Select ledger posting mode below (defaults to Expense).'
+                        : 'Unchecked: Records standard Income entry to the Finance Ledger.'}
+                    </span>
+                  </div>
+                </div>
+
+                {formData.isLoan && (
+                  <div className="pt-2 border-t border-amber-200/80 pl-8 space-y-2">
+                    <label className="text-xs font-black uppercase tracking-wider text-amber-900 block">
+                      Ledger Transaction Type:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(fd => ({ ...fd, loanTransactionType: 'expense', transactionType: 'EXPENSE' }))}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                          (formData.loanTransactionType || 'expense') === 'expense'
+                            ? 'bg-rose-50 border-rose-500 text-rose-900 ring-2 ring-rose-500/20 shadow-xs'
+                            : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold">Expense (Default)</span>
+                          {(formData.loanTransactionType || 'expense') === 'expense' && (
+                            <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-200 text-rose-800">Active</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Debit entry / Loan Provided
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(fd => ({ ...fd, loanTransactionType: 'income', transactionType: 'INCOME' }))}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                          formData.loanTransactionType === 'income'
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-xs'
+                            : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold">Income Mode</span>
+                          {formData.loanTransactionType === 'income' && (
+                            <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-800">Active</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Credit entry / Loan Received
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                )}
             </div>
 
             {/* Quick Actions (Selectable Checkboxes) */}
@@ -1087,63 +1264,77 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 </div>
 
                 {/* Right Column: Account, Classification & Notes */}
-                <div className="space-y-3">
-                  <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-2 shadow-2xs">
-                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-200">
+                <div className="space-y-3.5">
+                  <div className="bg-slate-50/90 p-3.5 rounded-xl border border-[#E2E8F0] space-y-3.5 shadow-2xs">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-slate-200">
                       <Building2 className="w-3.5 h-3.5 text-blue-600" />
                       <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Account & Classification</h4>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <SearchableSelect
-                        label="Account From (Debit)"
-                        options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
-                        value={formData.accountFrom}
-                        onChange={val => setFormData(fd => ({ ...fd, accountFrom: val as string || '' }))}
-                        placeholder="Select source..."
-                      />
-                      <SearchableSelect
-                        label="Account To (Credit)"
-                        options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
-                        value={formData.accountTo}
-                        onChange={val => setFormData(fd => ({ ...fd, accountTo: val as string || '' }))}
-                        placeholder="Select destination..."
-                      />
+                    {/* Top Row: Account From & Account To */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
+                      <div className="min-w-0">
+                        <SearchableSelect
+                          label="Account From (Debit)"
+                          options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+                          value={formData.accountFrom}
+                          onChange={val => setFormData(fd => ({ ...fd, accountFrom: val as string || '' }))}
+                          placeholder="Select source..."
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <SearchableSelect
+                          label="Account To (Credit)"
+                          options={financeAccounts.map(a => ({ id: a.id, label: a.name }))}
+                          value={formData.accountTo}
+                          onChange={val => setFormData(fd => ({ ...fd, accountTo: val as string || '' }))}
+                          placeholder="Select destination..."
+                        />
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <SearchableSelect
-                        label="Category"
-                        options={categories.map(c => ({ id: c, label: c })).concat({ id: 'Other', label: 'Other' })}
-                        value={formData.category}
-                        onChange={val => setFormData(fd => ({ ...fd, category: val as string || '' }))}
-                        placeholder="Category..."
-                        required
-                      />
-                      <SearchableSelect
-                        label="Group (Optional)"
-                        options={groups.map(g => ({ id: g.id, label: g.name }))}
-                        value={resolvedGroupId}
-                        onChange={val => setFormData(fd => ({ ...fd, groupId: val as string || '' }))}
-                        placeholder="Group..."
-                      />
-                      <SearchableSelect
-                        label="Dept (Optional)"
-                        options={departments.map(d => ({ id: d.id, label: d.name }))}
-                        value={resolvedDeptId}
-                        onChange={val => setFormData(fd => ({ ...fd, departmentId: val as string || '' }))}
-                        placeholder="Dept..."
-                      />
+                    {/* Second Row: Category, Group & Dept with 14-16px vertical separation & ample column gutters */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 pt-0.5">
+                      <div className="min-w-0">
+                        <SearchableSelect
+                          label="Category"
+                          options={categories.map(c => ({ id: c, label: c })).concat({ id: 'Other', label: 'Other' })}
+                          value={formData.category}
+                          onChange={val => setFormData(fd => ({ ...fd, category: val as string || '' }))}
+                          placeholder="Category..."
+                          required
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <SearchableSelect
+                          label="Group (Optional)"
+                          options={groups.map(g => ({ id: g.id, label: g.name }))}
+                          value={resolvedGroupId}
+                          onChange={val => setFormData(fd => ({ ...fd, groupId: val as string || '' }))}
+                          placeholder="Group..."
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <SearchableSelect
+                          label="Dept (Optional)"
+                          options={departments.map(d => ({ id: d.id, label: d.name }))}
+                          value={resolvedDeptId}
+                          onChange={val => setFormData(fd => ({ ...fd, departmentId: val as string || '' }))}
+                          placeholder="Dept..."
+                        />
+                      </div>
                     </div>
 
                     {formData.category === 'Other' && (
-                      <FormField
-                        label="Custom Category"
-                        value={formData.customCategory}
-                        onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
-                        inputClassName="py-1 text-xs"
-                        required
-                      />
+                      <div className="pt-1 min-w-0">
+                        <FormField
+                          label="Custom Category"
+                          value={formData.customCategory}
+                          onChange={e => setFormData(fd => ({ ...fd, customCategory: e.target.value }))}
+                          inputClassName="py-1 text-xs"
+                          required
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -1161,21 +1352,34 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     />
                   </div>
 
-                  {/* Snapshot Card */}
-                  <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-blue-950 uppercase text-[10px] tracking-wider">Active Client:</span>
-                      <p className="font-semibold text-blue-900 truncate max-w-[260px]">
-                        {getCustomerNameDisplay() !== 'N/A' ? getCustomerNameDisplay() : 'No client selected'}
-                      </p>
+                  {/* Active Client Status Widget (Informative summary - CTA hierarchy preserved in footer) */}
+                  <div className="bg-gradient-to-r from-blue-50/90 to-indigo-50/80 p-3 rounded-xl border border-blue-200/90 flex items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-200 flex items-center justify-center shrink-0 text-blue-700">
+                        <UserCheck className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-blue-950 uppercase text-[10px] tracking-wider block">
+                          Active Client
+                        </span>
+                        <p className="font-semibold text-blue-900 truncate text-xs">
+                          {getCustomerNameDisplay() !== 'N/A' ? getCustomerNameDisplay() : 'No client selected'}
+                        </p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleNextTab}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 shadow-2xs cursor-pointer shrink-0"
-                    >
-                      Line Items <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+
+                    <div className="shrink-0 flex items-center gap-2">
+                      {getCustomerNameDisplay() !== 'N/A' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-1 rounded-md shadow-2xs">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          Client Selected
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-100/80 border border-amber-300 px-2.5 py-1 rounded-md">
+                          Selection Required
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1352,9 +1556,99 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       <p className="text-[10px] text-slate-500 font-medium">Discount</p>
                       <p className="text-xs font-bold font-mono text-amber-600">–{formatCurrency(totalDiscount)}</p>
                     </div>
-                    <div className="bg-blue-50/90 p-2 rounded-lg border border-blue-300">
-                      <p className="text-[10px] text-blue-700 font-bold uppercase">Total Due</p>
-                      <p className="text-sm font-black font-mono text-blue-950">{formatCurrency(total)}</p>
+                    <div className="bg-amber-50/90 p-2 rounded-lg border border-amber-300">
+                      <p className="text-[10px] text-amber-800 font-bold uppercase">Total Due</p>
+                      <p className="text-sm font-black font-mono text-amber-950">{formatCurrency(total)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tab 2: Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+                <div className="bg-white p-3.5 rounded-xl border-2 border-indigo-100 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <div className="p-1 bg-indigo-50 text-indigo-600 rounded-md">
+                        <DollarSign className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          Dealer / Subcontractor Cost & Profit Tracking
+                        </h4>
+                        <p className="text-[10px] text-slate-500">Live profit margin preview based on billed invoice items</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded">
+                      Billed: {formatCurrency(total)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Dealer / Subcontractor Cost (£)
+                      </label>
+                      <div className="relative rounded-lg shadow-2xs">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs font-bold">
+                          £
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={subcontractorCost}
+                          onChange={(e) => setSubcontractorCost(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Profit Preview Badges */}
+                    <div
+                      className={`p-2 rounded-lg border flex flex-col justify-between ${
+                        profitMetrics.netProfit >= 0
+                          ? 'bg-emerald-50/80 border-emerald-200'
+                          : 'bg-rose-50/80 border-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                        <span>Live Net Profit</span>
+                        {profitMetrics.netProfit >= 0 ? (
+                          <TrendingUp className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3 text-rose-600" />
+                        )}
+                      </div>
+                      <p
+                        className={`text-sm font-black font-mono mt-0.5 ${
+                          profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                        }`}
+                      >
+                        {profitMetrics.netProfit >= 0 ? '+' : ''}
+                        {formatCurrency(profitMetrics.netProfit)}
+                      </p>
+                      <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+                    </div>
+
+                    <div
+                      className={`p-2 rounded-lg border flex flex-col justify-between ${
+                        profitMetrics.profitMarginPercent >= 0
+                          ? 'bg-indigo-50/80 border-indigo-200'
+                          : 'bg-rose-50/80 border-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                        <span>Profit Margin</span>
+                        <Percent className="w-3 h-3 text-indigo-600" />
+                      </div>
+                      <p
+                        className={`text-sm font-black font-mono mt-0.5 ${
+                          profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                        }`}
+                      >
+                        {profitMetrics.profitMarginPercent.toFixed(1)}%
+                      </p>
+                      <span className="text-[9px] text-slate-500">(Net Profit / Billed) * 100</span>
                     </div>
                   </div>
                 </div>
@@ -1366,23 +1660,115 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
               <div className="space-y-3 animate-in fade-in duration-150">
                 {/* Balance Metrics - 3 compact tiles */}
                 <div className="grid grid-cols-3 gap-2.5">
-                  <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200 shadow-2xs">
-                    <p className="text-[10px] font-bold text-blue-700 uppercase">Gross Billing</p>
-                    <p className="text-lg font-black font-mono text-blue-950 mt-0.5">{formatCurrency(total)}</p>
+                  <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 shadow-2xs">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase">Gross Billing (Total)</p>
+                    <p className="text-lg font-black font-mono text-amber-950 mt-0.5">{formatCurrency(total)}</p>
                   </div>
                   <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
-                    <p className="text-[10px] font-bold text-emerald-700 uppercase">Paid Now</p>
+                    <p className="text-[10px] font-bold text-emerald-800 uppercase">Paid Now</p>
                     <p className="text-lg font-black font-mono text-emerald-950 mt-0.5">{formatCurrency(paidNow)}</p>
                   </div>
                   <div className={`p-2.5 rounded-xl border shadow-2xs ${
-                    owing <= 0.005 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/80 border-rose-200'
+                    owing <= 0.005 ? 'bg-emerald-50/80 border-emerald-200' : 'bg-rose-50/80 border-rose-200'
                   }`}>
-                    <p className={`text-[10px] font-bold uppercase ${owing <= 0.005 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    <p className={`text-[10px] font-bold uppercase ${owing <= 0.005 ? 'text-emerald-800' : 'text-rose-800'}`}>
                       {owing <= 0.005 ? 'Status' : 'Owing'}
                     </p>
-                    <p className={`text-lg font-black font-mono mt-0.5 ${owing <= 0.005 ? 'text-emerald-900' : 'text-rose-950'}`}>
+                    <p className={`text-lg font-black font-mono mt-0.5 ${owing <= 0.005 ? 'text-emerald-950' : 'text-rose-950'}`}>
                       {owing <= 0.005 ? '£0.00 (Settled)' : formatCurrency(Math.max(0, owing))}
                     </p>
+                  </div>
+                </div>
+
+                {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+                <div className="bg-white p-3.5 rounded-xl border-2 border-indigo-100 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <div className="p-1 bg-indigo-50 text-indigo-600 rounded-md">
+                        <DollarSign className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          Dealer / Subcontractor Cost & Profit Tracking
+                        </h4>
+                        <p className="text-[10px] text-slate-500">Live profit margin preview based on billed invoice gross</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded">
+                      Billed: {formatCurrency(total)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Dealer / Subcontractor Cost (£)
+                      </label>
+                      <div className="relative rounded-lg shadow-2xs">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs font-bold">
+                          £
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={subcontractorCost}
+                          onChange={(e) => setSubcontractorCost(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold font-mono text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Profit Preview Badges */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div
+                        className={`p-2 rounded-lg border flex flex-col justify-between ${
+                          profitMetrics.netProfit >= 0
+                            ? 'bg-emerald-50/80 border-emerald-200'
+                            : 'bg-rose-50/80 border-rose-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                          <span>Live Net Profit</span>
+                          {profitMetrics.netProfit >= 0 ? (
+                            <TrendingUp className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <TrendingDown className="w-3 h-3 text-rose-600" />
+                          )}
+                        </div>
+                        <p
+                          className={`text-sm font-black font-mono mt-0.5 ${
+                            profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                          }`}
+                        >
+                          {profitMetrics.netProfit >= 0 ? '+' : ''}
+                          {formatCurrency(profitMetrics.netProfit)}
+                        </p>
+                        <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+                      </div>
+
+                      <div
+                        className={`p-2 rounded-lg border flex flex-col justify-between ${
+                          profitMetrics.profitMarginPercent >= 0
+                            ? 'bg-indigo-50/80 border-indigo-200'
+                            : 'bg-rose-50/80 border-rose-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
+                          <span>Profit Margin</span>
+                          <Percent className="w-3 h-3 text-indigo-600" />
+                        </div>
+                        <p
+                          className={`text-sm font-black font-mono mt-0.5 ${
+                            profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                          }`}
+                        >
+                          {profitMetrics.profitMarginPercent.toFixed(1)}%
+                        </p>
+                        <span className="text-[9px] text-slate-500">(Net Profit / Billed) * 100</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1618,7 +2004,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
 
             {/* Center: Live Totals Badges */}
             <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-800">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-800">
                 <span>Total:</span>
                 <span className="font-mono">{formatCurrency(total)}</span>
               </div>

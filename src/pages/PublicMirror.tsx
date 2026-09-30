@@ -1,5 +1,6 @@
 // src/pages/PublicMirror.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
@@ -52,14 +53,24 @@ import {
   differenceInCalendarDays
 } from 'date-fns';
 import { ensureValidDate } from '../utils/dateHelpers';
+import { isOffRoadAccidentLog } from '../types';
+import {
+  normalizeMaintenanceStatus,
+  getMaintenanceStatusLabel,
+  isStatusOffRoad,
+  isStatusUrgentScheduled,
+  getStatusBadgeStyles,
+  getMaintenanceRowTheme,
+} from '../utils/maintenanceStatusConfig';
 
 interface PublicJobItem {
   id: string;
-  source: 'maintenance' | 'rental';
+  source: 'maintenance' | 'rental' | 'vehicle';
   title: string;
   type: string;
   description?: string;
-  status: 'in-progress' | 'scheduled';
+  status: string;
+  statusLabel?: string;
   scheduledDate: Date;
   vehicleMake?: string;
   vehicleModel?: string;
@@ -72,6 +83,8 @@ interface PublicJobItem {
   estimatedReturnDate?: Date;
   daysRemaining?: number;
   isOverdue?: boolean;
+  isOffRoad?: boolean;
+  isAccident?: boolean;
 }
 
 interface LiveTypingBadgeProps {
@@ -173,10 +186,29 @@ const LiveTypingBadge: React.FC<LiveTypingBadgeProps> = ({
 
 const PublicMirror: React.FC = () => {
   const { user: authContextUser } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Helper to detect TV Board route vs Standard Mirror
+  const isTvRoute = (pathname: string, search: string) => {
+    const p = pathname.toLowerCase();
+    const params = new URLSearchParams(search);
+    return (
+      p === '/workshop-tv' ||
+      p.endsWith('workshop-tv') ||
+      p.includes('workshop-tv') ||
+      p === '/schedule-mirror' ||
+      p.endsWith('/tv') ||
+      p.includes('/tv') ||
+      params.get('mode') === 'tv' ||
+      params.get('view') === 'tv'
+    );
+  };
 
   // Raw state from listeners
   const [maintenanceDocs, setMaintenanceDocs] = useState<any[]>([]);
   const [rentalDocs, setRentalDocs] = useState<any[]>([]);
+  const [vehicleDocs, setVehicleDocs] = useState<any[]>([]);
   const [vehiclesMap, setVehiclesMap] = useState<Record<string, { make: string; model: string; reg: string }>>({});
   const [loading, setLoading] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -185,25 +217,42 @@ const PublicMirror: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<any>(auth.currentUser || authContextUser);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'all' | 'maintenance' | 'rentals'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'maintenance' | 'rentals' | 'available'>('all');
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'in-progress' | 'scheduled' | 'today' | '7days'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isKioskMode, setIsKioskMode] = useState(false);
   const [viewMode, setViewMode] = useState<'dual' | 'table' | 'grid' | 'tv'>(() => {
     if (typeof window !== 'undefined') {
-      const path = window.location.pathname.toLowerCase();
-      const params = new URLSearchParams(window.location.search);
-      if (
-        path === '/schedule-mirror' ||
-        path.includes('/tv') ||
-        params.get('mode') === 'tv' ||
-        params.get('view') === 'tv'
-      ) {
+      if (isTvRoute(window.location.pathname, window.location.search)) {
         return 'tv';
       }
     }
     return 'dual';
   });
+
+  // Keep viewMode and browser title reactive to route changes
+  useEffect(() => {
+    if (isTvRoute(location.pathname, location.search)) {
+      setViewMode('tv');
+      document.title = 'Workshop TV Display Board | Fleet System';
+    } else {
+      if (viewMode === 'tv') {
+        setViewMode('dual');
+      }
+      document.title = 'Real-Time Public Mirror | Fleet System';
+    }
+  }, [location.pathname, location.search]);
+
+  // Handlers for switching views and keeping browser route in sync
+  const handleSwitchToTv = () => {
+    setViewMode('tv');
+    navigate('/workshop-tv');
+  };
+
+  const handleExitTv = () => {
+    setViewMode('dual');
+    navigate('/maintenance/live');
+  };
 
   // Staff Login Modal state
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -227,8 +276,10 @@ const PublicMirror: React.FC = () => {
       q,
       (snapshot) => {
         const map: Record<string, { make: string; model: string; reg: string }> = {};
+        const vList: any[] = [];
         snapshot.forEach((doc) => {
           const d = doc.data();
+          vList.push({ id: doc.id, ...d });
           map[doc.id] = {
             make: d.make || '',
             model: d.model || '',
@@ -236,6 +287,7 @@ const PublicMirror: React.FC = () => {
           };
         });
         setVehiclesMap(map);
+        setVehicleDocs(vList);
       },
       (err) => {
         console.warn('Vehicle snapshot notice in Public Mirror:', err.message);
@@ -387,15 +439,14 @@ const PublicMirror: React.FC = () => {
         jobDate = new Date();
       }
 
-      // Check In-Progress vs Scheduled
-      const isInProgress =
-        rawStatus === 'in-progress' ||
-        rawStatus === 'in progress' ||
-        rawStatus === 'active' ||
-        rawStatus === 'ongoing' ||
-        rawStatus === 'started';
+      // Check In-Progress vs Scheduled & VOR Off-Road
+      const isAccident = isOffRoadAccidentLog(m) || rawStatus === 'accident' || rawStatus === 'off-road-accident';
+      const isOffRoad = isStatusOffRoad(m.status, { isAccident, isOffRoad: m.isOffRoad });
+      const normalizedStatus = normalizeMaintenanceStatus(m.status, { isAccident, isOffRoad });
+      const statusLabel = getMaintenanceStatusLabel(m.status, { isAccident, isOffRoad });
 
-      const isScheduled = !isInProgress;
+      const isInProgress = normalizedStatus === 'in-progress' || normalizedStatus === 'workshop';
+      const isScheduled = normalizedStatus === 'scheduled';
       const isOverdue = isScheduled && isBefore(endOfDay(jobDate), todayStart);
       const isDueToday = isScheduled && isToday(jobDate);
       const isWithinNext7Days = jobDate >= todayStart && jobDate <= next7DaysEnd;
@@ -419,10 +470,11 @@ const PublicMirror: React.FC = () => {
       result.push({
         id: `maint-${m.id}`,
         source: 'maintenance',
-        title: (m.type || 'Maintenance').replace(/-/g, ' ').toUpperCase(),
-        type: m.type || 'Maintenance',
-        description: m.description || m.notes || 'Scheduled Maintenance Service',
-        status: isInProgress ? 'in-progress' : 'scheduled',
+        title: isOffRoad ? '🚨 OFF ROAD (VOR) WORKSHOP' : (m.type || 'Maintenance').replace(/-/g, ' ').toUpperCase(),
+        type: isOffRoad ? 'OFF ROAD (VOR)' : (m.type || 'Maintenance'),
+        description: m.description || m.notes || (isOffRoad ? 'Vehicle Off Road (VOR) Emergency Work' : 'Scheduled Maintenance Service'),
+        status: m.status || normalizedStatus,
+        statusLabel,
         scheduledDate: jobDate,
         vehicleMake: make,
         vehicleModel: model,
@@ -431,6 +483,8 @@ const PublicMirror: React.FC = () => {
         serviceProvider: m.serviceProvider || 'Workshop Technician',
         orderNumber: m.orderNumber,
         isOverdue: isOverdue,
+        isOffRoad: isOffRoad,
+        isAccident: isAccident,
       });
     });
 
@@ -488,13 +542,39 @@ const PublicMirror: React.FC = () => {
       });
     });
 
-    // Sort: 'in-progress' items first, followed by chronologically upcoming
+    // --- Process Available Depot Vehicles ---
+    vehicleDocs.forEach((v) => {
+      const rawStatus = (v.status || '').toLowerCase().trim();
+      if (rawStatus === 'available' || rawStatus === 'ready' || rawStatus === 'depot-ready') {
+        if (scheduleFilter === 'in-progress' || scheduleFilter === 'scheduled' || scheduleFilter === '7days') return;
+        const reg = v.registrationNumber || v.regNumber || v.reg || 'N/A';
+        result.push({
+          id: `veh-${v.id}`,
+          source: 'vehicle',
+          title: 'AVAILABLE DEPOT VEHICLE',
+          type: v.fuelType ? `${v.fuelType.toUpperCase()} READY` : 'DEPOT READY',
+          description: `${v.year ? v.year + ' ' : ''}${v.transmission || 'Automatic'} • Unassigned & Inspected`,
+          status: 'available',
+          scheduledDate: now,
+          vehicleMake: v.make || 'Toyota',
+          vehicleModel: v.model || 'Prius',
+          vehicleReg: reg,
+          location: v.location || v.depotLocation || 'Depot Bay A',
+          serviceProvider: 'Fleet Depot Ops',
+          orderNumber: v.chassisNumber?.slice(-6) || v.vin?.slice(-6),
+        });
+      }
+    });
+
+    // Sort: VOR Off-Road first, then In-Progress items, followed by chronologically upcoming
     return result.sort((a, b) => {
+      if (a.isOffRoad && !b.isOffRoad) return -1;
+      if (!a.isOffRoad && b.isOffRoad) return 1;
       if (a.status === 'in-progress' && b.status !== 'in-progress') return -1;
       if (a.status !== 'in-progress' && b.status === 'in-progress') return 1;
       return a.scheduledDate.getTime() - b.scheduledDate.getTime();
     });
-  }, [maintenanceDocs, rentalDocs, vehiclesMap, scheduleFilter]);
+  }, [maintenanceDocs, rentalDocs, vehicleDocs, vehiclesMap, scheduleFilter]);
 
   // Secondary Filter by Tab and Search Query
   const filteredItems = useMemo(() => {
@@ -505,6 +585,8 @@ const PublicMirror: React.FC = () => {
       list = list.filter((i) => i.source === 'maintenance');
     } else if (activeTab === 'rentals') {
       list = list.filter((i) => i.source === 'rental');
+    } else if (activeTab === 'available') {
+      list = list.filter((i) => i.source === 'vehicle' || i.status === 'available');
     }
 
     // Filter by Search Query
@@ -544,7 +626,17 @@ const PublicMirror: React.FC = () => {
     () =>
       maintenanceDocs.filter((m) => {
         const s = (m.status || '').toLowerCase();
-        return s === 'in-progress' || s === 'in progress' || s === 'active';
+        return (
+          s === 'in-progress' ||
+          s === 'in progress' ||
+          s === 'active' ||
+          s === 'workshop' ||
+          s === 'in workshop' ||
+          s === 'off-road' ||
+          s === 'off road (vor)' ||
+          s === 'vor' ||
+          isOffRoadAccidentLog(m)
+        );
       }).length +
       rentalDocs.filter((r) => {
         const s = (r.status || '').toLowerCase();
@@ -557,17 +649,44 @@ const PublicMirror: React.FC = () => {
     () =>
       maintenanceDocs.filter((m) => {
         const s = (m.status || '').toLowerCase();
-        return s !== 'completed' && s !== 'cancelled' && s !== 'draft' && s !== 'in-progress' && s !== 'in progress' && s !== 'active';
+        const isInProg =
+          s === 'in-progress' ||
+          s === 'in progress' ||
+          s === 'active' ||
+          s === 'workshop' ||
+          s === 'in workshop' ||
+          s === 'off-road' ||
+          s === 'off road (vor)' ||
+          s === 'vor' ||
+          isOffRoadAccidentLog(m);
+        return s !== 'completed' && s !== 'cancelled' && s !== 'draft' && !isInProg;
       }).length +
       rentalDocs.filter((r) => {
         const s = (r.status || '').toLowerCase();
-        return s !== 'completed' && s !== 'cancelled' && s !== 'draft' && s !== 'returned' && s !== 'active' && s !== 'in-progress' && s !== 'in progress';
+        return (
+          s !== 'completed' &&
+          s !== 'cancelled' &&
+          s !== 'draft' &&
+          s !== 'returned' &&
+          s !== 'active' &&
+          s !== 'in-progress' &&
+          s !== 'in progress'
+        );
       }).length,
     [maintenanceDocs, rentalDocs]
   );
 
   const maintCount = useMemo(() => unifiedJobs.filter((i) => i.source === 'maintenance').length, [unifiedJobs]);
   const rentalCount = useMemo(() => unifiedJobs.filter((i) => i.source === 'rental').length, [unifiedJobs]);
+  const availableCount = useMemo(
+    () =>
+      vehicleDocs.filter((v) => {
+        const s = (v.status || '').toLowerCase().trim();
+        return s === 'available' || s === 'ready' || s === 'depot-ready';
+      }).length,
+    [vehicleDocs]
+  );
+  const offRoadCount = useMemo(() => unifiedJobs.filter((i) => i.isOffRoad).length, [unifiedJobs]);
 
   // Specific counts for Top Summary Metric Cards matching Admin Dashboard style
   const scheduledCount = useMemo(
@@ -691,36 +810,33 @@ const PublicMirror: React.FC = () => {
   };
 
   const getLiveStatusBadge = (item: any, isUrgent: boolean, isInProgress: boolean) => {
-    if (isInProgress) {
-      return (
-        <LiveTypingBadge
-          messages={['IN PROGRESS', 'ACTIVE JOB', 'WORKSHOP IN-PROGRESS']}
-          variant="in-progress"
-        />
-      );
-    }
-    if (item?.status === 'completed') {
-      return (
-        <LiveTypingBadge
-          messages={['COMPLETED', 'READY FOR DISPATCH']}
-          variant="scheduled"
-          className="bg-emerald-900/90 text-white border-emerald-500/60 shadow-xs"
-        />
-      );
-    }
-    if (isUrgent) {
-      return (
-        <LiveTypingBadge
-          messages={['SCHEDULED', 'ON SCHEDULE', 'LIVE DISPATCH', 'CONFIRMED']}
-          variant="urgent"
-        />
-      );
-    }
+    const isAccident = item?.isAccident || normalizeMaintenanceStatus(item?.status) === 'accident';
+    const isOffRoad = isStatusOffRoad(item?.status, { isAccident, isOffRoad: item?.isOffRoad });
+    const statusLabel =
+      item?.statusLabel ||
+      getMaintenanceStatusLabel(item?.status, {
+        isAccident,
+        isOffRoad,
+      });
+
+    const badgeClass = getStatusBadgeStyles(item?.status, {
+      isScheduledUrgent: isUrgent,
+      isDarkTheme: true,
+      isAccident,
+      isOffRoad,
+    });
+
     return (
-      <LiveTypingBadge
-        messages={['SCHEDULED', 'ON SCHEDULE', 'CONFIRMED']}
-        variant="scheduled"
-      />
+      <span
+        className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${badgeClass}`}
+      >
+        {isOffRoad ? (
+          <span className="h-2 w-2 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
+        ) : isUrgent ? (
+          <span className="h-2 w-2 rounded-full bg-red-400 animate-slow-fade-blink-dot shrink-0" />
+        ) : null}
+        <span className="truncate">{statusLabel}</span>
+      </span>
     );
   };
 
@@ -731,7 +847,7 @@ const PublicMirror: React.FC = () => {
         <WorkshopTVBoard
           jobs={unifiedJobs}
           lastSyncTime={lastSyncTime}
-          onClose={() => setViewMode('dual')}
+          onClose={handleExitTv}
         />
       </WorkshopMirrorGuard>
     );
@@ -828,7 +944,7 @@ const PublicMirror: React.FC = () => {
             {/* Workshop TV Auto-Rotation Button (Guarded by User Permissions) */}
             <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
               <button
-                onClick={() => setViewMode('tv')}
+                onClick={handleSwitchToTv}
                 className="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer border border-emerald-500/30"
                 title="Switch to Fullscreen Auto-Rotation TV Board"
               >
@@ -1165,7 +1281,7 @@ const PublicMirror: React.FC = () => {
             </button>
             <WorkshopMirrorGuard permission="workshopTv" behavior="hide">
               <button
-                onClick={() => setViewMode('tv')}
+                onClick={handleSwitchToTv}
                 title="Workshop TV Display Mirror (Auto-Rotation Board)"
                 className={`px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'tv'
@@ -1242,10 +1358,15 @@ const PublicMirror: React.FC = () => {
                 <div className="space-y-3 min-w-0">
                   {inProgressItems.map((item) => {
                     const isMaintenance = item.source === 'maintenance';
+                    const isOffRoad = Boolean(item.isOffRoad);
                     return (
                       <div
                         key={item.id}
-                        className="bg-gradient-to-b from-[#181C30] to-[#121524] border border-amber-500/40 rounded-2xl p-3.5 sm:p-4 shadow-xl hover:border-amber-400/60 transition-all ring-1 ring-amber-500/20 min-w-0"
+                        className={`rounded-2xl p-3.5 sm:p-4 shadow-xl transition-all min-w-0 ${
+                          isOffRoad
+                            ? 'bg-gradient-to-b from-[#2a111a] to-[#121524] border border-rose-500/80 hover:border-rose-400/90 ring-1 ring-rose-500/40 shadow-rose-950/40 animate-slow-fade-blink-red'
+                            : 'bg-gradient-to-b from-[#181C30] to-[#121524] border border-amber-500/40 hover:border-amber-400/60 ring-1 ring-amber-500/20'
+                        }`}
                       >
                         {/* Header Row */}
                         <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0 flex-wrap">
@@ -1265,10 +1386,17 @@ const PublicMirror: React.FC = () => {
                                 #{item.orderNumber}
                               </span>
                             )}
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0"></span>
-                              In Progress
-                            </span>
+                            {isOffRoad ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-wider bg-rose-950 text-rose-300 border border-rose-500/80 shadow-md animate-more-color-blink-red">
+                                <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
+                                🚨 OFF ROAD (VOR)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                                In Progress
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1448,7 +1576,9 @@ const PublicMirror: React.FC = () => {
                   <div
                     key={item.id}
                     className={`rounded-xl p-3.5 sm:p-4 shadow-md transition-all duration-200 border w-full min-w-0 ${
-                      isUrgent
+                      item.isOffRoad
+                        ? 'border-rose-500/90 border-l-4 !border-l-rose-600 bg-gradient-to-b from-[#2a111a] to-[#121524] animate-slow-fade-blink-red ring-1 ring-rose-500/50 shadow-rose-950/40'
+                        : isUrgent
                         ? 'border-red-500/90 border-l-4 !border-l-red-600 bg-gradient-to-b from-[#220D15] to-[#121524] animate-slow-fade-blink-red ring-1 ring-red-500/40 shadow-red-950/40'
                         : isInProgress
                         ? 'border-amber-500/60 border-l-4 !border-l-amber-500 bg-gradient-to-b from-[#181C30] to-[#121524] ring-1 ring-amber-500/30'
@@ -1572,7 +1702,9 @@ const PublicMirror: React.FC = () => {
                         <tr
                           key={item.id}
                           className={`group transition-all duration-150 rounded-xl cursor-default ${
-                            isUrgent
+                            item.isOffRoad
+                              ? 'row-vor animate-slow-fade-blink-table'
+                              : isUrgent
                               ? 'row-urgent animate-slow-fade-blink-table'
                               : isInProgress
                               ? 'row-in-progress bg-amber-500/[0.08]'
@@ -1582,7 +1714,9 @@ const PublicMirror: React.FC = () => {
                           {/* Order # (First cell: rounded-l-xl) */}
                           <td
                             className={`py-3.5 px-3 align-middle rounded-l-xl border-l border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-l-4 !border-l-rose-500 border-y-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500'
+                                : isUrgent
                                 ? 'border-l-4 !border-l-red-500 border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-l-4 !border-l-amber-500 border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
@@ -1607,7 +1741,9 @@ const PublicMirror: React.FC = () => {
                           {/* Vehicle (Plate + Model) */}
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-y-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500'
+                                : isUrgent
                                 ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
@@ -1632,7 +1768,9 @@ const PublicMirror: React.FC = () => {
                           {/* Category / Type */}
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-y-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500'
+                                : isUrgent
                                 ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
@@ -1654,7 +1792,9 @@ const PublicMirror: React.FC = () => {
                           {/* Job Details & Customer */}
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-y-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500'
+                                : isUrgent
                                 ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
@@ -1684,7 +1824,9 @@ const PublicMirror: React.FC = () => {
                           {/* Scheduled Date & Time */}
                           <td
                             className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-y-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500'
+                                : isUrgent
                                 ? 'border-y-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500'
                                 : isInProgress
                                 ? 'border-y-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50'
@@ -1693,7 +1835,9 @@ const PublicMirror: React.FC = () => {
                           >
                             <div className="min-w-0">
                               <span className={`text-xs block truncate select-none ${
-                                isUrgent
+                                item.isOffRoad
+                                  ? 'text-rose-200 font-black tracking-wide'
+                                  : isUrgent
                                   ? 'text-red-200 font-black tracking-wide'
                                   : isInProgress
                                   ? 'text-amber-200 font-bold'
@@ -1710,7 +1854,9 @@ const PublicMirror: React.FC = () => {
                           {/* Live Status Badge (Last cell: rounded-r-xl) */}
                           <td
                             className={`py-3.5 px-3 align-middle rounded-r-xl border-r border-y transition-colors duration-150 ${
-                              isUrgent
+                              item.isOffRoad
+                                ? 'border-r border-y-rose-700/80 border-r-rose-700/80 bg-[#300a12] group-hover:bg-[#440d18] group-hover:border-y-rose-500 group-hover:border-r-rose-500'
+                                : isUrgent
                                 ? 'border-r border-y-red-700/80 border-r-red-700/80 bg-[#26070b] group-hover:bg-[#380a10] group-hover:border-y-red-500 group-hover:border-r-red-500'
                                 : isInProgress
                                 ? 'border-r border-y-amber-500/30 border-r-amber-500/30 bg-amber-500/[0.08] group-hover:bg-amber-500/[0.16] group-hover:border-y-amber-400/50 group-hover:border-r-amber-400/50'
@@ -1741,7 +1887,9 @@ const PublicMirror: React.FC = () => {
                 <div
                   key={item.id}
                   className={`relative rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col shadow-xl w-full min-w-0 ${
-                    isUrgent
+                    item.isOffRoad
+                      ? 'bg-gradient-to-b from-[#2a111a] to-[#121524] border-rose-500/90 border-l-4 !border-l-rose-600 animate-slow-fade-blink-red shadow-rose-950/30 ring-1 ring-rose-500/30'
+                      : isUrgent
                       ? 'bg-gradient-to-b from-[#220D15] to-[#121524] border-red-500/90 border-l-4 !border-l-red-600 animate-slow-fade-blink-red shadow-red-950/30 ring-1 ring-red-500/30'
                       : isInProgress
                       ? 'bg-gradient-to-b from-[#191D33] to-[#121524] border-amber-500/50 border-l-4 !border-l-amber-500 shadow-amber-500/5 ring-1 ring-amber-500/30'

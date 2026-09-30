@@ -123,7 +123,7 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
             <StatusBadge status={invoice.paymentStatus} />
           </div>
           <p className="text-xs text-slate-600 mt-2 font-medium">
-            Owing: <span className={owing > 0 ? 'text-rose-600 font-bold' : 'text-emerald-700 font-bold'}>£{owing.toFixed(2)}</span>
+            Owing: <span className={owing > 0.001 ? 'text-[#DC2626] font-bold' : 'text-[#15803D] font-bold'}>£{owing.toFixed(2)}</span>
           </p>
         </div>
 
@@ -364,16 +364,16 @@ const VDInvoiceDetails: React.FC<VDInvoiceDetailsProps> = ({ invoice }) => {
             <span>VAT Amount:</span>
             <span className="font-mono font-semibold">£{invoice.vatAmount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-base font-bold text-slate-900 pt-2 border-t border-slate-200">
-            <span>Total Invoiced:</span>
-            <span className="font-mono font-black text-amber-700 text-lg">£{invoice.total.toFixed(2)}</span>
+          <div className="flex justify-between text-base font-bold text-[#D97706] pt-2 border-t border-slate-200">
+            <span>Total:</span>
+            <span className="font-mono font-black text-lg">£{invoice.total.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-emerald-700 font-semibold">
-            <span>Total Paid:</span>
+          <div className="flex justify-between text-[#15803D] font-bold">
+            <span>Paid:</span>
             <span className="font-mono font-bold">£{invoice.paidAmount.toFixed(2)}</span>
           </div>
-          <div className={`flex justify-between font-bold pt-2 border-t border-slate-200 ${owing > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-            <span>Remaining Owing:</span>
+          <div className={`flex justify-between font-bold pt-2 border-t border-slate-200 ${owing > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+            <span>Owing:</span>
             <span className="font-mono font-black text-base">£{owing.toFixed(2)}</span>
           </div>
         </div>

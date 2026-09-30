@@ -135,10 +135,18 @@ export function DataTable<T extends AnyRow>({
               ? customCls
               : `${defaultCardBg} hover:bg-[#DCEBFA] transition-all`;
 
+            const orig = row.original as any;
+            const psRaw = String(orig?.paymentStatus || '').toLowerCase().trim();
+            const isPaid = psRaw === 'paid' || (orig?.remainingAmount !== undefined ? Number(orig.remainingAmount) <= 0.001 : (orig?.cost !== undefined && Number(orig.cost) > 0 && orig?.paidAmount !== undefined && Number(orig.paidAmount) >= Number(orig.cost)));
+            const isOwing = !isPaid && (psRaw === 'unpaid' || psRaw === 'owing' || psRaw === 'partially_paid' || psRaw === 'partially paid' || psRaw === 'overdue' || (orig?.remainingAmount !== undefined ? Number(orig.remainingAmount) > 0.001 : false));
+            const paymentStatusAttr = isPaid ? 'paid' : (isOwing ? 'owing' : undefined);
+            const paymentClass = isPaid ? 'payment-paid table-row-paid' : (isOwing ? 'payment-owing table-row-owing' : '');
+
             return (
               <div
                 key={`${row.id}-${idx}`}
-                className={`rounded-xl border p-4 shadow-sm transition-colors ${rowCls}`}
+                data-payment-status={paymentStatusAttr}
+                className={`table-row rounded-xl border p-4 shadow-sm transition-colors ${paymentClass} ${rowCls}`}
                 onClick={() => {
                   if (onRowClick && (!module || can(module as any, 'view'))) {
                     onRowClick(row.original as T);
@@ -319,11 +327,19 @@ export function DataTable<T extends AnyRow>({
                     ? customCls
                     : `${baseBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`;
 
+                  const orig = row.original as any;
+                  const psRaw = String(orig?.paymentStatus || '').toLowerCase().trim();
+                  const isPaid = psRaw === 'paid' || (orig?.remainingAmount !== undefined ? Number(orig.remainingAmount) <= 0.001 : (orig?.cost !== undefined && Number(orig.cost) > 0 && orig?.paidAmount !== undefined && Number(orig.paidAmount) >= Number(orig.cost)));
+                  const isOwing = !isPaid && (psRaw === 'unpaid' || psRaw === 'owing' || psRaw === 'partially_paid' || psRaw === 'partially paid' || psRaw === 'overdue' || (orig?.remainingAmount !== undefined ? Number(orig.remainingAmount) > 0.001 : false));
+                  const paymentStatusAttr = isPaid ? 'paid' : (isOwing ? 'owing' : undefined);
+                  const paymentClass = isPaid ? 'payment-paid table-row-paid' : (isOwing ? 'payment-owing table-row-owing' : '');
+
                   return (
                     <tr
                       key={`${row.id}-${idx}`}
+                      data-payment-status={paymentStatusAttr}
                       onClick={() => (!module || can(module as any, 'view')) && onRowClick?.(row.original as T)}
-                      className={`group ${
+                      className={`group table-row ${paymentClass} ${
                         separatedRows
                           ? 'shadow-xs hover:shadow-md transition-all duration-150 rounded-xl'
                           : 'border-b border-[#E2E8F0]'

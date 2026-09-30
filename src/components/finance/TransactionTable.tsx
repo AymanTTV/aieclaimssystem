@@ -4,6 +4,7 @@ import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle, Account } from '../../types';
 import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw, Briefcase } from 'lucide-react';
 import StatusBadge from '../ui/StatusBadge';
+import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, isValid } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
@@ -108,7 +109,16 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       {
         header: 'Type & Status',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          const bits = [row.original.type, row.original.paymentStatus].filter(Boolean) as string[];
+          let resolvedPaymentStatus = row.original.paymentStatus;
+          if (resolvedPaymentStatus && resolvedPaymentStatus !== 'expense') {
+            resolvedPaymentStatus = derivePaymentStatus({
+              amount: row.original.amount,
+              paidAmount: row.original.paidAmount,
+              remainingAmount: row.original.remainingAmount,
+              paymentStatus: row.original.paymentStatus
+            });
+          }
+          const bits = [row.original.type, resolvedPaymentStatus].filter(Boolean) as string[];
           const isMultiOrLinked = (row.original.accountsFrom && row.original.accountsFrom.length > 1) || (row.original.accountsTo && row.original.accountsTo.length > 1) || !!row.original.referenceId;
           const isLatestRecurring = row.original.isRecurring && !!row.original.nextRecurringDate;
 
@@ -143,32 +153,171 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         }
       },
       {
-        header: 'Vehicle',
+        header: 'Vehicle & Account',
         cell: ({ row }: { row: { original: Transaction } }) => {
           const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
           const reg = vehicle ? vehicle.registrationNumber : row.original.vehicleName;
-          if (!reg) return <span className="text-gray-400 text-xs">-</span>;
+          
+          const accId = row.original.accountFrom || row.original.accountTo || vehicle?.owner?.accountId;
+          const assignedAccount = accounts.find(a => a.id === accId);
+          const accountName = assignedAccount?.name || row.original.vehicleOwner?.name;
+          const groupName = row.original.groupName || (row.original.groupId ? groups.find(g => g.id === row.original.groupId)?.name : undefined) || vehicle?.assignedGroupName;
+          const deptName = row.original.departmentName || vehicle?.assignedDepartmentName;
+
           return (
-            <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 w-fit">{reg}</div>
+            <div className="flex flex-col gap-1 min-w-[130px]">
+              {reg ? (
+                <div className="bg-gray-100 border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-gray-800 w-fit" title={vehicle ? `${vehicle.make} ${vehicle.model}` : undefined}>
+                  {reg}
+                </div>
+              ) : (
+                <span className="text-gray-400 text-xs">-</span>
+              )}
+              {accountName && (
+                <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit font-medium truncate max-w-[160px]" title={`Pre-assigned Account: ${accountName}`}>
+                  Acc: {accountName}
+                </span>
+              )}
+              {deptName && (
+                <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 w-fit font-medium truncate max-w-[160px]" title={`Department: ${deptName}`}>
+                  Dept: {deptName}
+                </span>
+              )}
+              {groupName && !accountName && (
+                <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit font-medium truncate max-w-[160px]">
+                  Grp: {groupName}
+                </span>
+              )}
+            </div>
           );
         },
       },
       {
-        header: 'Description',
-        cell: ({ row }: { row: { original: Transaction } }) => (
-          <div className="max-w-[200px] text-sm text-gray-600 font-bold truncate" title={row.original.description}>
-             {row.original.description || '-'}
-          </div>
-        )
+        header: 'Order / Ref & Description',
+        cell: ({ row }: { row: { original: Transaction } }) => {
+          const invNum = row.original.invoiceNumber;
+          const ordNum = row.original.orderNumber || row.original.orderId;
+          const refId = row.original.referenceId;
+          const showRef = refId && refId !== ordNum && refId !== invNum;
+
+          return (
+            <div className="flex flex-col gap-1 max-w-[240px]">
+              {(invNum || ordNum || showRef) && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {invNum && (
+                    <span 
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
+                      title={`Invoice #${invNum}`}
+                    >
+                      <FileText className="w-3 h-3 mr-1 text-indigo-600 shrink-0" />
+                      #{invNum}
+                    </span>
+                  )}
+                  {ordNum && ordNum !== invNum && (
+                    <span 
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                      title={`Order #${ordNum}`}
+                    >
+                      Ord: {ordNum}
+                    </span>
+                  )}
+                  {showRef && (
+                    <span 
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-500 bg-slate-50 border border-slate-200"
+                      title={`Reference: ${refId}`}
+                    >
+                      Ref: {refId.slice(-6).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="text-sm text-gray-700 font-semibold truncate" title={row.original.description}>
+                {row.original.description || (invNum ? `Invoice #${invNum}` : '-')}
+              </div>
+            </div>
+          );
+        }
       },
       {
         header: 'Credit',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          return row.original.type === 'income' ? (
+          const billed = row.original.customerBilled !== undefined ? Number(row.original.customerBilled) : (row.original.amount || 0);
+          const rawDealerCost = row.original.dealerCost !== undefined 
+            ? Number(row.original.dealerCost) 
+            : (row.original.subcontractorCost !== undefined ? Number(row.original.subcontractorCost) : undefined);
+          const hasExplicitDealer = rawDealerCost !== undefined && rawDealerCost > 0;
+          const isSubcontractorMode = (row.original.isProfitEdited === true || row.original.isEdited === true) && hasExplicitDealer;
+          const sub = isSubcontractorMode ? rawDealerCost! : billed;
+
+          // CASH-BASIS / REALIZED PROFIT MODEL
+          const paid = Number(
+            row.original.paid !== undefined
+              ? row.original.paid
+              : row.original.paidAmount !== undefined
+              ? row.original.paidAmount
+              : row.original.paymentStatus === 'paid'
+              ? billed
+              : 0
+          );
+          const statusStr = String(row.original.paymentStatus || '').toLowerCase();
+          const isUnpaid = paid <= 0 || statusStr === 'unpaid';
+          const isFullyPaid = statusStr === 'paid' || paid >= billed || (billed > 0 && Math.max(0, billed - paid) <= 0.001);
+
+          const isDebit = row.original.entryType === 'DEBIT' || String(row.original.type || '').toLowerCase() === 'expense' || String((row.original as any).transactionType || '').toUpperCase() === 'EXPENSE';
+          const isCredit = !isDebit && (row.original.entryType === 'CREDIT' || (String(row.original.type || '').toLowerCase() === 'income' && row.original.entryType !== 'DEBIT'));
+
+          let profit = 0;
+          let margin = 0;
+
+          if (isUnpaid) {
+            profit = 0;
+            margin = 0;
+          } else {
+            // Formula strictly equal: Collected Amount (Paid) - Dealer Cost
+            profit = Number((paid - sub).toFixed(2));
+            margin = paid > 0 ? Number(((profit / paid) * 100).toFixed(1)) : 0;
+          }
+
+          const showProfitBreakdown = isSubcontractorMode && sub > 0 && (sub !== billed || isSubcontractorMode);
+
+          return isCredit ? (
             <div className="flex flex-col">
-              <span className="text-green-600 font-bold text-base">{formatCurrency(row.original.amount)}</span>
+              <span className="text-[#059669] font-bold text-base font-mono">{formatCurrency(row.original.amount)}</span>
               {(row.original.vatAmount! > 0 || row.original.netAmount! > 0) && (
-                <span className="text-[10px] text-gray-500 font-medium mt-0.5 leading-tight">Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}</span>
+                <span className="text-[10px] text-[#2563eb] font-medium mt-0.5 leading-tight font-mono">
+                  Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}
+                </span>
+              )}
+              {showProfitBreakdown && (
+                <div className="mt-1 pt-1 border-t border-dashed border-gray-200 text-[10px] space-y-0.5">
+                  <div className="flex items-center justify-between text-slate-500 font-medium">
+                    <span>Billed:</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(billed)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500 font-medium">
+                    <span>Dealer Cost:</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold">
+                    <span className={isUnpaid ? 'text-slate-500' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-500'}>
+                      {isUnpaid ? 'Realized Profit:' : 'Net Profit:'}
+                    </span>
+                    <span className={`font-mono ${isUnpaid ? 'text-slate-600' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-600'}`}>
+                      {profit > 0 ? '+' : ''}{formatCurrency(profit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-end pt-0.5">
+                    <span className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
+                      isUnpaid
+                        ? 'bg-slate-50 text-slate-500 border-slate-200'
+                        : margin >= 0
+                        ? 'bg-emerald-50 text-[#059669] border-emerald-200'
+                        : 'bg-rose-50 text-[#dc2626] border-rose-200'
+                    }`}>
+                      {isUnpaid ? '0.0% Margin (Unpaid)' : `${margin.toFixed(1)}% Margin`}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           ) : <span className="text-gray-300 text-sm">-</span>;
@@ -177,11 +326,82 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       {
         header: 'Debit',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          return row.original.type === 'expense' ? (
+          const billed = row.original.customerBilled !== undefined ? Number(row.original.customerBilled) : (row.original.amount || 0);
+          const rawDealerCost = row.original.dealerCost !== undefined 
+            ? Number(row.original.dealerCost) 
+            : (row.original.subcontractorCost !== undefined ? Number(row.original.subcontractorCost) : undefined);
+          const hasExplicitDealer = rawDealerCost !== undefined && rawDealerCost > 0;
+          const isSubcontractorMode = (row.original.isProfitEdited === true || row.original.isEdited === true) && hasExplicitDealer;
+          const sub = isSubcontractorMode ? rawDealerCost! : billed;
+
+          // CASH-BASIS / REALIZED PROFIT MODEL
+          const paid = Number(
+            row.original.paid !== undefined
+              ? row.original.paid
+              : row.original.paidAmount !== undefined
+              ? row.original.paidAmount
+              : row.original.paymentStatus === 'paid'
+              ? billed
+              : 0
+          );
+          const statusStr = String(row.original.paymentStatus || '').toLowerCase();
+          const isUnpaid = paid <= 0 || statusStr === 'unpaid';
+          const isFullyPaid = statusStr === 'paid' || paid >= billed || (billed > 0 && Math.max(0, billed - paid) <= 0.001);
+
+          const isDebit = row.original.entryType === 'DEBIT' || String(row.original.type || '').toLowerCase() === 'expense' || String((row.original as any).transactionType || '').toUpperCase() === 'EXPENSE';
+
+          let profit = 0;
+          let margin = 0;
+
+          if (isUnpaid) {
+            profit = 0;
+            margin = 0;
+          } else {
+            // Formula strictly equal: Collected Amount (Paid) - Dealer Cost
+            profit = Number((paid - sub).toFixed(2));
+            margin = paid > 0 ? Number(((profit / paid) * 100).toFixed(1)) : 0;
+          }
+
+          const showProfitBreakdown = (isSubcontractorMode && sub > 0) || (row.original.dealerCost !== undefined && row.original.customerBilled !== undefined) || (sub !== billed && sub > 0);
+
+          return isDebit ? (
             <div className="flex flex-col">
-              <span className="text-red-600 font-bold text-base">{formatCurrency(row.original.amount)}</span>
+              <span className="text-[#dc2626] font-bold text-base font-mono">{formatCurrency(row.original.amount)}</span>
               {(row.original.vatAmount! > 0 || row.original.netAmount! > 0) && (
-                <span className="text-[10px] text-gray-500 font-medium mt-0.5 leading-tight">Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}</span>
+                <span className="text-[10px] text-[#2563eb] font-medium mt-0.5 leading-tight font-mono">
+                  Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}
+                </span>
+              )}
+              {showProfitBreakdown && (
+                <div className="mt-1 pt-1 border-t border-dashed border-gray-200 text-[10px] space-y-0.5">
+                  <div className="flex items-center justify-between text-slate-500 font-medium">
+                    <span>Billed:</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(billed)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500 font-medium">
+                    <span>Dealer Cost:</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold">
+                    <span className={isUnpaid ? 'text-slate-500' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-500'}>
+                      {isUnpaid ? 'Realized Profit:' : 'Net Profit:'}
+                    </span>
+                    <span className={`font-mono ${isUnpaid ? 'text-slate-600' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-600'}`}>
+                      {profit > 0 ? '+' : ''}{formatCurrency(profit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-end pt-0.5">
+                    <span className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
+                      isUnpaid
+                        ? 'bg-slate-50 text-slate-500 border-slate-200'
+                        : margin >= 0
+                        ? 'bg-emerald-50 text-[#059669] border-emerald-200'
+                        : 'bg-rose-50 text-[#dc2626] border-rose-200'
+                    }`}>
+                      {isUnpaid ? '0.0% Margin (Unpaid)' : `${margin.toFixed(1)}% Margin`}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           ) : <span className="text-gray-300 text-sm">-</span>;
@@ -200,9 +420,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                {involvedAccounts.map((accId, aIdx) => {
                   const bal = txnBalances[accId];
                   if (bal === undefined) return null;
+                  const balColor = bal < 0 ? 'text-[#dc2626]' : bal > 0 ? 'text-[#059669]' : 'text-gray-900';
                   return (
                     <div key={`${row.original.id}-${accId}-${aIdx}`} className="flex flex-col items-end leading-none">
-                       <span className={`text-base font-bold ${bal < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(bal)}</span>
+                       <span className={`text-base font-bold font-mono ${balColor}`}>{formatCurrency(bal)}</span>
                     </div>
                   );
                })}
@@ -262,6 +483,21 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       data={uniqueTransactions} 
       columns={columns as any} 
       onRowClick={transaction => can('finance', 'view') && onView(transaction)} 
+      rowClassName={({ original }) => {
+        const dynamicStatus = derivePaymentStatus({
+          amount: original.amount,
+          paidAmount: original.paidAmount,
+          remainingAmount: original.remainingAmount,
+          paymentStatus: original.paymentStatus
+        });
+        const isPaid = original.paymentStatus === 'paid' || dynamicStatus === 'paid';
+        const isOwing = (original.paymentStatus === 'unpaid' || (original.remainingAmount ?? 0) > 0.001) && !isPaid;
+        return isPaid 
+          ? 'table-row border-l-4 border-l-[#059669]' 
+          : isOwing 
+          ? 'table-row border-l-4 border-l-[#dc2626]' 
+          : 'table-row border-l-4 border-l-slate-300';
+      }}
     />
   );
 };

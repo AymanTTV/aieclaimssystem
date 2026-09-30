@@ -1,5 +1,7 @@
 // src/types/vehicle.ts
 
+import { SharedOwnerShare } from './finance';
+
 export type VehicleStatus =
   | 'available'
   | 'hired'
@@ -16,6 +18,8 @@ export interface VehicleOwner {
   isDefault?: boolean;
   accountId?: string;
   accountName?: string;
+  isSharedOwnership?: boolean;
+  sharedOwnership?: SharedOwnerShare[];
 }
 
 export interface VehicleDocuments {
@@ -72,6 +76,8 @@ export interface Vehicle {
   claimInsuranceAmount?: number;
 
   owner?: VehicleOwner;
+  isSharedOwnership?: boolean;
+  sharedOwnership?: SharedOwnerShare[];
   assignedGarageId?: string | null;   
   assignedGarageName?: string | null; 
   assignmentType?: VehicleTypeAssignment | null; 

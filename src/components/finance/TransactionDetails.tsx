@@ -1,5 +1,5 @@
 // src/components/finance/TransactionDetails.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Transaction, Vehicle, Customer, Account } from '../../types';
 import { format, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
@@ -26,12 +26,24 @@ import {
   Building,
   Tag,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  Edit2,
+  CheckCircle2
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
+import { calculateProfitMetrics, calculateRealizedProfit } from '../../utils/profitCalculator';
+import { syncTransactionRecord } from '../../services/unifiedSync.service';
+import {
+  getOrderCandidateVariants,
+  isMaintenanceOrderMatch,
+} from '../../utils/maintenanceFinanceLink';
 
 export type TransactionDetailTab =
   | 'overview'
@@ -62,6 +74,159 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
   const [activeTab, setActiveTab] = useState<TransactionDetailTab>('overview');
   const [loadingStop, setLoadingStop] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+
+  // Subcontractor Cost & Profit Tracking State
+  const linkedLog = transaction.linkedMaintenanceRecord;
+  const hasLinkedLogProfit = Boolean(
+    linkedLog &&
+      (linkedLog.isProfitEdited === true ||
+        linkedLog.isEdited === true ||
+        (linkedLog.dealerCost !== undefined && Number(linkedLog.dealerCost) > 0) ||
+        (linkedLog.subcontractorCost !== undefined &&
+          Number(linkedLog.subcontractorCost) > 0 &&
+          Number(linkedLog.subcontractorCost) !== Number(linkedLog.cost ?? linkedLog.customerBilled)))
+  );
+
+  const hasEditedProfit =
+    transaction.isProfitEdited === true ||
+    transaction.isEdited === true ||
+    hasLinkedLogProfit;
+
+  const initialBilled =
+    transaction.customerBilled !== undefined
+      ? Number(transaction.customerBilled)
+      : linkedLog?.customerBilled !== undefined
+      ? Number(linkedLog.customerBilled)
+      : Math.abs(transaction.amount);
+
+  const resolvedDealerCost =
+    transaction.dealerCost !== undefined
+      ? Number(transaction.dealerCost)
+      : transaction.subcontractorCost !== undefined
+      ? Number(transaction.subcontractorCost)
+      : linkedLog?.dealerCost !== undefined
+      ? Number(linkedLog.dealerCost)
+      : linkedLog?.subcontractorCost !== undefined
+      ? Number(linkedLog.subcontractorCost)
+      : undefined;
+
+  const initialSubCost = hasEditedProfit
+    ? (resolvedDealerCost !== undefined ? resolvedDealerCost : initialBilled)
+    : initialBilled;
+
+  const [subCost, setSubCost] = useState<number>(initialSubCost);
+  const [billedAmt, setBilledAmt] = useState<number>(initialBilled);
+  const [isEditingProfit, setIsEditingProfit] = useState(false);
+  const [inputSubCost, setInputSubCost] = useState<string>(initialSubCost.toString());
+  const [inputBilled, setInputBilled] = useState<string>(initialBilled.toString());
+  const [savingProfit, setSavingProfit] = useState(false);
+
+  // Sync state if transaction or linkedLog updates
+  useEffect(() => {
+    setSubCost(initialSubCost);
+    setInputSubCost(initialSubCost.toString());
+    setBilledAmt(initialBilled);
+    setInputBilled(initialBilled.toString());
+  }, [initialSubCost, initialBilled]);
+
+  // Dynamically resolve from Firestore if not yet enriched
+  useEffect(() => {
+    if (hasEditedProfit) return;
+
+    let isMounted = true;
+    const resolveLinked = async () => {
+      const orderNum = transaction.orderId || transaction.orderNumber;
+      const refId = transaction.referenceId || (transaction as any).linkedInvoiceRef;
+      if (!orderNum && !refId) return;
+
+      try {
+        const { getDoc, getDocs, collection, query, where, doc } = await import('firebase/firestore');
+        let found: any = null;
+
+        if (refId) {
+          const snap = await getDoc(doc(db, 'maintenanceLogs', refId));
+          if (snap.exists()) found = snap.data();
+        }
+        if (!found && orderNum) {
+          const variants = getOrderCandidateVariants(orderNum);
+          for (const variant of variants) {
+            if (found) break;
+            const q1 = query(collection(db, 'maintenanceLogs'), where('orderNumber', '==', variant));
+            const s1 = await getDocs(q1);
+            if (!s1.empty) {
+              found = s1.docs[0].data();
+              break;
+            }
+            const q2 = query(collection(db, 'maintenanceLogs'), where('orderId', '==', variant));
+            const s2 = await getDocs(q2);
+            if (!s2.empty) {
+              found = s2.docs[0].data();
+              break;
+            }
+          }
+        }
+
+        if (isMounted && found) {
+          const isFoundEdited =
+            found.isProfitEdited === true ||
+            found.isEdited === true ||
+            found.dealerCost !== undefined ||
+            (found.subcontractorCost !== undefined &&
+              found.subcontractorCost !== (found.cost ?? found.customerBilled));
+
+          if (isFoundEdited) {
+            const dCost = Number(found.dealerCost ?? found.subcontractorCost ?? initialBilled);
+            const bAmt = Number(transaction.customerBilled ?? transaction.amount ?? found.customerBilled ?? found.cost);
+            setSubCost(dCost);
+            setInputSubCost(dCost.toString());
+            setBilledAmt(bAmt);
+            setInputBilled(bAmt.toString());
+          }
+        }
+      } catch (err) {
+        console.warn('Error resolving linked maintenance in TransactionDetails:', err);
+      }
+    };
+
+    resolveLinked();
+    return () => { isMounted = false; };
+  }, [transaction.id, transaction.orderId, transaction.orderNumber, transaction.referenceId, hasEditedProfit, initialBilled]);
+
+  const profitMetrics = hasEditedProfit || isEditingProfit || subCost !== billedAmt
+    ? calculateProfitMetrics(
+        isEditingProfit ? (parseFloat(inputBilled) || 0) : billedAmt,
+        isEditingProfit ? (parseFloat(inputSubCost) || 0) : subCost
+      )
+    : { customerBilled: initialBilled, subcontractorCost: initialBilled, netProfit: 0, profitMarginPercent: 0 };
+
+  const handleSaveProfit = async () => {
+    setSavingProfit(true);
+    try {
+      const parsedSub = Math.max(0, parseFloat(inputSubCost) || 0);
+      const parsedBilled = Math.max(0, parseFloat(inputBilled) || 0);
+      const metrics = calculateProfitMetrics(parsedBilled, parsedSub);
+
+      await syncTransactionRecord(transaction.id, {
+        subcontractorCost: metrics.subcontractorCost,
+        dealerCost: metrics.subcontractorCost,
+        customerBilled: metrics.customerBilled,
+        netProfit: metrics.netProfit,
+        profitMarginPercent: metrics.profitMarginPercent,
+        isProfitEdited: true,
+        isEdited: true,
+      });
+
+      setSubCost(metrics.subcontractorCost);
+      setBilledAmt(metrics.customerBilled);
+      setIsEditingProfit(false);
+      toast.success('Subcontractor cost & profit metrics saved successfully');
+    } catch (err: any) {
+      console.error('Failed to update profit:', err);
+      toast.error('Failed to update profit metrics');
+    } finally {
+      setSavingProfit(false);
+    }
+  };
 
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
     if (!date) return 'N/A';
@@ -232,6 +397,202 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
         </div>
       </div>
 
+      {/* Dealer / Subcontractor Cost & Profit Tracking Card */}
+      <div className="bg-white border-2 border-indigo-200/90 rounded-xl p-4 shadow-2xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-indigo-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Dealer / Subcontractor Cost & Profit Tracking
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Internal financial tracking of dealer charge, billed amount, and real-time margin
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isEditingProfit ? (
+              <button
+                type="button"
+                onClick={() => setIsEditingProfit(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                Adjust Cost
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputSubCost(subCost.toString());
+                    setInputBilled(billedAmt.toString());
+                    setIsEditingProfit(false);
+                  }}
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingProfit}
+                  onClick={handleSaveProfit}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {savingProfit ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Breakdown Metric Tiles */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* Tile 1: Subcontractor / Dealer Cost */}
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              Base Dealer Cost
+            </span>
+            {isEditingProfit ? (
+              <div className="relative mt-1">
+                <span className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400 text-xs">
+                  £
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={inputSubCost}
+                  onChange={(e) => setInputSubCost(e.target.value)}
+                  className="w-full pl-5 pr-2 py-1 bg-white border border-indigo-300 rounded text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            ) : (
+              <p className="text-base font-black font-mono text-slate-800 mt-0.5">
+                {formatCurrency(subCost)}
+              </p>
+            )}
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Dealer/Garage expense</span>
+          </div>
+
+          {/* Tile 2: Customer Billed */}
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              Billed Customer
+            </span>
+            {isEditingProfit ? (
+              <div className="relative mt-1">
+                <span className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400 text-xs">
+                  £
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={inputBilled}
+                  onChange={(e) => setInputBilled(e.target.value)}
+                  className="w-full pl-5 pr-2 py-1 bg-white border border-indigo-300 rounded text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            ) : (
+              <p className="text-base font-black font-mono text-slate-800 mt-0.5">
+                {formatCurrency(billedAmt)}
+              </p>
+            )}
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Gross client total</span>
+          </div>
+
+          {/* Tile 3: Net Profit (Realized Cash-Basis) */}
+          {(() => {
+            const currentPaidVal = Number(
+              transaction.paid !== undefined
+                ? transaction.paid
+                : transaction.paidAmount !== undefined
+                ? transaction.paidAmount
+                : transaction.paymentStatus === 'paid'
+                ? profitMetrics.customerBilled
+                : 0
+            );
+            const realized = calculateRealizedProfit(
+              profitMetrics.customerBilled,
+              profitMetrics.subcontractorCost,
+              currentPaidVal,
+              transaction.paymentStatus
+            );
+            const displayProfit = isEditingProfit ? profitMetrics.netProfit : realized.realizedProfit;
+            const displayMargin = isEditingProfit ? profitMetrics.profitMarginPercent : realized.realizedMargin;
+            const isUncollected = !isEditingProfit && realized.isUnpaid;
+
+            return (
+              <>
+                <div
+                  className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                    displayProfit >= 0
+                      ? 'bg-emerald-50/80 border-emerald-200'
+                      : 'bg-rose-50/80 border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase">
+                    <span className={displayProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}>
+                      {isUncollected ? 'Realized Profit' : 'Net Profit'}
+                    </span>
+                    {displayProfit >= 0 ? (
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                    )}
+                  </div>
+                  <p
+                    className={`text-base font-black font-mono mt-0.5 ${
+                      displayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {displayProfit >= 0 ? '+' : ''}
+                    {formatCurrency(displayProfit)}
+                  </p>
+                  <span className="text-[10px] text-slate-500">
+                    {isUncollected ? 'Uncollected (Cash Pending)' : 'Collected – Dealer Cost'}
+                  </span>
+                </div>
+
+                {/* Tile 4: Profit Margin */}
+                <div
+                  className={`p-2.5 rounded-lg border flex flex-col justify-between ${
+                    displayMargin >= 0
+                      ? 'bg-indigo-50/80 border-indigo-200'
+                      : 'bg-rose-50/80 border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase">
+                    <span
+                      className={displayMargin >= 0 ? 'text-indigo-800' : 'text-rose-800'}
+                    >
+                      Profit Margin
+                    </span>
+                    <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                  </div>
+                  <p
+                    className={`text-base font-black font-mono mt-0.5 ${
+                      displayMargin >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {displayMargin.toFixed(1)}%
+                  </p>
+                  <span className="text-[10px] text-slate-500">
+                    {isUncollected ? '0.0% (Unpaid)' : 'Margin on collected'}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
       {/* Grid of Key Info */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
@@ -276,14 +637,40 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
       </div>
 
       {/* Linked Info banner if present */}
-      {transaction.referenceId && (
-        <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-3">
-          <Link2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <h4 className="font-bold text-blue-900 text-sm">Linked Invoice Item</h4>
-            <p className="text-blue-700 mt-0.5">
-              This transaction is linked to Invoice reference: <span className="font-mono font-bold">{transaction.referenceId}</span>
-            </p>
+      {(transaction.referenceId || transaction.linkedInvoiceRef || transaction.invoiceNumber) && (
+        <div className="p-4 bg-indigo-50/90 border border-indigo-200 rounded-xl flex items-start gap-3 shadow-2xs">
+          <Link2 className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+          <div className="text-xs flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-black text-indigo-950 text-sm">Linked Invoice Full Record</h4>
+              {transaction.invoiceNumber && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                  <FileText className="w-3.5 h-3.5 mr-1 text-indigo-600" />
+                  #{transaction.invoiceNumber}
+                </span>
+              )}
+              {(transaction.orderNumber || transaction.orderId) && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300">
+                  Order #{transaction.orderNumber || transaction.orderId}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2 text-indigo-900">
+              <p>
+                <span className="text-indigo-600 font-medium">Invoice Number:</span>{' '}
+                <span className="font-mono font-bold">{transaction.invoiceNumber || 'Pending / Ref ID'}</span>
+              </p>
+              <p>
+                <span className="text-indigo-600 font-medium">Customer Billed:</span>{' '}
+                <span className="font-mono font-bold">{formatCurrency(transaction.customerBilled ?? transaction.amount)}</span>
+              </p>
+              <p>
+                <span className="text-indigo-600 font-medium">Doc Ref:</span>{' '}
+                <span className="font-mono font-bold truncate inline-block max-w-[120px] align-bottom" title={transaction.linkedInvoiceRef || transaction.referenceId}>
+                  {transaction.linkedInvoiceRef || transaction.referenceId || 'N/A'}
+                </span>
+              </p>
+            </div>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useRentals } from '../hooks/useRentals';
 import { useFinances } from '../hooks/useFinances';
+import { useInvoices } from '../hooks/useInvoices';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,10 +22,11 @@ const Dashboard = () => {
   const { logs: maintenanceLogs, loading: logsLoading } = useMaintenanceLogs();
   const { rentals, loading: rentalsLoading } = useRentals();
   const { transactions, loading: transactionsLoading } = useFinances();
+  const { invoices, loading: invoicesLoading } = useInvoices();
   const { can } = usePermissions();
   const { user } = useAuth();
 
-  if (vehiclesLoading || logsLoading || rentalsLoading || transactionsLoading) {
+  if (vehiclesLoading || logsLoading || rentalsLoading || transactionsLoading || invoicesLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] space-y-4">
         <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
@@ -49,7 +51,12 @@ const Dashboard = () => {
         {can('vehicles', 'cards') && <VehicleMetrics />}
         
         {(can('finance', 'view') || can('finance', 'cards')) && (
-          <FinancialSummary transactions={transactions} period="month" />
+          <FinancialSummary
+            transactions={transactions}
+            maintenanceLogs={maintenanceLogs}
+            invoices={invoices}
+            period="month"
+          />
         )}
       </div>
 

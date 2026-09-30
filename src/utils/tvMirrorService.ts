@@ -14,6 +14,13 @@ import {
   isBefore,
   endOfDay,
 } from 'date-fns';
+import { isOffRoadAccidentLog } from '../types';
+import {
+  normalizeMaintenanceStatus,
+  getMaintenanceStatusLabel,
+  isStatusOffRoad,
+  isStatusUrgentScheduled,
+} from './maintenanceStatusConfig';
 
 export type TVFilterCategory = 'all' | 'maintenance' | 'rent-schedule' | 'available-vehicles';
 
@@ -24,11 +31,14 @@ export interface TVBoardItem {
   title: string;
   type: string;
   description?: string;
-  status: 'in-progress' | 'scheduled' | 'available';
+  status: string; // Exact status: 'scheduled', 'in-progress', 'workshop', 'parts-backorder', 'off-road', 'accident', etc.
+  statusLabel: string; // Exact UI string: 'Awaiting Parts', 'Scheduled', 'OFF ROAD (VOR)', 'Accident', etc.
   scheduledDate: Date;
   daysRemaining: number;
-  isUrgent: boolean; // scheduled && daysRemaining < 7
-  isWorkshop: boolean; // status === 'in-progress'
+  isUrgent: boolean; // VOR / Accident or scheduled && daysRemaining <= 7
+  isWorkshop: boolean; // status === 'in-progress' || status === 'workshop'
+  isOffRoad?: boolean; // VOR / Off-road emergency
+  isAccident?: boolean; // Accident vehicle log
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleReg?: string;
@@ -82,23 +92,14 @@ export function buildTVBoardItems(
     }
 
     const jobDate = parseValidDate(m.date || m.nextServiceDate || m.createdAt);
-    const isInProgress =
-      rawStatus === 'in-progress' ||
-      rawStatus === 'in progress' ||
-      rawStatus === 'workshop' ||
-      rawStatus === 'in workshop' ||
-      rawStatus === 'bodywork' ||
-      rawStatus === 'parts-backorder' ||
-      rawStatus === 'awaiting-parts' ||
-      rawStatus === 'off-road' ||
-      rawStatus === 'off road (vor)' ||
-      rawStatus === 'vor' ||
-      rawStatus === 'active' ||
-      rawStatus === 'ongoing' ||
-      rawStatus === 'started';
+    const isAccident = isOffRoadAccidentLog(m) || rawStatus === 'accident' || rawStatus === 'off-road-accident';
+    const isOffRoad = isStatusOffRoad(m.status, { isAccident, isOffRoad: m.isOffRoad });
+    const normalizedStatus = normalizeMaintenanceStatus(m.status, { isAccident, isOffRoad });
+    const statusLabel = getMaintenanceStatusLabel(m.status, { isAccident, isOffRoad });
 
     const daysRemaining = differenceInCalendarDays(jobDate, todayStart);
-    const isUrgent = !isInProgress && daysRemaining < 7; // < 7 Days urgent rule
+    const isUrgent = isStatusUrgentScheduled(m.status, jobDate, { isAccident, isOffRoad });
+    const isWorkshop = normalizedStatus === 'workshop' || normalizedStatus === 'in-progress';
 
     const vInfo = vehiclesMap[m.vehicleId] || m.vehicleDetails || {};
     const reg =
@@ -115,14 +116,17 @@ export function buildTVBoardItems(
       id: `maint-${m.id}`,
       category: 'maintenance',
       source: 'maintenance',
-      title: (m.type || m.serviceType || 'Maintenance').replace(/-/g, ' ').toUpperCase(),
-      type: m.type || m.serviceType || 'Service & Repairs',
-      description: m.description || m.notes || 'Workshop Maintenance',
-      status: isInProgress ? 'in-progress' : 'scheduled',
+      title: isOffRoad ? '🚨 OFF ROAD (VOR) WORKSHOP' : (m.type || m.serviceType || 'Maintenance').replace(/-/g, ' ').toUpperCase(),
+      type: isOffRoad ? 'OFF ROAD (VOR)' : (m.type || m.serviceType || 'Service & Repairs'),
+      description: m.description || m.notes || (isOffRoad ? 'Vehicle Off Road (VOR) Emergency Work' : 'Workshop Maintenance'),
+      status: m.status || normalizedStatus,
+      statusLabel,
       scheduledDate: jobDate,
       daysRemaining,
       isUrgent,
-      isWorkshop: isInProgress,
+      isWorkshop,
+      isOffRoad,
+      isAccident,
       vehicleMake: make,
       vehicleModel: model,
       vehicleReg: reg,
@@ -148,7 +152,7 @@ export function buildTVBoardItems(
       rawStatus === 'hired';
 
     const daysRemaining = differenceInCalendarDays(startDate, todayStart);
-    const isUrgent = !isInProgress && daysRemaining < 7;
+    const isUrgent = !isInProgress && daysRemaining <= 7;
 
     const vInfo = vehiclesMap[r.vehicleId] || {};
     const reg =
@@ -169,7 +173,8 @@ export function buildTVBoardItems(
       description: r.customerName
         ? `Driver / Hirer: ${r.customerName}`
         : r.reason || 'Active Taxi / Fleet Rental Contract',
-      status: isInProgress ? 'in-progress' : 'scheduled',
+      status: r.status || (isInProgress ? 'active' : 'scheduled'),
+      statusLabel: isInProgress ? 'Active On Hire' : 'Scheduled',
       scheduledDate: startDate,
       daysRemaining,
       isUrgent,
@@ -197,6 +202,7 @@ export function buildTVBoardItems(
         type: v.fuelType ? `${v.fuelType.toUpperCase()} FLEET READY` : 'DEPOT READY',
         description: `${v.year ? v.year + ' ' : ''}${v.transmission || 'Automatic'} • Unassigned & Inspected`,
         status: 'available',
+        statusLabel: 'Depot Ready',
         scheduledDate: now,
         daysRemaining: 0,
         isUrgent: false,
@@ -211,8 +217,10 @@ export function buildTVBoardItems(
     }
   });
 
-  // Sort: In-Progress Workshop jobs first, then Urgent (< 7 days), then by scheduled date
+  // Sort: Off-Road (VOR) first, then In-Progress Workshop jobs, then Urgent (< 7 days), then by scheduled date
   items.sort((a, b) => {
+    if (a.isOffRoad && !b.isOffRoad) return -1;
+    if (!a.isOffRoad && b.isOffRoad) return 1;
     if (a.isWorkshop && !b.isWorkshop) return -1;
     if (!a.isWorkshop && b.isWorkshop) return 1;
     if (a.isUrgent && !b.isUrgent) return -1;

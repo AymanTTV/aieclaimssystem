@@ -11,6 +11,7 @@ import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
 import { uploadRentalDocuments } from '../../utils/documentUpload';
 import { calculateOverdueCost } from '../../utils/rentalCalculations';
 import ReturnConditionForm from './ReturnConditionForm';
+import { syncRentalRecord } from '../../services/unifiedSync.service';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -101,6 +102,14 @@ const RentalCompleteModal: React.FC<RentalCompleteModalProps> = ({ rental, onClo
                   additionalCharges: condition.totalCharges,
                   updatedAt: new Date()
                 });
+
+                // Synchronize completion and return charges to Central Finance Ledger
+                syncRentalRecord(rental.id, {
+                  status: 'completed',
+                  endDate: completionDateTime,
+                  returnCondition: condition,
+                  additionalCharges: condition.totalCharges,
+                }).catch((err) => console.warn('Background sync error on rental completion:', err));
 
                 toast.success('Rental completed successfully');
                 onClose();

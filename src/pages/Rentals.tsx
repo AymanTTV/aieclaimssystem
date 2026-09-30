@@ -47,6 +47,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import { syncVehicleStatuses } from '../utils/vehicleStatusManager';
 import RentalDiscountModal from '../components/rentals/RentalDiscountModal';
+import { useFinancialSync } from '../hooks/useFinancialSync';
 import {
   generateBulkDocuments,
   getCompanyDetails
@@ -70,6 +71,7 @@ const Rentals = () => {
   const { customers, loading: customersLoading } = useCustomers();
   const { can } = usePermissions();
   const { user } = useAuth();
+  const { saveAndSync: saveAndSyncFinancialRecord } = useFinancialSync();
   const [discountingRental, setDiscountingRental] = useState<Rental | null>(null);
   const { companyDetails } = useCompanyDetails();
   const [notingRental, setNotingRental] = useState<Rental | null>(null);
@@ -436,9 +438,14 @@ const Rentals = () => {
         }
       }
 
-      await updateDoc(doc(db, 'rentals', extendingRental.id), {
-        endDate: newDate, cost: newDetailed.gross, hireSubstitutionDetails: updatedSubs, updatedAt: new Date(), updatedBy: (user as any)?.id
-      });
+      await saveAndSyncFinancialRecord('RENTAL', {
+        endDate: newDate,
+        cost: newDetailed.gross,
+        customerBilled: newDetailed.gross,
+        hireSubstitutionDetails: updatedSubs,
+        updatedAt: new Date(),
+        updatedBy: (user as any)?.id,
+      }, extendingRental.id);
       
       toast.dismiss(); toast.success('Extended successfully');
       setExtendingRental(null);

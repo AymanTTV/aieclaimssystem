@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { Search, Car, X, AlertTriangle, CheckCircle, Info, User, FileText, PoundSterling, Plus, MessageCircle, Mail, Printer } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
+import { syncRentalRecord } from '../../services/unifiedSync.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import FileUpload from '../ui/FileUpload';
 import TextArea from '../ui/TextArea';
@@ -459,6 +460,11 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           images: conditionImageUrls, createdAt: new Date(), createdBy: user.id
         } 
       });
+
+      // Synchronize immediately with Central Finance Ledger
+      syncRentalRecord(docRef.id, rentalData).catch((err) =>
+        console.warn('Background sync error for new rental:', err)
+      );
 
       const fullRental = { id: docRef.id, ...rentalData } as Rental;
       setSavedRentalForShare(fullRental);

@@ -26,9 +26,26 @@ export const useInvoices = () => {
             return new Date(dateVal);
           };
 
+          const totalNum = Number(data.total ?? data.amount ?? 0);
+          const customerBilledNum = data.customerBilled !== undefined ? Number(data.customerBilled) : totalNum;
+          const subCostNum = data.subcontractorCost !== undefined ? Number(data.subcontractorCost) : undefined;
+          let netProfit = data.netProfit !== undefined ? Number(data.netProfit) : undefined;
+          let profitMarginPercent = data.profitMarginPercent !== undefined ? Number(data.profitMarginPercent) : undefined;
+          if (subCostNum !== undefined && netProfit === undefined) {
+            netProfit = Number((customerBilledNum - subCostNum).toFixed(2));
+            profitMarginPercent = customerBilledNum > 0 ? Number(((netProfit / customerBilledNum) * 100).toFixed(2)) : 0;
+          }
+
           invoiceData.push({
             id: doc.id,
             ...data,
+            orderId: data.orderId || data.orderNumber,
+            orderNumber: data.orderNumber || data.orderId,
+            invoiceNumber: data.invoiceNumber,
+            customerBilled: customerBilledNum,
+            subcontractorCost: subCostNum,
+            netProfit,
+            profitMarginPercent,
             date: safeDate(data.date),
             dueDate: safeDate(data.dueDate),
             createdAt: safeDate(data.createdAt),

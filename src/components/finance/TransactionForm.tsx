@@ -10,14 +10,35 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Vehicle, Customer, Account, Transaction } from '../../types';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, checkUserPermission } from '../../context/AuthContext';
 import FormField from '../ui/FormField';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import financeCategoryService from '../../services/financeCategory.service';
 import financeGroupService from '../../services/financeGroup.service';
-import { Info, RefreshCw } from 'lucide-react';
+import {
+  Info,
+  RefreshCw,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  PieChart,
+  Building2,
+  User,
+  CheckCircle2,
+  AlertCircle,
+  ShieldCheck,
+} from 'lucide-react';
 import { addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { calculateProfitMetrics } from '../../utils/profitCalculator';
+import { syncTransactionRecord } from '../../services/unifiedSync.service';
+import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import {
+  calculateVehicleProfitAndShare,
+  executeProfitPayoutSettlement,
+  VehicleProfitCalculation,
+} from '../../services/sharedOwnershipPayout.service';
 
 interface TransactionFormProps {
   type: 'income' | 'expense';
@@ -26,9 +47,12 @@ interface TransactionFormProps {
   accounts: Account[];
   vehicles: Vehicle[];
   customers: Customer[];
-  departments?: { id: string; name: string }[]; // NEW
+  departments?: { id: string; name: string }[];
+  transactions?: Transaction[];
   onClose: () => void;
 }
+
+type PeriodPreset = 'this_month' | 'last_month' | 'this_quarter' | 'year_to_date' | 'all_time' | 'custom';
 
 const TransactionForm: React.FC<TransactionFormProps> = ({
   type: initialType,
@@ -37,10 +61,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   accounts = [],
   vehicles = [],
   customers = [],
-  departments = [], // NEW
+  departments = [],
+  transactions = [],
   onClose,
 }) => {
   const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
   const [loading, setLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualVehicleEntry, setManualVehicleEntry] = useState(false); 
@@ -48,6 +74,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [currentType, setCurrentType] = useState<'income' | 'expense'>(initialType);
   const [isRecurring, setIsRecurring] = useState(initialIsRecurring || !!transaction?.isRecurring);
   const [frequency, setFrequency] = useState<string>(transaction?.recurringFrequency || 'monthly');
+
+  // Permission Check for Profit Payout Settlement
+  const canProcessProfitPayout = Boolean(
+    typeof user?.hasPermission === 'function'
+      ? user.hasPermission('can_process_profit_payout')
+      : checkUserPermission(user, 'can_process_profit_payout')
+  );
+
+  // Payment Type Selector (Regular vs Profit Share Settlement)
+  const [paymentType, setPaymentType] = useState<'regular' | 'profit_share'>('regular');
 
   useEffect(() => {
     if (transaction) {
@@ -128,7 +164,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     manualVehicleModel: '',
     manualVehicleReg: '',
     groupId: transaction?.groupId || '',
-    departmentId: transaction?.departmentId || '', // NEW
+    departmentId: transaction?.departmentId || '',
+    subcontractorCost: transaction?.subcontractorCost !== undefined ? String(transaction.subcontractorCost) : '0',
     accountTo: getFirstAccount(transaction?.accountsTo),
     accountFrom: getFirstAccount(transaction?.accountsFrom),
     accountTo2: getSecondAccount(transaction?.accountsTo),
@@ -173,12 +210,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
          manualVehicleModel: model,
          manualVehicleReg: reg,
          groupId: transaction.groupId || '',
-         departmentId: transaction.departmentId || '', // NEW
+         departmentId: transaction.departmentId || '',
          accountTo: getFirstAccount(transaction.accountsTo),
          accountFrom: getFirstAccount(transaction.accountsFrom),
          accountTo2: getSecondAccount(transaction.accountsTo),
          accountFrom2: getSecondAccount(transaction.accountsFrom),
          accountThird: getThirdAccount(transaction, transaction.type),
+         subcontractorCost: transaction.subcontractorCost !== undefined ? String(transaction.subcontractorCost) : '0',
       });
       setIsRecurring(!!transaction.isRecurring);
       setFrequency(transaction.recurringFrequency || 'monthly');
@@ -187,12 +225,196 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           ...prev, date: toDateTimeLocal(new Date()), amount: '', category: '', description: '', paymentMethod: 'cash', 
           paymentReference: '', paymentStatus: 'pending', status: 'completed', customerId: '', customerName: '', 
           vehicleId: '', vehicleName: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '', 
-          groupId: '', departmentId: '', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' 
+          groupId: '', departmentId: '', subcontractorCost: '0', accountTo: '', accountFrom: '', accountTo2: '', accountFrom2: '', accountThird: '' 
         }));
         setManualEntry(false);
         setManualVehicleEntry(false);
     }
   }, [transaction]);
+
+  // =========================================================================
+  // PROFIT SHARE PAYOUT SETTLEMENT STATE & LOGIC
+  // =========================================================================
+  const coOwnedVehicles = useMemo(() => {
+    return vehicles.filter(
+      (v) =>
+        v.isSharedOwnership ||
+        (v.sharedOwnership && v.sharedOwnership.length > 0) ||
+        (v.owner?.sharedOwnership && v.owner.sharedOwnership.length > 0)
+    );
+  }, [vehicles]);
+
+  const [payoutVehicleId, setPayoutVehicleId] = useState<string>(
+    coOwnedVehicles[0]?.id || vehicles[0]?.id || ''
+  );
+
+  const selectedPayoutVehicle = useMemo(() => {
+    return vehicles.find((v) => v.id === payoutVehicleId);
+  }, [vehicles, payoutVehicleId]);
+
+  const selectedPayoutVehicleAccount = useMemo(() => {
+    if (!payoutVehicleId && !selectedPayoutVehicle) return null;
+    return (
+      accounts.find(
+        (a) =>
+          (payoutVehicleId && a.vehicleId === payoutVehicleId) ||
+          (selectedPayoutVehicle?.registrationNumber &&
+            a.name.toLowerCase().includes(selectedPayoutVehicle.registrationNumber.toLowerCase()))
+      ) || null
+    );
+  }, [accounts, payoutVehicleId, selectedPayoutVehicle]);
+
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('this_month');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+
+  const defaultCompanyAccount = useMemo(() => {
+    return (
+      accounts.find((a) => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT')) ||
+      accounts.find((a) => a.name.toUpperCase().includes('AIE SKYLINE')) ||
+      accounts.find((a) => a.name.toUpperCase().includes('MAIN') || a.name.toUpperCase().includes('COMPANY')) ||
+      accounts[0]
+    );
+  }, [accounts]);
+
+  const [payoutCompanyAccountId, setPayoutCompanyAccountId] = useState<string>(
+    defaultCompanyAccount?.id || accounts[0]?.id || ''
+  );
+
+  const [payoutReference, setPayoutReference] = useState<string>(
+    `PAYOUT-${Date.now().toString().slice(-6)}`
+  );
+  const [payoutDate, setPayoutDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [periodCoveredText, setPeriodCoveredText] = useState<string>('');
+  const [payoutClearOwing, setPayoutClearOwing] = useState<boolean>(true);
+  const [payoutNotes, setPayoutNotes] = useState<string>('');
+  const [payoutLoading, setPayoutLoading] = useState(false);
+
+  // Date range for profit payout
+  const { payoutDateFrom, payoutDateTo } = useMemo(() => {
+    const now = new Date();
+    if (periodPreset === 'this_month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { payoutDateFrom: start, payoutDateTo: end };
+    }
+    if (periodPreset === 'last_month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      return { payoutDateFrom: start, payoutDateTo: end };
+    }
+    if (periodPreset === 'this_quarter') {
+      const quarter = Math.floor(now.getMonth() / 3);
+      const start = new Date(now.getFullYear(), quarter * 3, 1);
+      const end = new Date(now.getFullYear(), quarter * 3 + 3, 0, 23, 59, 59, 999);
+      return { payoutDateFrom: start, payoutDateTo: end };
+    }
+    if (periodPreset === 'year_to_date') {
+      const start = new Date(now.getFullYear(), 0, 1);
+      const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+      return { payoutDateFrom: start, payoutDateTo: end };
+    }
+    if (periodPreset === 'custom') {
+      const start = customStartDate ? new Date(customStartDate) : null;
+      const end = customEndDate ? new Date(`${customEndDate}T23:59:59`) : null;
+      return { payoutDateFrom: start, payoutDateTo: end };
+    }
+    return { payoutDateFrom: null, payoutDateTo: null };
+  }, [periodPreset, customStartDate, customEndDate]);
+
+  // Compute live profit strictly scoped to selected vehicle account
+  const payoutProfitData: VehicleProfitCalculation = useMemo(() => {
+    return calculateVehicleProfitAndShare({
+      vehicleId: payoutVehicleId || undefined,
+      accountId: selectedPayoutVehicleAccount?.id || undefined,
+      startDate: payoutDateFrom,
+      endDate: payoutDateTo,
+      transactions: transactions || [],
+      accounts,
+      vehicles,
+    });
+  }, [payoutVehicleId, selectedPayoutVehicleAccount, payoutDateFrom, payoutDateTo, transactions, accounts, vehicles]);
+
+  useEffect(() => {
+    if (periodPreset === 'this_month') {
+      const monthStr = new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+      setPeriodCoveredText(`Profit Share Payout: ${monthStr}`);
+    } else if (periodPreset === 'last_month') {
+      const lastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+      const monthStr = lastMonth.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+      setPeriodCoveredText(`Profit Share Payout: ${monthStr}`);
+    } else {
+      setPeriodCoveredText(`Profit Share Payout: ${payoutProfitData.periodLabel}`);
+    }
+  }, [periodPreset, payoutProfitData.periodLabel]);
+
+  // Handle Profit Share Payout Execution
+  const handleExecuteProfitPayout = async () => {
+    if (!canProcessProfitPayout) {
+      toast.error('Unauthorized: You do not have permission to process profit payouts.');
+      return;
+    }
+    if (payoutProfitData.netProfit <= 0) {
+      toast.error('Cannot payout: Net profit for selected period must be greater than £0.00');
+      return;
+    }
+    if (!payoutCompanyAccountId) {
+      toast.error('Please select a Company Account to receive the company share.');
+      return;
+    }
+    if (!payoutReference.trim()) {
+      toast.error('Please enter a payout reference number.');
+      return;
+    }
+
+    setPayoutLoading(true);
+    try {
+      const compAcc = accounts.find((a) => a.id === payoutCompanyAccountId);
+      const res = await executeProfitPayoutSettlement({
+        vehicleId: payoutProfitData.vehicleId,
+        vehicleName: payoutProfitData.vehicleName,
+        sourceAccountId: payoutProfitData.accountId || selectedPayoutVehicleAccount?.id || 'source_acc',
+        sourceAccountName: payoutProfitData.accountName || selectedPayoutVehicleAccount?.name || 'Vehicle Account',
+        companyAccountId: payoutCompanyAccountId,
+        companyAccountName: compAcc?.name || 'AIE SKYLINE ACCOUNTS',
+        grossBilled: payoutProfitData.revenue,
+        expenses: payoutProfitData.expenses,
+        totalProfit: payoutProfitData.netProfit,
+        companySharePct: payoutProfitData.companySharePct,
+        companyShareAmount: payoutProfitData.companyShareAmount,
+        ownerName: payoutProfitData.ownerName,
+        ownerSharePct: payoutProfitData.ownerSharePct,
+        ownerShareAmount: payoutProfitData.ownerShareAmount,
+        payoutReference: payoutReference.trim(),
+        payoutDate: new Date(payoutDate),
+        periodCovered: periodCoveredText.trim() || payoutProfitData.periodLabel,
+        clearOwingBalance: payoutClearOwing,
+        clearedBalanceAmount: payoutClearOwing ? payoutProfitData.currentOwingBalance : 0,
+        notes: payoutNotes.trim(),
+        currentUser: {
+          id: user?.id,
+          name: user?.name || user?.email,
+          email: user?.email,
+        },
+      });
+
+      if (res.success) {
+        toast.success(
+          `Successfully processed profit payout! £${payoutProfitData.companyShareAmount} transferred to Company, £${payoutProfitData.ownerShareAmount} paid to ${payoutProfitData.ownerName}.`
+        );
+        onClose();
+      } else {
+        toast.error(res.message || 'Failed to process payout settlement');
+      }
+    } catch (err: any) {
+      console.error('Error executing payout settlement:', err);
+      toast.error(err?.message || 'Error executing payout settlement');
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
 
   const calculateNextDate = (dateStr: string, freq: string): Date => {
     const date = new Date(dateStr);
@@ -215,7 +437,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     try {
       const selectedVehicle = vehicles.find((v) => v.id === formData.vehicleId);
       const selectedCustomer = customers.find((c) => c.id === formData.customerId);
-      const dept = departments.find((d) => d.id === formData.departmentId); // NEW
+      const dept = departments.find((d) => d.id === formData.departmentId);
       const vehicleOwner = manualVehicleEntry ? null : (selectedVehicle ? (selectedVehicle.owner || null) : { name: 'AIE Skyline Limited', isDefault: true });
       const newAmount = Math.abs(parseFloat(formData.amount || '0'));
       
@@ -226,6 +448,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       const combinedManualVehicleName = manualVehicleEntry 
         ? `${formData.manualVehicleMake.trim()} ${formData.manualVehicleModel.trim()} (${formData.manualVehicleReg.trim()})`.trim()
         : null;
+
+      const billed = newAmount;
+      const hasEditedProfit = isEditing && !!transaction;
+      const subCost = hasEditedProfit
+        ? Math.max(0, parseFloat(formData.subcontractorCost) || 0)
+        : billed;
+      const profitMetrics = hasEditedProfit
+        ? calculateProfitMetrics(billed, subCost)
+        : { customerBilled: billed, subcontractorCost: billed, netProfit: 0, profitMarginPercent: 0 };
 
       const basePayload: any = {
           category: formData.category,
@@ -240,11 +471,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           vehicleName: manualVehicleEntry ? combinedManualVehicleName : (selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.registrationNumber})` : null),
           vehicleOwner: vehicleOwner,
           groupId: formData.groupId || null,
-          departmentId: formData.departmentId || null, // NEW
-          departmentName: dept ? dept.name : null, // NEW
+          departmentId: formData.departmentId || null,
+          departmentName: dept ? dept.name : null,
           updatedAt: new Date(),
           updatedBy: user.name || user.email || '',
           amount: newAmount,
+          isProfitEdited: hasEditedProfit,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          customerBilled: billed,
+          netProfit: profitMetrics.netProfit,
+          profitMarginPercent: profitMetrics.profitMarginPercent,
           date: new Date(formData.date),
       };
 
@@ -282,82 +518,78 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
              if (formData.accountThird) finalAccountsTo.push(formData.accountThird);
           }
 
-          const updateData = {
+          if (finalAccountsFrom.length === 0 && finalAccountsTo.length === 0) {
+              toast.error("At least one account must be selected.");
+              setLoading(false);
+              return;
+          }
+
+          const updatePayload: any = {
               ...basePayload,
-              type: currentType,
               accountsFrom: finalAccountsFrom,
               accountsTo: finalAccountsTo,
-              referenceId: transaction.referenceId || null,
+              type: currentType,
           };
 
-          await updateDoc(doc(db, 'transactions', transaction.id), updateData);
-          toast.success('Transaction updated');
-
+          await updateDoc(doc(db, 'transactions', transaction.id), updatePayload);
+          toast.success('Transaction updated successfully');
       } else {
         const batch = writeBatch(db);
         let operationCount = 0;
 
-        const mainAccName = currentType === 'income' ? getAccName(formData.accountTo) : getAccName(formData.accountFrom);
-        const secondaryAccName = currentType === 'income' ? getAccName(formData.accountTo2) : getAccName(formData.accountFrom2);
-        const contraAccName = getAccName(formData.accountThird); 
+        const mainPrimaryId = currentType === 'income' ? formData.accountTo : formData.accountFrom;
+        const mainSecondaryId = currentType === 'income' ? formData.accountTo2 : formData.accountFrom2;
+        const contraAccountId = formData.accountThird;
 
-        const creditSideNames = [];
-        if (currentType === 'income') {
-             if (mainAccName) creditSideNames.push(mainAccName);
-             if (secondaryAccName) creditSideNames.push(secondaryAccName);
-        } else {
-             if (contraAccName) creditSideNames.push(contraAccName);
-        }
-        const creditSideString = creditSideNames.filter(Boolean).join(' & ');
+        const primaryName = getAccName(mainPrimaryId);
+        const secondaryName = getAccName(mainSecondaryId);
+        const debitSideString = [primaryName, secondaryName].filter(Boolean).join(', ');
+        const creditSideString = getAccName(contraAccountId);
 
-        const debitSideNames = [];
-        if (currentType === 'expense') {
-            if (mainAccName) debitSideNames.push(mainAccName);
-            if (secondaryAccName) debitSideNames.push(secondaryAccName);
-        } else {
-            if (contraAccName) debitSideNames.push(contraAccName);
-        }
-        const debitSideString = debitSideNames.filter(Boolean).join(' & ');
-        
-        if (currentType === 'income') {
-            const incomeAccounts = [];
-            if (formData.accountTo) incomeAccounts.push(formData.accountTo);
-            if (formData.accountTo2) incomeAccounts.push(formData.accountTo2);
-            
-            if (incomeAccounts.length > 0) {
-                const ref = doc(collection(db, 'transactions'));
-                batch.set(ref, {
-                    ...basePayload,
-                    id: ref.id,
-                    type: 'income',
-                    createdAt: new Date(),
-                    createdBy: user.name || user.email || '',
-                    accountsTo: incomeAccounts, 
-                    accountsFrom: [],
-                    relatedAccountName: debitSideString || null 
-                });
-                operationCount++;
+        if (mainPrimaryId) {
+            const ref = doc(collection(db, 'transactions'));
+            const data: any = {
+                ...basePayload,
+                id: ref.id,
+                type: currentType,
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                relatedAccountName: contraAccountId ? creditSideString : undefined,
+            };
+
+            if (currentType === 'income') {
+                data.accountsTo = [mainPrimaryId];
+                data.accountsFrom = [];
+            } else {
+                data.accountsFrom = [mainPrimaryId];
+                data.accountsTo = [];
             }
-        } 
-        else if (currentType === 'expense') {
-            const expenseAccounts = [];
-            if (formData.accountFrom) expenseAccounts.push(formData.accountFrom);
-            if (formData.accountFrom2) expenseAccounts.push(formData.accountFrom2);
 
-            if (expenseAccounts.length > 0) {
-                const ref = doc(collection(db, 'transactions'));
-                batch.set(ref, {
-                    ...basePayload,
-                    id: ref.id,
-                    type: 'expense',
-                    createdAt: new Date(),
-                    createdBy: user.name || user.email || '',
-                    accountsFrom: expenseAccounts, 
-                    accountsTo: [],
-                    relatedAccountName: creditSideString || null
-                });
-                operationCount++;
+            batch.set(ref, data);
+            operationCount++;
+        }
+
+        if (mainSecondaryId) {
+            const ref = doc(collection(db, 'transactions'));
+            const data: any = {
+                ...basePayload,
+                id: ref.id,
+                type: currentType,
+                createdAt: new Date(),
+                createdBy: user.name || user.email || '',
+                relatedAccountName: contraAccountId ? creditSideString : undefined,
+            };
+
+            if (currentType === 'income') {
+                data.accountsTo = [mainSecondaryId];
+                data.accountsFrom = [];
+            } else {
+                data.accountsFrom = [mainSecondaryId];
+                data.accountsTo = [];
             }
+
+            batch.set(ref, data);
+            operationCount++;
         }
 
         if (formData.accountThird) {
@@ -406,125 +638,942 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
+  const currentBilled = Math.max(0, parseFloat(formData.amount) || 0);
+  const currentSubCost = Math.max(0, parseFloat(formData.subcontractorCost) || 0);
+  const liveProfitMetrics = calculateProfitMetrics(currentBilled, currentSubCost);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      
-      {!transaction && initialIsRecurring && (
-        <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
-          <button type="button" onClick={() => setCurrentType('income')} className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'}`}>Income</button>
-          <button type="button" onClick={() => setCurrentType('expense')} className={`py-2 text-sm font-medium rounded-md transition-all ${currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'}`}>Expense</button>
+    <div className="space-y-6">
+      {/* 1. PERMISSION-GATED PAYMENT SELECTOR (REGULAR vs PROFIT SHARE) */}
+      {canProcessProfitPayout && !isEditing && (
+        <div className="p-4 bg-linear-to-r from-slate-50 to-indigo-50/50 border-2 border-indigo-100 rounded-2xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-black text-slate-800 uppercase tracking-wider">
+              Payment Settlement Type
+            </label>
+            <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-100 text-indigo-800 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-indigo-600" />
+              Authorized Officer
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label
+              className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                paymentType === 'regular'
+                  ? 'bg-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                  : 'bg-white/60 border-slate-200 hover:bg-white hover:border-slate-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="paymentTypeOption"
+                value="regular"
+                checked={paymentType === 'regular'}
+                onChange={() => setPaymentType('regular')}
+                className="mt-0.5 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+              />
+              <div>
+                <span className="block text-xs font-bold text-slate-900">
+                  Regular {currentType === 'income' ? 'Income' : 'Expense'} Payment
+                </span>
+                <span className="text-[11px] text-slate-500 leading-tight block mt-0.5">
+                  Standard general ledger transaction entry
+                </span>
+              </div>
+            </label>
+
+            <label
+              className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                paymentType === 'profit_share'
+                  ? 'bg-indigo-50/80 border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                  : 'bg-white/60 border-slate-200 hover:bg-white hover:border-slate-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="paymentTypeOption"
+                value="profit_share"
+                checked={paymentType === 'profit_share'}
+                onChange={() => setPaymentType('profit_share')}
+                className="mt-0.5 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+              />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-indigo-950">
+                    Profit Share Payout Settlement
+                  </span>
+                  <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-extrabold uppercase rounded">
+                    Co-Owner
+                  </span>
+                </div>
+                <span className="text-[11px] text-indigo-700/80 leading-tight block mt-0.5">
+                  Split net profit & execute atomic transfer
+                </span>
+              </div>
+            </label>
+          </div>
         </div>
       )}
 
-      {restrictAccountFields && ( <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-md"> <div className="flex"> <div className="flex-shrink-0"><Info className="h-5 w-5 text-yellow-400" aria-hidden="true" /></div> <div className="ml-3"><p className="text-sm text-yellow-700">Editing a linked or multi-account transaction. Amount, Date, and Accounts cannot be changed by your role.</p></div> </div> </div> )}
+      {/* 2. PROFIT SHARE PAYOUT SETTLEMENT EXECUTION VIEW */}
+      {paymentType === 'profit_share' && canProcessProfitPayout ? (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Target Co-Owned Vehicle / Account Selector & Accounting Period */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Target Vehicle Account
+              </label>
+              <select
+                value={payoutVehicleId}
+                onChange={(e) => setPayoutVehicleId(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {vehicles.map((v) => {
+                  const isShared =
+                    v.isSharedOwnership ||
+                    (v.sharedOwnership && v.sharedOwnership.length > 0) ||
+                    (v.owner?.sharedOwnership && v.owner.sharedOwnership.length > 0);
+                  const linkedAcc = accounts.find(
+                    (a) =>
+                      a.vehicleId === v.id ||
+                      (v.registrationNumber &&
+                        a.name.toLowerCase().includes(v.registrationNumber.toLowerCase()))
+                  );
+                  return (
+                    <option key={v.id} value={v.id}>
+                      {v.make} {v.model} ({v.registrationNumber}) {linkedAcc ? `• Acc: ${linkedAcc.name}` : ''} {isShared ? '⭐ [Shared]' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {selectedPayoutVehicleAccount && (
+                <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                  Scoped Account: <strong className="text-slate-800">{selectedPayoutVehicleAccount.name}</strong> (Balance: {formatCurrency(Number(selectedPayoutVehicleAccount.balance || 0))})
+                </p>
+              )}
+            </div>
 
-      <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
-        <div className="flex items-center">
-             <input id="isRecurring" type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
-              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center"><RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />Re-occurring Transaction</label>
-        </div>
-        {isRecurring && (
-          <div className="animate-fadeIn">
-            <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Frequency</label>
-            <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-              <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="biannually">Biannually</option><option value="yearly">Yearly</option>
-            </select>
-            <p className="mt-2 text-xs text-indigo-600">Next occurrence will be automatically generated based on the date/time selected below + frequency. <br/> <strong>Note:</strong> Separate recurring series will be created for each selected account.</p>
-          </div>
-        )}
-      </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Accounting Period
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: 'this_month', label: 'This Month' },
+                  { id: 'last_month', label: 'Last Month' },
+                  { id: 'this_quarter', label: 'Quarter' },
+                  { id: 'year_to_date', label: 'YTD' },
+                  { id: 'all_time', label: 'All Time' },
+                  { id: 'custom', label: 'Custom' },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPeriodPreset(p.id as PeriodPreset)}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer border ${
+                      periodPreset === p.id
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Date & Time</label>
-        <input type="datetime-local" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required disabled={restrictFinancialFields} className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-      </div>
+            {periodPreset === 'custom' && (
+              <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-3 pt-2">
+                <FormField
+                  label="From Date"
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+                <FormField
+                  label="To Date"
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
 
-      <FormField type="number" label="Amount" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} min="0" step="0.01" required placeholder="Enter total amount" disabled={restrictFinancialFields} />
+          {/* Configured Ownership Split Badge Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-2xl">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 text-xs font-extrabold uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-xs">
+                Configured Split
+              </span>
+              <div className="flex items-center gap-2 text-xs font-bold text-indigo-900">
+                {payoutProfitData.shares.map((s, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-0.5 rounded-full bg-white border border-indigo-200 shadow-2xs text-indigo-800"
+                  >
+                    {s.ownerName}: <strong className="text-indigo-950">{s.sharePercentage}%</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
 
-      {currentType === 'income' && (
-        <>
-          <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
-              <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
-              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account To (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo} onChange={(id) => setFormData({ ...formData, accountTo: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
-              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Credit Account (Merged into Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo).map(a => ({ id: a.id, label: a.name }))} value={formData.accountTo2} onChange={(id) => setFormData({ ...formData, accountTo2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
+            <div className="text-xs text-slate-500 font-medium">
+              Covering: <strong className="text-slate-800">{payoutProfitData.periodLabel}</strong> ({payoutProfitData.matchedTransactionsCount} entries strictly scoped)
+            </div>
           </div>
-          <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
-             <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
-             <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Debit Account (Create Separate Expense Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountTo && a.id !== formData.accountTo2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to debit..." isClearable disabled={restrictAccountFields} /><p className="text-xs text-gray-500">Select an account here to reduce its balance (e.g. transfer source).</p></div>
-          </div>
-        </>
-      )}
-      {currentType === 'expense' && (
-        <>
-          <div className="p-3 bg-red-50 border border-red-100 rounded-md space-y-3">
-              <h4 className="text-sm font-semibold text-red-800 border-b border-red-200 pb-1">Money Leaving (Debit)</h4>
-              <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Account From (Main)</label><SearchableSelect options={accounts.map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom} onChange={(id) => setFormData({ ...formData, accountFrom: id || '' })} placeholder="Select primary account..." isClearable disabled={restrictAccountFields} /></div>
-               <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Also Debit From (Merged into Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom).map(a => ({ id: a.id, label: a.name }))} value={formData.accountFrom2} onChange={(id) => setFormData({ ...formData, accountFrom2: id || '' })} placeholder="Select second account..." isClearable disabled={restrictAccountFields} /></div>
-          </div>
-          <div className="p-3 bg-green-50 border border-green-100 rounded-md space-y-3">
-             <h4 className="text-sm font-semibold text-green-800 border-b border-green-200 pb-1">Money Entering (Credit)</h4>
-             <div className="space-y-2"><label className="block text-xs font-medium text-gray-700">Credit Account (Separate Income Record)</label><SearchableSelect options={accounts.filter(a => a.id !== formData.accountFrom && a.id !== formData.accountFrom2).map(a => ({ id: a.id, label: a.name }))} value={formData.accountThird} onChange={(id) => setFormData({ ...formData, accountThird: id || '' })} placeholder="Select account to credit..." isClearable disabled={restrictAccountFields} /><p className="text-xs text-gray-500">Select an account here to increase its balance (e.g. money returned/transfer dest).</p></div>
-          </div>
-        </>
-      )}
 
-      {/* NEW: Updated grid for Category, Group, and Department */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Category</label>
-          {catsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={financeCategories.map(c => ({ id: c, label: c }))} value={formData.category} onChange={v => setFormData({...formData, category: v || ''})} placeholder="Select category..." required />}
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Group (Optional)</label>
-          {groupsLoading ? <div className="text-sm text-gray-500">Loading...</div> : <SearchableSelect options={groups.map(g => ({ id: g.id, label: g.name }))} value={formData.groupId} onChange={id => setFormData({...formData, groupId: id || ''})} placeholder="Select group..." isClearable />}
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Department (Optional)</label>
-          <SearchableSelect options={departments.map(d => ({ id: d.id, label: d.name }))} value={formData.departmentId} onChange={id => setFormData({...formData, departmentId: id || ''})} placeholder="Select department..." isClearable />
-        </div>
-      </div>
-      
-      <div className="space-y-4">
-        <div>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" checked={manualVehicleEntry} onChange={e => { setManualVehicleEntry(e.target.checked); setFormData({...formData, vehicleId: '', manualVehicleMake: '', manualVehicleModel: '', manualVehicleReg: '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> 
-            <span className="text-sm text-gray-700">Enter Vehicle Manually</span>
-          </label>
-        </div>
-        {manualVehicleEntry ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField label="Make" value={formData.manualVehicleMake} onChange={e => setFormData({...formData, manualVehicleMake: e.target.value})} placeholder="e.g. Toyota" required={manualVehicleEntry} />
-            <FormField label="Model" value={formData.manualVehicleModel} onChange={e => setFormData({...formData, manualVehicleModel: e.target.value})} placeholder="e.g. Prius" required={manualVehicleEntry} />
-            <FormField label="Registration" value={formData.manualVehicleReg} onChange={e => setFormData({...formData, manualVehicleReg: e.target.value})} placeholder="e.g. AB12 CDE" required={manualVehicleEntry} />
+          {/* ONLY 3 CLEAN ACCOUNT SUMMARY CARDS */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs flex items-center justify-center font-bold">1</span>
+              Vehicle Account Financial Summary ({payoutProfitData.periodLabel})
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* 1. ACCOUNT TOTAL INCOME Card */}
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">
+                    ACCOUNT TOTAL INCOME
+                  </p>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-md">
+                    Realized Cash
+                  </span>
+                </div>
+                <p className="text-2xl font-black font-mono text-emerald-900 mt-1.5">
+                  {formatCurrency(payoutProfitData.revenue)}
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
+                  Realized / Collected cash only
+                </p>
+              </div>
+
+              {/* 2. ACCOUNT TOTAL EXPENSES Card */}
+              <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-extrabold text-rose-800 uppercase tracking-wider">
+                    ACCOUNT TOTAL EXPENSES
+                  </p>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-rose-100 text-rose-800 rounded-md">
+                    Actual Outflow
+                  </span>
+                </div>
+                <p className="text-2xl font-black font-mono text-rose-900 mt-1.5">
+                  {formatCurrency(payoutProfitData.expenses)}
+                </p>
+                <p className="text-[11px] text-rose-700 mt-0.5 font-medium">
+                  Actual expenses incurred
+                </p>
+              </div>
+
+              {/* 3. ACCOUNT NET PROFIT Card */}
+              <div
+                className={`border rounded-2xl p-4 shadow-xs ${
+                  payoutProfitData.netProfit > 0
+                    ? 'bg-indigo-50/70 border-indigo-300'
+                    : 'bg-slate-100/80 border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p
+                    className={`text-xs font-extrabold uppercase tracking-wider ${
+                      payoutProfitData.netProfit > 0 ? 'text-indigo-900' : 'text-slate-700'
+                    }`}
+                  >
+                    ACCOUNT NET PROFIT
+                  </p>
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                      payoutProfitData.netProfit > 0
+                        ? 'bg-indigo-100 text-indigo-800'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    Income - Expenses
+                  </span>
+                </div>
+                <p
+                  className={`text-2xl font-black font-mono mt-1.5 ${
+                    payoutProfitData.netProfit > 0
+                      ? 'text-indigo-950'
+                      : payoutProfitData.netProfit < 0
+                      ? 'text-rose-700'
+                      : 'text-slate-800'
+                  }`}
+                >
+                  {formatCurrency(payoutProfitData.netProfit)}
+                </p>
+                <p
+                  className={`text-[11px] mt-0.5 font-semibold ${
+                    payoutProfitData.netProfit > 0 ? 'text-indigo-700' : 'text-slate-500'
+                  }`}
+                >
+                  {payoutProfitData.netProfit > 0
+                    ? 'Distributable Net Profit'
+                    : 'No distributable profit available'}
+                </p>
+              </div>
+            </div>
+
+            {/* Handle Negative / Zero Profit Warning */}
+            {payoutProfitData.netProfit <= 0 && (
+              <div className="mt-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-900 text-xs">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <strong className="font-bold">No distributable profit available: </strong>
+                  Vehicle Account Net Profit is {formatCurrency(payoutProfitData.netProfit)} (must be greater than £0.00). Profit share payout is disabled for this period.
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          <SearchableSelect 
-            label="Related Vehicle (Optional)" 
-            options={vehicles.map(v => ({ id: v.id, label: `${v.make} ${v.model} (${v.registrationNumber})`, subLabel: v.registrationNumber }))} 
-            value={formData.vehicleId} 
-            onChange={id => { const v = vehicles.find(vh => vh.id === id); setFormData({...formData, vehicleId: id || '' }); }} 
-            placeholder="Search vehicles..." 
-            isClearable 
+
+          {/* STEP 2: AUTOMATED SHARE SPLITTING */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs flex items-center justify-center font-bold">2</span>
+              Proposed Profit Distribution
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* COMPANY SHARE CARD */}
+              <div className="bg-white border-2 border-indigo-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Share</p>
+                      <h5 className="text-base font-bold text-slate-900">AIE Skyline Limited</h5>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full font-extrabold text-sm">
+                    {payoutProfitData.companySharePct}% Share
+                  </span>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-baseline justify-between">
+                  <span className="text-xs font-semibold text-slate-600">Company Transfer Amount:</span>
+                  <span className="text-2xl font-black font-mono text-indigo-600">
+                    {formatCurrency(payoutProfitData.companyShareAmount)}
+                  </span>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    Destination Company Account (Internal Transfer):
+                  </label>
+                  <select
+                    value={payoutCompanyAccountId}
+                    onChange={(e) => setPayoutCompanyAccountId(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({formatCurrency(Number(a.balance || 0))})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* CO-OWNER / PARTNER SHARE CARD */}
+              <div className="bg-white border-2 border-emerald-200 rounded-2xl p-5 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Partner Share</p>
+                      <h5 className="text-base font-bold text-slate-900">{payoutProfitData.ownerName}</h5>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-extrabold text-sm">
+                    {payoutProfitData.ownerSharePct}% Share
+                  </span>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-baseline justify-between">
+                  <span className="text-xs font-semibold text-slate-600">Partner Payout Amount:</span>
+                  <span className="text-2xl font-black font-mono text-emerald-600">
+                    {formatCurrency(payoutProfitData.ownerShareAmount)}
+                  </span>
+                </div>
+
+                <div className="mt-3 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                  <span className="font-semibold text-emerald-900">Current "Owing to Owner" Balance:</span>
+                  <span className="font-bold font-mono text-rose-700">
+                    {formatCurrency(payoutProfitData.currentOwingBalance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 3: SETTLEMENT EXECUTION DETAILS */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs flex items-center justify-center font-bold">3</span>
+              Record Settlement Details & Commit Payout
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FormField
+                label="Period Covered"
+                value={periodCoveredText}
+                onChange={(e) => setPeriodCoveredText(e.target.value)}
+                placeholder="e.g. Profit Share Payout: Sep 2026"
+                required
+              />
+
+              <FormField
+                label="Payout Reference #"
+                value={payoutReference}
+                onChange={(e) => setPayoutReference(e.target.value)}
+                placeholder="e.g. PAYOUT-2026-09"
+                required
+              />
+
+              <FormField
+                label="Date Paid"
+                type="date"
+                value={payoutDate}
+                onChange={(e) => setPayoutDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="flex items-start gap-3 p-3 bg-white rounded-xl border border-slate-200">
+              <input
+                type="checkbox"
+                id="clearOwingCheckboxForm"
+                checked={payoutClearOwing}
+                onChange={(e) => setPayoutClearOwing(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+              />
+              <label htmlFor="clearOwingCheckboxForm" className="text-xs text-slate-700 cursor-pointer">
+                <strong className="block text-slate-900 font-bold">
+                  Zero out / Reconcile "Owing to Owner" balance
+                </strong>
+                Clear and zero out the owing balance for this vehicle period via atomic ledger entries.
+              </label>
+            </div>
+
+            <FormField
+              label="Notes / Terms (Optional)"
+              value={payoutNotes}
+              onChange={(e) => setPayoutNotes(e.target.value)}
+              placeholder="Additional notes for settlement..."
+            />
+          </div>
+
+          {/* PROFIT SHARE COMMIT ACTION BUTTON */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExecuteProfitPayout}
+              disabled={payoutLoading || payoutProfitData.netProfit <= 0}
+              className="px-5 py-2.5 text-xs font-bold text-white bg-linear-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {payoutLoading ? (
+                'Processing Settlement...'
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Confirm & Execute Profit Share Settlement
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* 3. STANDARD REGULAR INCOME / EXPENSE TRANSACTION FORM */
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {!transaction && initialIsRecurring && (
+            <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setCurrentType('income')}
+                className={`py-2 text-sm font-medium rounded-md transition-all ${
+                  currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Income
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentType('expense')}
+                className={`py-2 text-sm font-medium rounded-md transition-all ${
+                  currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Expense
+              </button>
+            </div>
+          )}
+
+          {restrictAccountFields && (
+            <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Info className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-700">
+                    Editing a linked or multi-account transaction. Amount, Date, and Accounts cannot be changed by your role.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="border border-indigo-100 bg-indigo-50/50 rounded-md p-4 space-y-3">
+            <div className="flex items-center">
+              <input
+                id="isRecurring"
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isRecurring" className="ml-2 block text-sm font-medium text-gray-900 flex items-center">
+                <RefreshCw className="w-4 h-4 mr-1 text-indigo-600" />
+                Re-occurring Transaction
+              </label>
+            </div>
+            {isRecurring && (
+              <div className="animate-fadeIn">
+                <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">
+                  Frequency
+                </label>
+                <select
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="biannually">Biannually</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <p className="mt-2 text-xs text-indigo-600">
+                  Next occurrence will be automatically generated based on the date/time selected below + frequency. <br />
+                  <strong>Note:</strong> Separate recurring series will be created for each selected account.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Date & Time</label>
+            <input
+              type="datetime-local"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              required
+              disabled={restrictFinancialFields}
+              className="form-input mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          </div>
+
+          <FormField
+            type="number"
+            label="Amount"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+            min="0"
+            step="0.01"
+            required
+            placeholder="Enter total amount"
+            disabled={restrictFinancialFields}
           />
-        )}
-      </div>
 
-      <div className="space-y-4">
-        <div><label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={manualEntry} onChange={e => { setManualEntry(e.target.checked); setFormData({...formData, customerId: '', customerName: e.target.checked ? formData.customerName : '' }); }} className="rounded border-gray-300 text-primary focus:ring-primary" /> <span className="text-sm text-gray-700">Enter Customer Manually</span></label></div>
-        {manualEntry ? <FormField label="Customer Name" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} placeholder="Enter customer name" /> : <SearchableSelect label="Customer (Optional)" options={customers.map(c => ({ id: c.id, label: c.name, subLabel: `${c.mobile || ''} - ${c.email || ''}` }))} value={formData.customerId} onChange={id => { const c = customers.find(cu => cu.id === id); setFormData({...formData, customerId: id || '', customerName: c?.name || '' }); }} placeholder="Search customers..." isClearable />}
-      </div>
+          {/* Dealer / Subcontractor Cost & Live Profit Tracking Card */}
+          <div className="bg-slate-50 p-4 rounded-xl border-2 border-indigo-100 space-y-3 text-slate-900 shadow-2xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Dealer / Subcontractor Cost & Profit Tracking
+                  </h4>
+                  <p className="text-[11px] text-slate-500">Live profit margin preview based on transaction amount</p>
+                </div>
+              </div>
+            </div>
 
-      <div><label className="block text-sm font-medium text-gray-700">Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="form-textarea mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required /></div>
-      <div><label className="block text-sm font-medium text-gray-700">Payment Method</label><select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value as any})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option><option value="mobile_money">Mobile Money</option><option value="other">Other</option></select></div>
-      <FormField label="Payment Reference (Optional)" value={formData.paymentReference} onChange={e => setFormData({...formData, paymentReference: e.target.value})} placeholder="e.g., Invoice #, Txn ID" />
-      <div><label className="block text-sm font-medium text-gray-700">Payment Status</label><select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="paid">Paid</option><option value="pending">Pending</option><option value="partially_paid">Partially Paid</option><option value="unpaid">Unpaid</option><option value="failed">Failed</option></select></div>
-      <div><label className="block text-sm font-medium text-gray-700">Transaction Status</label><select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md" required><option value="completed">Completed</option><option value="pending">Pending</option><option value="cancelled">Cancelled</option><option value="failed">Failed</option></select></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Customer Billed (Revenue)
+                </label>
+                <div className="px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono font-bold text-slate-900 text-base">
+                  {formatCurrency(currentBilled)}
+                </div>
+              </div>
 
-      <div className="flex justify-end space-x-3 pt-4">
-        <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-        <button type="submit" disabled={loading} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark disabled:opacity-50">{loading ? 'Saving...' : (transaction ? 'Update Transaction' : 'Create Transaction')}</button>
-      </div>
-    </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Dealer / Subcontractor Cost
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.subcontractorCost}
+                  onChange={(e) => setFormData({ ...formData, subcontractorCost: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/80">
+              <div className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-xs font-bold text-slate-600">Net Profit:</span>
+                <span
+                  className={`text-sm font-black font-mono ${
+                    liveProfitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {formatCurrency(liveProfitMetrics.netProfit)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200">
+                <span className="text-xs font-bold text-slate-600">Profit Margin:</span>
+                <span
+                  className={`text-sm font-black font-mono ${
+                    liveProfitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                  }`}
+                >
+                  {liveProfitMetrics.profitMarginPercent.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Account Selection */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {currentType === 'income' ? 'Primary Receiving Account (Debited)' : 'Primary Paying Account (Credited)'}
+              </label>
+              <select
+                value={currentType === 'income' ? formData.accountTo : formData.accountFrom}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    ...(currentType === 'income' ? { accountTo: e.target.value } : { accountFrom: e.target.value }),
+                  })
+                }
+                disabled={restrictAccountFields}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              >
+                <option value="">Select account...</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({formatCurrency(Number(a.balance || 0))})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Secondary Account (Optional)
+              </label>
+              <select
+                value={currentType === 'income' ? formData.accountTo2 : formData.accountFrom2}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    ...(currentType === 'income' ? { accountTo2: e.target.value } : { accountFrom2: e.target.value }),
+                  })
+                }
+                disabled={restrictAccountFields}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">None</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({formatCurrency(Number(a.balance || 0))})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Contra Account for Transfer */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Contra / Offset Transfer Account (Optional)
+            </label>
+            <select
+              value={formData.accountThird}
+              onChange={(e) => setFormData({ ...formData, accountThird: e.target.value })}
+              disabled={restrictAccountFields}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">None (Standard Transaction)</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({formatCurrency(Number(a.balance || 0))})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Category</label>
+              {catsLoading ? (
+                <div className="text-sm text-gray-500">Loading...</div>
+              ) : (
+                <SearchableSelect
+                  options={financeCategories.map((c) => ({ id: c, label: c }))}
+                  value={formData.category}
+                  onChange={(v) => setFormData({ ...formData, category: v || '' })}
+                  placeholder="Select category..."
+                  required
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Group (Optional)</label>
+              {groupsLoading ? (
+                <div className="text-sm text-gray-500">Loading...</div>
+              ) : (
+                <SearchableSelect
+                  options={groups.map((g) => ({ id: g.id, label: g.name }))}
+                  value={formData.groupId}
+                  onChange={(id) => setFormData({ ...formData, groupId: id || '' })}
+                  placeholder="Select group..."
+                  isClearable
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Department (Optional)</label>
+              <SearchableSelect
+                options={departments.map((d) => ({ id: d.id, label: d.name }))}
+                value={formData.departmentId}
+                onChange={(id) => setFormData({ ...formData, departmentId: id || '' })}
+                placeholder="Select department..."
+                isClearable
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={manualVehicleEntry}
+                  onChange={(e) => {
+                    setManualVehicleEntry(e.target.checked);
+                    setFormData({
+                      ...formData,
+                      vehicleId: '',
+                      manualVehicleMake: '',
+                      manualVehicleModel: '',
+                      manualVehicleReg: '',
+                    });
+                  }}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                /> 
+                <span className="text-sm text-gray-700">Enter Vehicle Manually</span>
+              </label>
+            </div>
+            {manualVehicleEntry ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField
+                  label="Make"
+                  value={formData.manualVehicleMake}
+                  onChange={(e) => setFormData({ ...formData, manualVehicleMake: e.target.value })}
+                  placeholder="e.g. Toyota"
+                  required={manualVehicleEntry}
+                />
+                <FormField
+                  label="Model"
+                  value={formData.manualVehicleModel}
+                  onChange={(e) => setFormData({ ...formData, manualVehicleModel: e.target.value })}
+                  placeholder="e.g. Prius"
+                  required={manualVehicleEntry}
+                />
+                <FormField
+                  label="Registration"
+                  value={formData.manualVehicleReg}
+                  onChange={(e) => setFormData({ ...formData, manualVehicleReg: e.target.value })}
+                  placeholder="e.g. AB12 CDE"
+                  required={manualVehicleEntry}
+                />
+              </div>
+            ) : (
+              <SearchableSelect 
+                label="Related Vehicle (Optional)" 
+                options={vehicles.map((v) => ({
+                  id: v.id,
+                  label: `${v.make} ${v.model} (${v.registrationNumber})`,
+                  subLabel: v.registrationNumber,
+                }))} 
+                value={formData.vehicleId} 
+                onChange={(id) => setFormData({ ...formData, vehicleId: id || '' })} 
+                placeholder="Search vehicles..." 
+                isClearable 
+              />
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={manualEntry}
+                  onChange={(e) => {
+                    setManualEntry(e.target.checked);
+                    setFormData({
+                      ...formData,
+                      customerId: '',
+                      customerName: e.target.checked ? formData.customerName : '',
+                    });
+                  }}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                /> 
+                <span className="text-sm text-gray-700">Enter Customer Manually</span>
+              </label>
+            </div>
+            {manualEntry ? (
+              <FormField
+                label="Customer Name"
+                value={formData.customerName}
+                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                placeholder="Enter customer name"
+              />
+            ) : (
+              <SearchableSelect
+                label="Customer (Optional)"
+                options={customers.map((c) => ({
+                  id: c.id,
+                  label: c.name,
+                  subLabel: `${c.mobile || ''} - ${c.email || ''}`,
+                }))}
+                value={formData.customerId}
+                onChange={(id) => {
+                  const c = customers.find((cu) => cu.id === id);
+                  setFormData({ ...formData, customerId: id || '', customerName: c?.name || '' });
+                }}
+                placeholder="Search customers..."
+                isClearable
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="form-textarea mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+            <select
+              value={formData.paymentMethod}
+              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
+              className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md"
+              required
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+              <option value="mobile_money">Mobile Money</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <FormField
+            label="Payment Reference (Optional)"
+            value={formData.paymentReference}
+            onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
+            placeholder="e.g., Invoice #, Txn ID"
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Payment Status</label>
+            <select
+              value={formData.paymentStatus}
+              onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value as any })}
+              className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md"
+              required
+            >
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+              <option value="partially_paid">Partially Paid</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Transaction Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+              className="form-select mt-1 w-full shadow-sm focus:ring-primary focus:border-primary border-gray-300 rounded-md"
+              required
+            >
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Saving...' : transaction ? 'Update Transaction' : 'Create Transaction'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 };
 

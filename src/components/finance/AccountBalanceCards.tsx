@@ -91,6 +91,15 @@ const AccountBalanceCards: React.FC<AccountBalanceCardsProps> = ({ accounts }) =
                   <p className={`mt-1 text-xl sm:text-2xl font-semibold ${textTone}`}>
                     {formatCurrency(bal)}
                   </p>
+                  {(account.isSharedOwnership || (account.sharedOwnership && account.sharedOwnership.length > 0)) && (
+                    <div className="mt-1">
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-full">
+                        {account.sharedOwnership && account.sharedOwnership.length > 0
+                          ? `Shared: ${account.sharedOwnership.map(s => `${s.sharePercentage}% ${s.ownerName.split(' ')[0]}`).join(' / ')}`
+                          : 'Shared Ownership'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

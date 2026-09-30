@@ -4,6 +4,8 @@ import { useFinances } from '../hooks/useFinances';
 import { useFinanceFilters } from '../hooks/useFinanceFilters';
 import { useVehicles } from '../hooks/useVehicles';
 import { useCustomers } from '../hooks/useCustomers';
+import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
+import { useInvoices } from '../hooks/useInvoices';
 import { Account, Transaction } from '../types';
 import FinanceHeader from '../components/finance/FinanceHeader';
 import FinanceFilters from '../components/finance/FinanceFilters';
@@ -21,6 +23,9 @@ import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDe
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
 import { FleetBIReportModal } from '../components/finance/FleetBIReportModal';
+import { ProfitPayoutActionBar } from '../components/finance/ProfitPayoutActionBar';
+import { ProfitPayoutModal } from '../components/finance/ProfitPayoutModal';
+import RecentAccountTransfers from '../components/finance/RecentAccountTransfers';
 
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { pdf } from '@react-pdf/renderer'; 
@@ -36,9 +41,32 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
-import { Edit2, Trash2, AlertTriangle, FileUp, Layers } from 'lucide-react';
+import { Edit2, Trash2, AlertTriangle, FileUp, Layers, Receipt, Wallet, PieChart, ArrowLeftRight } from 'lucide-react';
 import { addDays, addWeeks, addMonths, addYears, isBefore, format } from 'date-fns'; 
 import { v4 as uuidv4 } from 'uuid';
+import {
+  calculateProfitMetrics,
+  calculateAggregateProfitMetrics,
+  calculateFinanceSummaryCards,
+  calculatePnLSummaryMetrics,
+  calculateDeduplicatedSummaryMetrics,
+} from '../utils/profitCalculator';
+import {
+  enrichTransactionWithMaintenance,
+  isMaintenanceOrderMatch,
+} from '../utils/maintenanceFinanceLink';
+import { purgeOrphanedMaintenanceIncomeEntries } from '../services/unifiedSync.service';
+
+const normalizeOrderRef = (val?: string | null): string => {
+  if (!val) return '';
+  return String(val)
+    .trim()
+    .toLowerCase()
+    .replace(/^order\s*#?/i, '')
+    .replace(/^inv(?:oice)?\s*#?/i, '')
+    .replace(/^#/, '')
+    .trim();
+};
 
 const getNextInvoiceNumber = async (): Promise<string> => {
   const invoicesRef = collection(db, 'invoices');
@@ -147,6 +175,10 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
            finalCategory = 'Other';
         }
 
+        const billed = t.customerBilled !== undefined ? Number(t.customerBilled) : (t.amount || 0);
+        const subCost = t.subcontractorCost !== undefined ? Number(t.subcontractorCost) : 0;
+        const profitMetrics = calculateProfitMetrics(billed, subCost);
+
         const invoiceData = {
           invoiceNumber: invNumber, 
           date: t.date instanceof Timestamp ? t.date.toDate() : (t.date ? new Date(t.date) : new Date()),
@@ -161,6 +193,13 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
           vatAmount: t.vatAmount || 0,
           total: t.amount || 0,
           amount: t.amount || 0,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          customerBilled: billed,
+          netProfit: profitMetrics.netProfit,
+          profitMarginPercent: profitMetrics.profitMarginPercent,
+          orderId: t.orderId || t.orderNumber || null,
+          orderNumber: t.orderNumber || t.orderId || null,
+          referenceId: t.referenceId || t.id,
           paidAmount: 0,
           remainingAmount: t.amount || 0,
           paymentStatus: 'unpaid',
@@ -187,6 +226,14 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
         } else {
           batch.update(doc(db, 'transactions', t.id), { 
             referenceId: invoiceRef.id,
+            invoiceNumber: invNumber,
+            paymentReference: invNumber,
+            orderId: t.orderId || t.orderNumber || null,
+            orderNumber: t.orderNumber || t.orderId || null,
+            subcontractorCost: profitMetrics.subcontractorCost,
+            customerBilled: billed,
+            netProfit: profitMetrics.netProfit,
+            profitMarginPercent: profitMetrics.profitMarginPercent,
             departmentId: departmentId || t.departmentId || null, 
             departmentName: dept ? dept.name : t.departmentName || null,
             groupId: groupId || t.groupId || null,
@@ -364,6 +411,8 @@ const Finance: React.FC = () => {
   const { transactions, loading, error } = useFinances();
   const { vehicles } = useVehicles();
   const { customers } = useCustomers();
+  const { logs: maintenanceLogs } = useMaintenanceLogs();
+  const { invoices } = useInvoices();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const { can } = usePermissions();
   const { user } = useAuth();
@@ -404,9 +453,39 @@ const Finance: React.FC = () => {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false); 
+
+  // Tabbed layout state: 'ledger' (default), 'accounts', or 'distribution'
+  const [activeFinanceTab, setActiveFinanceTab] = useState<'ledger' | 'accounts' | 'distribution'>(() => {
+    try {
+      const saved = localStorage.getItem('finance_active_tab');
+      if (saved === 'ledger' || saved === 'accounts' || saved === 'distribution') {
+        return saved;
+      }
+    } catch {}
+    return 'ledger';
+  });
+
+  const handleTabChange = useCallback((tab: 'ledger' | 'accounts' | 'distribution') => {
+    setActiveFinanceTab(tab);
+    try {
+      localStorage.setItem('finance_active_tab', tab);
+    } catch {}
+  }, []);
   
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showBIReportModal, setShowBIReportModal] = useState(false);
+
+  const [showProfitPayoutModal, setShowProfitPayoutModal] = useState(false);
+  const [payoutVehicleId, setPayoutVehicleId] = useState<string | undefined>(undefined);
+  const [payoutAccountId, setPayoutAccountId] = useState<string | undefined>(undefined);
+  const [payoutTab, setPayoutTab] = useState<'payout' | 'history'>('payout');
+
+  const handleOpenPayoutModal = useCallback((vehicleId?: string, accountId?: string, tab: 'payout' | 'history' = 'payout') => {
+    setPayoutVehicleId(vehicleId);
+    setPayoutAccountId(accountId);
+    setPayoutTab(tab);
+    setShowProfitPayoutModal(true);
+  }, []);
 
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
@@ -439,6 +518,127 @@ const Finance: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  const enrichedTransactions = useMemo(() => {
+    return transactions.map((txn) => {
+      let enriched = enrichTransactionWithMaintenance(txn, maintenanceLogs);
+      // Link with invoice if applicable
+      const linkedInvoice = invoices.find(inv =>
+        inv.id === txn.invoiceId ||
+        inv.id === txn.linkedInvoiceRef ||
+        inv.id === txn.referenceId ||
+        inv.id === txn.entityId ||
+        (txn.invoiceNumber && inv.invoiceNumber === txn.invoiceNumber) ||
+        (txn.paymentReference && inv.invoiceNumber && txn.paymentReference.includes(inv.invoiceNumber))
+      );
+
+      if (linkedInvoice) {
+        const invDealer = linkedInvoice.subcontractorCost !== undefined && Number(linkedInvoice.subcontractorCost) > 0
+          ? Number(linkedInvoice.subcontractorCost)
+          : (linkedInvoice.dealerCost !== undefined && Number(linkedInvoice.dealerCost) > 0 ? Number(linkedInvoice.dealerCost) : undefined);
+        const invBilled = linkedInvoice.customerBilled !== undefined
+          ? Number(linkedInvoice.customerBilled)
+          : (linkedInvoice.total || enriched.amount);
+        const invProfit = linkedInvoice.netProfit !== undefined
+          ? Number(linkedInvoice.netProfit)
+          : (invDealer !== undefined ? Number((invBilled - invDealer).toFixed(2)) : undefined);
+        const invMargin = linkedInvoice.profitMarginPercent !== undefined
+          ? Number(linkedInvoice.profitMarginPercent)
+          : (invBilled > 0 && invProfit !== undefined ? Number(((invProfit / invBilled) * 100).toFixed(1)) : undefined);
+
+        if (invDealer !== undefined) {
+          enriched = {
+            ...enriched,
+            dealerCost: invDealer,
+            subcontractorCost: invDealer,
+            customerBilled: invBilled,
+            netProfit: invProfit ?? enriched.netProfit,
+            profitMarginPercent: invMargin ?? enriched.profitMarginPercent,
+            isProfitEdited: true,
+            isEdited: true,
+            linkedInvoiceRef: linkedInvoice.id,
+            invoiceNumber: enriched.invoiceNumber || linkedInvoice.invoiceNumber,
+          };
+        }
+      }
+
+      const grossVal = Number(enriched.grossBilling ?? enriched.customerBilled ?? (enriched.type === 'income' ? enriched.amount : enriched.amount) ?? 0);
+      const paidVal = Number(
+        enriched.paid !== undefined
+          ? enriched.paid
+          : enriched.paidAmount !== undefined
+          ? enriched.paidAmount
+          : enriched.paymentStatus === 'paid'
+          ? grossVal
+          : 0
+      );
+      const owingVal = Math.max(0, grossVal - paidVal);
+
+      // Check for explicit dealer / subcontractor cost figure on the row
+      const rawCost = enriched.dealerCost !== undefined && enriched.dealerCost !== null && enriched.dealerCost !== ''
+        ? Number(enriched.dealerCost)
+        : (enriched.subcontractorCost !== undefined && enriched.subcontractorCost !== null && enriched.subcontractorCost !== '' ? Number(enriched.subcontractorCost) : undefined);
+      
+      const hasExplicitCost = rawCost !== undefined && !isNaN(rawCost) && rawCost > 0;
+      const isSubMode = (enriched.isEdited === true || enriched.isProfitEdited === true) && hasExplicitCost;
+      const dCost = hasExplicitCost ? rawCost : 0;
+
+      // CASH-BASIS / REALIZED PROFIT MODEL FOR ROW ENTRIES:
+      // Formula strictly equal: Collected Amount (Paid) - Dealer Cost (Do NOT use Gross Billed)
+      const statusStr = String(enriched.paymentStatus || '').toLowerCase();
+      let realizedNetProfit: number | undefined = undefined;
+      let realizedMargin: number | undefined = undefined;
+
+      if (hasExplicitCost) {
+        if (paidVal <= 0 || statusStr === 'unpaid') {
+          realizedNetProfit = 0;
+          realizedMargin = 0;
+        } else {
+          // Strictly equal: Collected Amount (Paid) - Dealer Cost
+          realizedNetProfit = Number((paidVal - dCost).toFixed(2));
+          realizedMargin = paidVal > 0 ? Number(((realizedNetProfit / paidVal) * 100).toFixed(1)) : 0;
+        }
+      }
+
+      return {
+        ...enriched,
+        grossBilling: Number(grossVal || 0),
+        paid: Number(paidVal || 0),
+        owing: Number(owingVal || 0),
+        dealerCost: hasExplicitCost ? dCost : undefined,
+        subcontractorCost: hasExplicitCost ? dCost : undefined,
+        netProfit: realizedNetProfit,
+        profitMarginPercent: realizedMargin,
+        realizedProfit: realizedNetProfit,
+        isProfitEdited: isSubMode,
+        isEdited: isSubMode,
+      };
+    }).filter((txn) => {
+      const typeStr = (txn.type || '').toLowerCase();
+      const txTypeStr = (txn.transactionType || '').toUpperCase();
+      const entryTypeStr = (txn.entryType || '').toUpperCase();
+      if (typeStr !== 'income' && txTypeStr !== 'INCOME' && entryTypeStr !== 'CREDIT') return true;
+
+      // ALWAYS retain legitimate invoice payment entries
+      if (txn.paymentId || txn.entityType === 'INVOICE' || (txn as any).isInvoicePayment || txn.invoiceId) {
+        return true;
+      }
+
+      const desc = String(txn.description || '').toLowerCase();
+      const isMaintOrder =
+        txn.category?.toLowerCase() === 'maintenance' ||
+        txn.entityType === 'MAINTENANCE' ||
+        desc.includes('maintenance job') ||
+        desc.includes('maintenance expense') ||
+        (Array.isArray(maintenanceLogs) && maintenanceLogs.some(log => isMaintenanceOrderMatch(txn, log)));
+
+      if (isMaintOrder) {
+        // Discard any paired/orphaned Income entries tied to maintenance orders
+        return false;
+      }
+      return true;
+    });
+  }, [transactions, maintenanceLogs, invoices]);
+
   const { 
       searchQuery, setSearchQuery, 
       type, setType, 
@@ -454,10 +654,15 @@ const Finance: React.FC = () => {
       showLinked, setShowLinked, 
       recurringFilter, setRecurringFilter, 
       recurringFrequency, setRecurringFrequency,
+      profitTrackingFilter, setProfitTrackingFilter,
       accountSummary, 
       totalOwingFromOwners,
       totalOwingFromAccounts 
-  } = useFinanceFilters(transactions, vehicles, accounts);
+  } = useFinanceFilters(
+    enrichedTransactions,
+    vehicles,
+    accounts
+  );
 
   // Apply Department Filter
   const finalFilteredTransactions = useMemo(() => {
@@ -470,10 +675,34 @@ const Finance: React.FC = () => {
     });
   }, [filteredTransactions, departmentFilter]);
 
-  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedOwner, accountFilter, groupFilter, departmentFilter, showLinked, recurringFilter]);
+  useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedOwner, accountFilter, groupFilter, departmentFilter, showLinked, recurringFilter, profitTrackingFilter]);
 
-  const handleViewTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowDetailsModal(true); }, []);
-  const handleEditTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowEditModal(true); }, []);
+  const handleViewTransaction = useCallback((txn: Transaction) => {
+    const enriched = enrichedTransactions.find(t => t.id === txn.id) || enrichTransactionWithMaintenance(txn, maintenanceLogs);
+    setSelectedTransaction(enriched);
+    setShowDetailsModal(true);
+  }, [enrichedTransactions, maintenanceLogs]);
+
+  const handleEditTransaction = useCallback((txn: Transaction) => {
+    const enriched = enrichedTransactions.find(t => t.id === txn.id) || enrichTransactionWithMaintenance(txn, maintenanceLogs);
+    setSelectedTransaction(enriched);
+    setShowEditModal(true);
+  }, [enrichedTransactions, maintenanceLogs]);
+
+  // Keep selectedTransaction dynamically updated with real-time maintenance log state
+  useEffect(() => {
+    if (selectedTransaction) {
+      const refreshed = enrichedTransactions.find(t => t.id === selectedTransaction.id) || enrichTransactionWithMaintenance(selectedTransaction, maintenanceLogs);
+      if (
+        refreshed.dealerCost !== selectedTransaction.dealerCost ||
+        refreshed.netProfit !== selectedTransaction.netProfit ||
+        refreshed.customerBilled !== selectedTransaction.customerBilled ||
+        refreshed.isProfitEdited !== selectedTransaction.isProfitEdited
+      ) {
+        setSelectedTransaction(refreshed);
+      }
+    }
+  }, [enrichedTransactions, maintenanceLogs, selectedTransaction]);
 
   const handleToggleOne = useCallback((id: string) => {
     setSelectedTransactionIds(prev => {
@@ -555,18 +784,43 @@ const Finance: React.FC = () => {
 
   const handleAssignTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowAssignModal(true); }, []);
 
-  const totalIncomeGross = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalIncomeNet = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
-  const totalIncomeVat = finalFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
+  // Standard 5-Card Profit & Loss (P&L) Summary Metrics calculation:
+  // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
+  // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit)
+  // 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows
+  // 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost field (gracefully treats missing/null as £0.00)
+  // 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost)
+  const summaryMetrics = useMemo(() => {
+    return calculatePnLSummaryMetrics(finalFilteredTransactions);
+  }, [finalFilteredTransactions]);
 
-  const totalExpenseGross = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenseNet = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.netAmount ?? t.amount), 0);
-  const totalExpenseVat = finalFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + (t.vatAmount ?? 0), 0);
+  const profitMargin = summaryMetrics.totalIncome > 0 
+    ? ((summaryMetrics.netProfit / summaryMetrics.totalIncome) * 100).toFixed(1) 
+    : "0.0";
 
-  const netProfitGross = totalIncomeGross - totalExpenseGross;
-  const netProfitNet = totalIncomeNet - totalExpenseNet;
-  const totalVatLiability = totalIncomeVat - totalExpenseVat; 
-  const profitMargin = totalIncomeGross > 0 ? (netProfitGross / totalIncomeGross) * 100 : 0;
+  const legacySummaryMetrics = useMemo(() => {
+    return calculateFinanceSummaryCards(finalFilteredTransactions, maintenanceLogs, invoices);
+  }, [finalFilteredTransactions, maintenanceLogs, invoices]);
+
+  const {
+    totalRevenue,
+    totalIncomeNet,
+    totalIncomeVat,
+    totalCombinedExpenses,
+    standardOperatingExpenses,
+    verifiedSubcontractorExpenses,
+    totalGrossExpenses,
+    totalExpenseNet,
+    totalExpenseVat,
+    netProfit: totalSubcontractorNetProfit,
+    profitMarginPercent: subcontractorProfitMargin,
+    totalVatLiability,
+  } = legacySummaryMetrics;
+
+  const totalIncomeGross = totalRevenue;
+  const totalExpenseGross = totalCombinedExpenses;
+  const netProfitGross = totalSubcontractorNetProfit;
+  const netProfitNet = totalSubcontractorNetProfit;
 
   useEffect(() => {
     if (loading || transactions.length === 0 || hasRunRecurringCheck.current || isProcessingRecurring.current) return;
@@ -858,10 +1112,15 @@ const Finance: React.FC = () => {
       <input type="file" ref={fileInputRef} hidden accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileImport} />
 
       <FinancialSummary 
+        displayMode="top_cards_only"
+        summaryMetrics={summaryMetrics}
         totalIncome={totalIncomeGross} 
         totalIncomeNet={totalIncomeNet}
         totalIncomeVat={totalIncomeVat}
         totalExpenses={totalExpenseGross} 
+        standardExpenses={standardOperatingExpenses}
+        verifiedSubcontractorExpenses={verifiedSubcontractorExpenses}
+        totalCombinedExpenses={totalCombinedExpenses}
         totalExpenseNet={totalExpenseNet}
         totalExpenseVat={totalExpenseVat}
         netIncome={netProfitGross} 
@@ -871,104 +1130,244 @@ const Finance: React.FC = () => {
         totalOwingFromOwners={totalOwingFromOwners} 
         totalOwingFromAccounts={totalOwingFromAccounts} 
         accounts={accounts} 
-        transactions={finalFilteredTransactions} 
-      />
-      
-      <FinanceHeader 
-          onSearch={setSearchQuery} 
-          onImport={handleImportClick} 
-          onExport={handleExport} 
-          onAddIncome={() => setShowAddIncome(true)} 
-          onAddExpense={() => setShowAddExpense(true)} 
-          onAddRecurring={() => setShowRecurringModal(true)} 
-          onOpenBIReport={() => setShowBIReportModal(true)}
-          onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} 
-          onManageGroups={() => setManageOpen(true)} 
-          onManageDepartments={() => setShowManageDepartments(true)}
-          onManageCategories={() => setShowCatModal(true)} 
-          onManageAccounts={() => setShowManageAccountsModal(true)} 
-      />
-      
-      <FinanceFilters 
-          type={type} onTypeChange={setType} 
-          searchQuery={searchQuery} onSearchChange={setSearchQuery} 
-          statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} 
-          categoryFilter={category} onCategoryFilterChange={setCategory} 
-          dateRange={dateRange} onDateRangeChange={setDateRange} 
-          accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} 
-          accounts={accounts} 
-          owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} 
-          accountSummary={accountSummary} 
-          categories={financeCategories.map((c) => c.name)} 
-          groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} 
-          groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} 
-          departmentFilter={departmentFilter} onDepartmentFilterChange={setDepartmentFilter}
-          departments={departments}
-          customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter} customers={customers} 
-          vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} vehicles={vehicles} 
-          showLinked={showLinked} onShowLinkedChange={setShowLinked} 
-          recurringFilter={recurringFilter} onRecurringFilterChange={setRecurringFilter}
-          recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
+        transactions={finalFilteredTransactions}
+        totalRevenue={totalRevenue}
+        totalSubcontractorExpenses={verifiedSubcontractorExpenses}
+        totalSubcontractorNetProfit={totalSubcontractorNetProfit}
+        subcontractorProfitMargin={subcontractorProfitMargin}
       />
 
-      {selectedTransactionIds.size > 0 && (can('finance', 'assign') || can('finance', 'delete')) && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
-          <span className="font-medium text-sm text-indigo-800">{selectedTransactionIds.size} transaction(s) selected</span>
-          <div className="flex flex-wrap gap-2">
-            {can('finance', 'assign') && (
-              <>
-                <button 
-                  onClick={() => setShowAssignGroupModal(true)}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
-                >
-                  Assign Group
-                </button>
-                <button 
-                  onClick={() => setShowAssignDepartmentModal(true)}
-                  className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
-                >
-                  Assign Dept
-                </button>
-                <button 
-                  onClick={() => setShowTransferModal(true)}
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
-                >
-                  <FileUp className="h-4 w-4 inline-block mr-1.5" />
-                  Transfer to Invoice
-                </button>
-              </>
-            )}
-            {can('finance', 'delete') && (
-              <button 
-                onClick={handleBulkDeleteClick}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
+      {/* HORIZONTAL TAB / PILL NAVIGATION MENU */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 -mx-4 px-4 sm:-mx-6 sm:px-6 shadow-xs">
+        <div className="flex items-center justify-between">
+          <nav className="flex space-x-4 sm:space-x-8 -mb-px overflow-x-auto no-scrollbar" aria-label="Finance navigation tabs">
+            {/* Tab 1: Ledger & Transactions */}
+            <button
+              type="button"
+              onClick={() => handleTabChange('ledger')}
+              className={`group inline-flex items-center py-3.5 px-1 border-b-2 font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
+                activeFinanceTab === 'ledger'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Receipt className={`mr-2.5 h-4 w-4 ${activeFinanceTab === 'ledger' ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+              <span>Ledger &amp; Transactions</span>
+              <span
+                className={`ml-2.5 py-0.5 px-2 rounded-full text-xs font-bold font-mono ${
+                  activeFinanceTab === 'ledger'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
               >
-                Delete {selectedTransactionIds.size} Records
-              </button>
-            )}
-          </div>
+                {finalFilteredTransactions.length}
+              </span>
+            </button>
+
+            {/* Tab 2: Accounts & Balances */}
+            <button
+              type="button"
+              onClick={() => handleTabChange('accounts')}
+              className={`group inline-flex items-center py-3.5 px-1 border-b-2 font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
+                activeFinanceTab === 'accounts'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Wallet className={`mr-2.5 h-4 w-4 ${activeFinanceTab === 'accounts' ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+              <span>Accounts &amp; Balances</span>
+              <span
+                className={`ml-2.5 py-0.5 px-2 rounded-full text-xs font-bold font-mono ${
+                  activeFinanceTab === 'accounts'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {accounts.length}
+              </span>
+            </button>
+
+            {/* Tab 3: Profit Distribution */}
+            <button
+              type="button"
+              onClick={() => handleTabChange('distribution')}
+              className={`group inline-flex items-center py-3.5 px-1 border-b-2 font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
+                activeFinanceTab === 'distribution'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <PieChart className={`mr-2.5 h-4 w-4 ${activeFinanceTab === 'distribution' ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+              <span>Profit Distribution</span>
+              <span
+                className={`ml-2.5 py-0.5 px-2 rounded-full text-[10px] font-extrabold uppercase ${
+                  activeFinanceTab === 'distribution'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                Co-Owned
+              </span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* TAB CONTENT ROUTING */}
+      {/* 1. WHEN 'Ledger & Transactions' IS ACTIVE */}
+      {activeFinanceTab === 'ledger' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <FinanceHeader 
+            onSearch={setSearchQuery} 
+            onImport={handleImportClick} 
+            onExport={handleExport} 
+            onAddIncome={() => setShowAddIncome(true)} 
+            onAddExpense={() => setShowAddExpense(true)} 
+            onAddRecurring={() => setShowRecurringModal(true)} 
+            onOpenBIReport={() => setShowBIReportModal(true)}
+            onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} 
+            onManageGroups={() => setManageOpen(true)} 
+            onManageDepartments={() => setShowManageDepartments(true)}
+            onManageCategories={() => setShowCatModal(true)} 
+            onManageAccounts={() => setShowManageAccountsModal(true)} 
+          />
+          
+          <FinanceFilters 
+            type={type} onTypeChange={setType} 
+            searchQuery={searchQuery} onSearchChange={setSearchQuery} 
+            statusFilter={paymentStatus} onStatusFilterChange={setPaymentStatus} 
+            categoryFilter={category} onCategoryFilterChange={setCategory} 
+            dateRange={dateRange} onDateRangeChange={setDateRange} 
+            accountFilter={accountFilter} onAccountFilterChange={setAccountFilter} 
+            accounts={accounts} 
+            owner={selectedOwner} onOwnerChange={setSelectedOwner} owners={owners} 
+            accountSummary={accountSummary} 
+            categories={financeCategories.map((c) => c.name)} 
+            groupFilter={groupFilter} onGroupFilterChange={setGroupFilter} 
+            groupOptions={groups.map((g) => ({ id: g.id, name: g.name }))} 
+            departmentFilter={departmentFilter} onDepartmentFilterChange={setDepartmentFilter}
+            departments={departments}
+            customerFilter={customerFilter} onCustomerFilterChange={setCustomerFilter} customers={customers} 
+            vehicleFilter={vehicleFilter} onVehicleFilterChange={setVehicleFilter} vehicles={vehicles} 
+            showLinked={showLinked} onShowLinkedChange={setShowLinked} 
+            recurringFilter={recurringFilter} onRecurringFilterChange={setRecurringFilter}
+            recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
+            profitTrackingFilter={profitTrackingFilter} onProfitTrackingFilterChange={setProfitTrackingFilter}
+          />
+
+          {selectedTransactionIds.size > 0 && (can('finance', 'assign') || can('finance', 'delete')) && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 my-4 flex items-center justify-between shadow-sm">
+              <span className="font-medium text-sm text-indigo-800">{selectedTransactionIds.size} transaction(s) selected</span>
+              <div className="flex flex-wrap gap-2">
+                {can('finance', 'assign') && (
+                  <>
+                    <button 
+                      onClick={() => setShowAssignGroupModal(true)}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
+                    >
+                      Assign Group
+                    </button>
+                    <button 
+                      onClick={() => setShowAssignDepartmentModal(true)}
+                      className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-sm transition-colors"
+                    >
+                      Assign Dept
+                    </button>
+                    <button 
+                      onClick={() => setShowTransferModal(true)}
+                      className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors"
+                    >
+                      <FileUp className="h-4 w-4 inline-block mr-1.5" />
+                      Transfer to Invoice
+                    </button>
+                  </>
+                )}
+                {can('finance', 'delete') && (
+                  <button 
+                    onClick={handleBulkDeleteClick}
+                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm transition-colors"
+                  >
+                    Delete {selectedTransactionIds.size} Records
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <TransactionTable 
+            transactions={finalFilteredTransactions} 
+            vehicles={vehicles} 
+            accounts={accounts} 
+            groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+            onView={handleViewTransaction} 
+            onEdit={handleEditTransaction} 
+            onDelete={handleDeleteTransaction} 
+            onGenerateDocument={handleGenerateDocument} 
+            onViewDocument={(url) => window.open(url, '_blank', 'noopener,noreferrer')} 
+            onPrintReceipt={handlePrintReceipt} 
+            onAssign={handleAssignTransaction} 
+            onAssignDepartment={(txn) => { setSelectedTransaction(txn); setShowAssignDepartmentModal(true); }}
+            
+            isManager={can('finance', 'assign') || can('finance', 'delete')}
+            selectedIds={selectedTransactionIds}
+            onToggleOne={handleToggleOne}
+            onToggleAll={handleToggleAll}
+          />
         </div>
       )}
 
-      <TransactionTable 
-        transactions={finalFilteredTransactions} 
-        vehicles={vehicles} 
-        accounts={accounts} 
-        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-        onView={handleViewTransaction} 
-        onEdit={handleEditTransaction} 
-        onDelete={handleDeleteTransaction} 
-        onGenerateDocument={handleGenerateDocument} 
-        onViewDocument={(url) => window.open(url, '_blank', 'noopener,noreferrer')} 
-        onPrintReceipt={handlePrintReceipt} 
-        onAssign={handleAssignTransaction} 
-        onAssignDepartment={(txn) => { setSelectedTransaction(txn); setShowAssignDepartmentModal(true); }}
-        
-        isManager={can('finance', 'assign') || can('finance', 'delete')}
-        selectedIds={selectedTransactionIds}
-        onToggleOne={handleToggleOne}
-        onToggleAll={handleToggleAll}
-      />
+      {/* 2. WHEN 'Accounts & Balances' IS ACTIVE */}
+      {activeFinanceTab === 'accounts' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <FinancialSummary 
+            displayMode="accounts_only"
+            summaryMetrics={summaryMetrics}
+            totalIncome={totalIncomeGross} 
+            totalIncomeNet={totalIncomeNet}
+            totalIncomeVat={totalIncomeVat}
+            totalExpenses={totalExpenseGross} 
+            standardExpenses={standardOperatingExpenses}
+            verifiedSubcontractorExpenses={verifiedSubcontractorExpenses}
+            totalCombinedExpenses={totalCombinedExpenses}
+            totalExpenseNet={totalExpenseNet}
+            totalExpenseVat={totalExpenseVat}
+            netIncome={netProfitGross} 
+            netIncomeNet={netProfitNet}
+            totalVatLiability={totalVatLiability}
+            profitMargin={profitMargin} 
+            totalOwingFromOwners={totalOwingFromOwners} 
+            totalOwingFromAccounts={totalOwingFromAccounts} 
+            accounts={accounts} 
+            transactions={finalFilteredTransactions}
+            totalRevenue={totalRevenue}
+            totalSubcontractorExpenses={verifiedSubcontractorExpenses}
+            totalSubcontractorNetProfit={totalSubcontractorNetProfit}
+            subcontractorProfitMargin={subcontractorProfitMargin}
+          />
+
+          {/* RECENT ACCOUNT TRANSFERS AUDIT LOG */}
+          <RecentAccountTransfers
+            accounts={accounts}
+            transactions={transactions}
+            onViewTransaction={handleViewTransaction}
+            onEditTransaction={handleEditTransaction}
+            onNewTransfer={() => setShowAddExpense(true)}
+          />
+        </div>
+      )}
+
+      {/* 3. WHEN 'Profit Distribution' IS ACTIVE */}
+      {activeFinanceTab === 'distribution' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <ProfitPayoutActionBar
+            accounts={accounts}
+            vehicles={vehicles}
+            transactions={transactions}
+            onOpenPayoutModal={handleOpenPayoutModal}
+            onOpenManageAccounts={() => setShowManageAccountsModal(true)}
+          />
+        </div>
+      )}
 
       <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)} title="Transfer to Invoice" size="xl">
          <TransferToInvoiceModalContent 
@@ -1014,14 +1413,14 @@ const Finance: React.FC = () => {
       />
 
       <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl">
-        <TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} />
+        <TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} transactions={transactions} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} />
       </Modal>
       
       <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
-          <TransactionForm type="income" initialIsRecurring={true} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => setShowRecurringModal(false)} />
+          <TransactionForm type="income" initialIsRecurring={true} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} transactions={transactions} onClose={() => setShowRecurringModal(false)} />
       </Modal>
 
-      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
+      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} title="Edit Transaction" size="xl">{selectedTransaction && (<TransactionForm type={selectedTransaction.type} transaction={selectedTransaction} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} transactions={transactions} onClose={() => { setShowEditModal(false); setSelectedTransaction(null); }} />)}</Modal>
       <Modal 
         isOpen={showDetailsModal} 
         onClose={() => { setShowDetailsModal(false); setSelectedTransaction(null); }} 
@@ -1043,7 +1442,15 @@ const Finance: React.FC = () => {
       <ManageGroupsModal open={manageOpen} onClose={() => { setManageOpen(false); loadGroups(); }} />
       <AssignGroupCategoryModal open={showAssignModal} txn={selectedTransaction} groups={groups} categories={financeCategories} accounts={accounts} onClose={() => { setShowAssignModal(false); setSelectedTransaction(null); }} onAssigned={() => { setShowAssignModal(false); setSelectedTransaction(null); }} />
       <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} title="Delete Transaction" size="sm">{selectedTransaction && ( <TransactionDeleteModal transactionId={selectedTransaction.id} onClose={() => { setShowDeleteModal(false); setSelectedTransaction(null); }} onDeleted={handleConfirmDeleteSingle} /> )}</Modal>
-      <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl"><ManageAccountsModal onClose={() => setShowManageAccountsModal(false)} accounts={accounts} transactions={transactions} /></Modal>
+      <Modal isOpen={showManageAccountsModal} onClose={() => setShowManageAccountsModal(false)} title="Manage Accounts" size="xl">
+        <ManageAccountsModal 
+          onClose={() => setShowManageAccountsModal(false)} 
+          accounts={accounts} 
+          transactions={transactions} 
+          vehicles={vehicles}
+          onOpenPayout={(vId, accId) => handleOpenPayoutModal(vId, accId, 'payout')}
+        />
+      </Modal>
       <Modal isOpen={showDeleteLinkedModal} onClose={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} title="Delete Linked Transaction?" size="md"><div className="p-1"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-4 mt-0 text-left"><h3 className="text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3><div className="mt-2"><p className="text-sm text-gray-500">This transaction appears linked to {linkedTransactionsToDelete ? linkedTransactionsToDelete.length - 1 : 0} other(s). Delete only this one, or all linked parts?</p></div></div></div><div className="mt-6 flex flex-col sm:flex-row-reverse gap-3"><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteLinked} className="inline-flex w-full justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 sm:w-auto">{deleteLoading ? "Deleting..." : `Delete All ${linkedTransactionsToDelete?.length || 0} Linked`}</button><button type="button" disabled={deleteLoading} onClick={handleConfirmDeleteSingle} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:w-auto">{deleteLoading ? "..." : "Delete Only This One"}</button><button type="button" disabled={deleteLoading} onClick={() => { setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null); }} className="inline-flex w-full justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 sm:mt-0 sm:w-auto">Cancel</button></div></div></Modal>
       
       <Modal isOpen={showCatModal} onClose={() => setShowCatModal(false)} title="Manage Categories" size="lg">
@@ -1084,6 +1491,17 @@ const Finance: React.FC = () => {
         accounts={accounts}
         totalOwingFromOwners={totalOwingFromOwners}
         totalOwingFromAccounts={totalOwingFromAccounts}
+      />
+
+      <ProfitPayoutModal
+        isOpen={showProfitPayoutModal}
+        onClose={() => setShowProfitPayoutModal(false)}
+        accounts={accounts}
+        transactions={transactions}
+        vehicles={vehicles}
+        initialVehicleId={payoutVehicleId}
+        initialAccountId={payoutAccountId}
+        initialTab={payoutTab}
       />
 
     </div>

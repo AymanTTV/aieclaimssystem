@@ -9,6 +9,80 @@
     --bg-card-navy-elevated: #1E2238;
     --border-card-navy: #2B314E;
     --text-navy-title: #FFFFFF;
+
+    /* ── Global Financial Semantic Status Theme Palette ── */
+
+    /* 1. OWING / OUTSTANDING / DANGER: Red */
+    --color-danger: #DC2626;         /* Red-600 */
+    --color-danger-dark: #B91C1C;    /* Red-700 */
+    --color-danger-light: #EF4444;   /* Red-500 */
+    --color-danger-bg: #FEF2F2;      /* Red-50 */
+    --color-danger-border: #FECACA;  /* Red-200 */
+    --color-danger-subtle: #FCA5A5;  /* Red-300 */
+    --color-owing: var(--color-danger);
+    --color-owing-dark: var(--color-danger-dark);
+    --color-owing-bg: var(--color-danger-bg);
+    --color-owing-border: var(--color-danger-border);
+
+    /* 2. PAID / SETTLED / SUCCESS: Green */
+    --color-success: #059669;        /* Emerald-600 */
+    --color-success-dark: #047857;   /* Emerald-700 / #15803D */
+    --color-success-light: #10B981;  /* Emerald-500 */
+    --color-success-bg: #ECFDF5;     /* Emerald-50 */
+    --color-success-border: #A7F3D0; /* Emerald-200 */
+    --color-success-subtle: #6EE7B7; /* Emerald-300 */
+    --color-paid: var(--color-success);
+    --color-paid-dark: var(--color-success-dark);
+    --color-paid-bg: var(--color-success-bg);
+    --color-paid-border: var(--color-success-border);
+
+    /* 3. TOTAL / GROSS BILLING / WARNING: Orange / Amber */
+    --color-warning: #D97706;        /* Amber-600 */
+    --color-warning-dark: #B45309;   /* Amber-700 */
+    --color-warning-light: #F59E0B;  /* Amber-500 */
+    --color-warning-bg: #FFFBEB;     /* Amber-50 */
+    --color-warning-border: #FDE68A; /* Amber-200 */
+    --color-warning-subtle: #FCD34D; /* Amber-300 */
+    --color-total: var(--color-warning);
+    --color-total-dark: var(--color-warning-dark);
+    --color-total-bg: var(--color-warning-bg);
+    --color-total-border: var(--color-warning-border);
+
+    /* 4. DEALER / SUBCONTRACTOR / INTERNAL COSTS: Neutral Muted Slate Gray */
+    --color-neutral-cost: #475569;        /* Slate-600 Muted Neutral */
+    --color-neutral-cost-dark: #334155;   /* Slate-700 */
+    --color-neutral-cost-light: #64748B;  /* Slate-500 */
+    --color-neutral-cost-bg: #F8FAFC;     /* Slate-50 */
+    --color-neutral-cost-border: #E2E8F0; /* Slate-200 */
+    --color-dealer: var(--color-neutral-cost);
+    --color-dealer-dark: var(--color-neutral-cost-dark);
+    --color-dealer-bg: var(--color-neutral-cost-bg);
+    --color-dealer-border: var(--color-neutral-cost-border);
+
+    /* 5. PROFIT / MARGIN / YIELD */
+    --color-profit: var(--color-success);
+    --color-profit-dark: var(--color-success-dark);
+    --color-margin: var(--color-success);
+    --color-loss: var(--color-danger);
+
+    /* Direct Financial Aliases */
+    --color-financial-total: var(--color-total);
+    --color-financial-total-bg: var(--color-total-bg);
+    --color-financial-total-border: var(--color-total-border);
+    --color-financial-paid: var(--color-paid);
+    --color-financial-paid-dark: var(--color-paid-dark);
+    --color-financial-paid-bg: var(--color-paid-bg);
+    --color-financial-paid-border: var(--color-paid-border);
+    --color-financial-owing: var(--color-owing);
+    --color-financial-owing-dark: var(--color-owing-dark);
+    --color-financial-owing-bg: var(--color-owing-bg);
+    --color-financial-owing-border: var(--color-owing-border);
+    --color-financial-dealer: var(--color-dealer);
+    --color-financial-dealer-bg: var(--color-dealer-bg);
+    --color-financial-dealer-border: var(--color-dealer-border);
+    --color-financial-profit: var(--color-profit);
+    --color-financial-profit-dark: var(--color-profit-dark);
+    --color-financial-loss: var(--color-loss);
   }
 
   html, body {
@@ -952,11 +1026,12 @@
     color-scheme: light !important;
   }
 
-  /* Compulsory notice tag */
-  .schedule-rental-modal span[title="Compulsory field - Must fill in"] {
-    background-color: #FEE2E2 !important;
-    border-color: #FCA5A5 !important;
-    color: #991B1B !important;
+  /* Standard required field indicator */
+  .field-required-asterisk {
+    color: #ef4444;
+    margin-left: 0.25rem;
+    font-weight: 700;
+    user-select: none;
   }
 
   /* Modal custom scrollbar styling */
@@ -993,7 +1068,36 @@
     @apply bg-slate-50 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider border-b border-slate-200;
   }
   .table-row {
-    @apply hover:bg-slate-50 transition-colors duration-150 border-b border-slate-200 last:border-0;
+    @apply hover:bg-slate-50 transition-colors duration-150 border-b border-slate-200 last:border-0 relative;
+  }
+
+  /* Color-coded left-border indicators based on payment status (red for owing, green for paid) */
+  .table-row.payment-owing,
+  .table-row.table-row-owing,
+  .table-row.status-owing,
+  .table-row[data-payment-status="unpaid"],
+  .table-row[data-payment-status="owing"],
+  .table-row[data-payment-status="partially_paid"],
+  .table-row[data-payment-status="overdue"],
+  tr.table-row.payment-owing td:first-child,
+  tr.table-row.table-row-owing td:first-child,
+  tr.payment-owing td:first-child,
+  tr[data-payment-status="unpaid"] td:first-child,
+  tr[data-payment-status="owing"] td:first-child,
+  tr[data-payment-status="partially_paid"] td:first-child,
+  tr[data-payment-status="overdue"] td:first-child {
+    border-left: 4px solid #dc2626 !important;
+  }
+
+  .table-row.payment-paid,
+  .table-row.table-row-paid,
+  .table-row.status-paid,
+  .table-row[data-payment-status="paid"],
+  tr.table-row.payment-paid td:first-child,
+  tr.table-row.table-row-paid td:first-child,
+  tr.payment-paid td:first-child,
+  tr[data-payment-status="paid"] td:first-child {
+    border-left: 4px solid #059669 !important;
   }
   .table-cell {
     @apply whitespace-nowrap text-sm text-slate-900 py-4;
@@ -1062,5 +1166,50 @@
     -ms-overflow-style: none !important;
     scrollbar-width: none !important;
   }
+
+  /* ── Financial Status Semantic Utility Classes ── */
+  /* Total (Amber) */
+  .text-financial-total { color: var(--color-total) !important; }
+  .bg-financial-total { background-color: var(--color-total-bg) !important; }
+  .border-financial-total { border-color: var(--color-total-border) !important; }
+  .financial-badge-total {
+    color: var(--color-total-dark);
+    background-color: var(--color-total-bg);
+    border: 1px solid var(--color-total-border);
+  }
+
+  /* Paid (Green) */
+  .text-financial-paid { color: var(--color-paid-dark) !important; }
+  .bg-financial-paid { background-color: var(--color-paid-bg) !important; }
+  .border-financial-paid { border-color: var(--color-paid-border) !important; }
+  .financial-badge-paid {
+    color: var(--color-paid-dark);
+    background-color: var(--color-paid-bg);
+    border: 1px solid var(--color-paid-border);
+  }
+
+  /* Owing (Red) */
+  .text-financial-owing { color: var(--color-owing) !important; }
+  .bg-financial-owing { background-color: var(--color-owing-bg) !important; }
+  .border-financial-owing { border-color: var(--color-owing-border) !important; }
+  .financial-badge-owing {
+    color: var(--color-owing-dark);
+    background-color: var(--color-owing-bg);
+    border: 1px solid var(--color-owing-border);
+  }
+
+  /* Dealer Cost (Neutral Slate) */
+  .text-financial-dealer { color: var(--color-dealer) !important; }
+  .bg-financial-dealer { background-color: var(--color-dealer-bg) !important; }
+  .border-financial-dealer { border-color: var(--color-dealer-border) !important; }
+  .financial-badge-dealer {
+    color: var(--color-dealer-dark);
+    background-color: var(--color-dealer-bg);
+    border: 1px solid var(--color-dealer-border);
+  }
+
+  /* Profit & Loss */
+  .text-financial-profit { color: var(--color-profit-dark) !important; }
+  .text-financial-loss { color: var(--color-loss) !important; }
 }
 

@@ -34,6 +34,7 @@ export interface MaintenanceLog {
   customerId?: string;
   // NEW FIELDS
   orderNumber?: string;       // e.g. MaintenanceOrder0001
+  orderId?: string;           // Sync alias for orderNumber
   invoiceNumber?: string;     // e.g. MaintenanceInvoice0001
   invoiceDate?: Date;
   invoiceDueDate?: Date;
@@ -82,6 +83,19 @@ export interface MaintenanceLog {
   date?: Date | null;
   description: string;
   cost: number;
+  // Subcontractor Cost & Profit Tracking
+  subcontractorCost?: number;
+  dealerCost?: number;
+  customerBilled?: number;
+  netProfit?: number;
+  profitMarginPercent?: number;
+  profitMargin?: number;
+  isProfitEdited?: boolean;
+  isEdited?: boolean;
+  entityId?: string;
+  entityType?: 'MAINTENANCE';
+  vatType?: string;
+  completionStatus?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   // ✅ UPDATE: Add these new payment tracking fields
   paidAmount?: number;
   remainingAmount?: number;

@@ -1,60 +1,185 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MaintenanceLog, isOffRoadAccidentLog } from '../../types/maintenance';
 import { Calendar, Wrench, CheckCircle, XCircle, DollarSign, AlertTriangle, Package, Building2, ShieldAlert } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
 import { differenceInCalendarDays } from 'date-fns';
 
-interface MaintenanceSummaryCardsProps {
-  logs: MaintenanceLog[];
+export interface MaintenanceFinancialSummary {
+  totalNet: number;
+  totalVat: number;
+  totalDiscount: number;
+  totalCost: number;
+  totalPaid: number;
+  totalOwing: number;
+  totalSubCost: number;
+  totalBilled: number;
+  totalNetProfit: number;
+  totalProfitMargin: number;
+  totalCount?: number;
+  count?: number;
+}
+
+export interface MaintenanceSummaryCardsProps {
+  logs?: MaintenanceLog[];
+  allItems?: MaintenanceLog[];
+  filteredLogs?: MaintenanceLog[];
+  filteredItems?: MaintenanceLog[];
+  filteredData?: MaintenanceLog[];
+  contextLogs?: MaintenanceLog[];
   activeStatusFilter?: string;
   onSelectStatusFilter?: (status: string) => void;
   activeRoadConditionFilter?: string;
   onSelectRoadConditionFilter?: (condition: string) => void;
+  serverSummary?: Partial<MaintenanceFinancialSummary>;
 }
 
 const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({ 
-  logs,
+  logs = [],
+  allItems,
+  filteredLogs,
+  filteredItems,
+  filteredData,
+  contextLogs,
   activeStatusFilter = 'all',
   onSelectStatusFilter,
   activeRoadConditionFilter = 'all',
-  onSelectRoadConditionFilter
+  onSelectRoadConditionFilter,
+  serverSummary
 }) => {
   // Destructure isCompany from usePermissions
   const { can, isCompany } = usePermissions();
   const { formatCurrency } = useFormattedDisplay();
 
-  if (!can('maintenance', 'cards')) return null;
+  // 1. Reactive summary calculation: consume the filteredItems state (which depends on search/vehicle filters) instead of full allItems
+  const activeFilteredItems = useMemo<MaintenanceLog[]>(() => {
+    if (filteredItems !== undefined) return filteredItems;
+    if (filteredData !== undefined) return filteredData;
+    if (filteredLogs !== undefined) return filteredLogs;
+    return allItems ?? logs ?? [];
+  }, [filteredItems, filteredData, filteredLogs, allItems, logs]);
+
+  // 2. useMemo hook that recalculates financial totals directly based on 'filteredItems'
+  const financialSummary = useMemo<MaintenanceFinancialSummary>(() => {
+    // If a server-side aggregate summary object was provided, prefer it
+    if (serverSummary) {
+      const billed = Number(serverSummary.totalBilled) || 0;
+      const subCost = Number(serverSummary.totalSubCost) || 0;
+      const profit = serverSummary.totalNetProfit !== undefined ? Number(serverSummary.totalNetProfit) : (billed - subCost);
+      const margin = serverSummary.totalProfitMargin !== undefined
+        ? Number(serverSummary.totalProfitMargin)
+        : (billed > 0 ? (profit / billed) * 100 : 0);
+
+      return {
+        totalNet: Number(serverSummary.totalNet) || 0,
+        totalVat: Number(serverSummary.totalVat) || 0,
+        totalDiscount: Number(serverSummary.totalDiscount) || 0,
+        totalCost: Number(serverSummary.totalCost) || 0,
+        totalPaid: Number(serverSummary.totalPaid) || 0,
+        totalOwing: Number(serverSummary.totalOwing) || 0,
+        totalSubCost: subCost,
+        totalBilled: billed,
+        totalNetProfit: isNaN(profit) ? 0 : profit,
+        totalProfitMargin: isNaN(margin) ? 0 : margin,
+        count: Number(serverSummary.count ?? serverSummary.totalCount ?? 0)
+      };
+    }
+
+    const itemsToCalculate = filteredItems ?? activeFilteredItems;
+
+    // 3. Edge Case Handling: When no records match filter criteria (empty state), gracefully return 0.00 for all fields
+    if (!itemsToCalculate || itemsToCalculate.length === 0) {
+      return {
+        totalNet: 0,
+        totalVat: 0,
+        totalDiscount: 0,
+        totalCost: 0,
+        totalPaid: 0,
+        totalOwing: 0,
+        totalSubCost: 0,
+        totalBilled: 0,
+        totalNetProfit: 0,
+        totalProfitMargin: 0,
+        count: 0
+      };
+    }
+
+    const totalNet = itemsToCalculate.reduce((s, l) => s + (Number(l.netAmount) || 0), 0);
+    const totalVat = itemsToCalculate.reduce((s, l) => s + (Number(l.vatAmount) || 0), 0);
+    const totalDiscount = itemsToCalculate.reduce((s, l) => s + (Number(l.totalDiscount) || 0), 0);
+    const totalCost = itemsToCalculate.reduce((s, l) => s + (Number(l.cost) || 0), 0);
+    const totalPaid = itemsToCalculate.reduce((s, l) => s + (Number(l.paidAmount) || 0), 0);
+    const totalOwing = itemsToCalculate.reduce((s, l) => s + (Number(l.remainingAmount) || 0), 0);
+
+    let totalSubCost = 0;
+    let totalBilled = 0;
+    let totalNetProfit = 0;
+
+    itemsToCalculate.forEach((l) => {
+      const billed = l.customerBilled !== undefined ? Number(l.customerBilled) : Number(l.cost || 0);
+      const isProfitEdited = l.isProfitEdited === true;
+
+      // 1. DEFAULT PROFIT EXCLUSION (IGNORE UNTIL EDITED & SAVED):
+      // For all newly created/unedited data records, default Dealer Cost to match Total price (Profit £0.00 / 0.0% Margin).
+      // The system IGNORES profit calculation UNTIL a user manually opens the record, clicks "Edit", updates info, and hits "Save" / "Update".
+      const sub = isProfitEdited
+        ? (l.subcontractorCost !== undefined ? Number(l.subcontractorCost) : billed)
+        : billed;
+
+      const profit = isProfitEdited
+        ? (l.netProfit !== undefined ? Number(l.netProfit) : (billed - sub))
+        : 0;
+
+      totalBilled += isNaN(billed) ? 0 : billed;
+      totalSubCost += isNaN(sub) ? 0 : sub;
+      totalNetProfit += isNaN(profit) ? 0 : profit;
+    });
+
+    const totalProfitMargin = totalBilled > 0 ? (totalNetProfit / totalBilled) * 100 : 0;
+
+    return {
+      totalNet: isNaN(totalNet) ? 0 : totalNet,
+      totalVat: isNaN(totalVat) ? 0 : totalVat,
+      totalDiscount: isNaN(totalDiscount) ? 0 : totalDiscount,
+      totalCost: isNaN(totalCost) ? 0 : totalCost,
+      totalPaid: isNaN(totalPaid) ? 0 : totalPaid,
+      totalOwing: isNaN(totalOwing) ? 0 : totalOwing,
+      totalSubCost: isNaN(totalSubCost) ? 0 : totalSubCost,
+      totalBilled: isNaN(totalBilled) ? 0 : totalBilled,
+      totalNetProfit: isNaN(totalNetProfit) ? 0 : totalNetProfit,
+      totalProfitMargin: isNaN(totalProfitMargin) ? 0 : totalProfitMargin,
+      count: itemsToCalculate.length
+    };
+  }, [filteredItems, activeFilteredItems, serverSummary]);
+
+  // Context-filtered items for status distribution cards (so users can inspect other statuses for the filtered vehicle/query)
+  const statusItems = useMemo<MaintenanceLog[]>(() => {
+    return contextLogs ?? (filteredItems || filteredData || filteredLogs ? activeFilteredItems : (allItems ?? logs ?? []));
+  }, [contextLogs, filteredItems, filteredData, filteredLogs, activeFilteredItems, allItems, logs]);
 
   // status counts
-  const totalLogs  = logs.length;
-  const scheduled  = logs.filter(l => l.status === 'scheduled').length;
-  const inProgress = logs.filter(l => l.status === 'in-progress').length;
-  const workshop   = logs.filter(l => l.status === 'workshop' || (l.status as any) === 'in workshop').length;
-  const partsBackorder = logs.filter(l => l.status === 'parts-backorder' || l.status === 'awaiting-parts' || (l.status as any) === 'parts backorder').length;
-  const bodywork   = logs.filter(l => l.status === 'bodywork').length;
-  const completed  = logs.filter(l => l.status === 'completed').length;
-  const cancelled  = logs.filter(l => l.status === 'cancelled').length;
+  const totalLogs = statusItems.length;
+  const scheduled = useMemo(() => statusItems.filter(l => l.status === 'scheduled').length, [statusItems]);
+  const inProgress = useMemo(() => statusItems.filter(l => l.status === 'in-progress').length, [statusItems]);
+  const workshop = useMemo(() => statusItems.filter(l => l.status === 'workshop' || (l.status as any) === 'in workshop').length, [statusItems]);
+  const partsBackorder = useMemo(() => statusItems.filter(l => l.status === 'parts-backorder' || l.status === 'awaiting-parts' || (l.status as any) === 'parts backorder').length, [statusItems]);
+  const bodywork = useMemo(() => statusItems.filter(l => l.status === 'bodywork').length, [statusItems]);
+  const completed = useMemo(() => statusItems.filter(l => l.status === 'completed').length, [statusItems]);
+  const cancelled = useMemo(() => statusItems.filter(l => l.status === 'cancelled').length, [statusItems]);
 
   // Off-road accident counts
-  const offRoadAccidentsTotal = logs.filter(l => isOffRoadAccidentLog(l) || l.status === 'off-road' || l.status === 'OFF ROAD (VOR)' || l.status === 'vor').length;
-  const offRoadAccidentsActive = logs.filter(l => (isOffRoadAccidentLog(l) || l.status === 'off-road' || l.status === 'OFF ROAD (VOR)' || l.status === 'vor') && l.status !== 'completed' && l.status !== 'cancelled').length;
+  const offRoadAccidentsTotal = useMemo(() => statusItems.filter(l => isOffRoadAccidentLog(l) || l.status === 'off-road' || l.status === 'OFF ROAD (VOR)' || l.status === 'vor').length, [statusItems]);
+  const offRoadAccidentsActive = useMemo(() => statusItems.filter(l => (isOffRoadAccidentLog(l) || l.status === 'off-road' || l.status === 'OFF ROAD (VOR)' || l.status === 'vor') && l.status !== 'completed' && l.status !== 'cancelled').length, [statusItems]);
 
   // Count due within next 7 days (or overdue)
-  const dueWithin7Days = logs.filter(l => {
+  const dueWithin7Days = useMemo(() => statusItems.filter(l => {
     if (l.status !== 'scheduled' || !l.date) return false;
     const d = new Date(l.date);
     if (isNaN(d.getTime())) return false;
     return differenceInCalendarDays(d, new Date()) <= 7;
-  }).length;
+  }).length, [statusItems]);
 
-  // financial aggregates
-  const totalNet      = logs.reduce((s, l) => s + (l.netAmount || 0), 0);
-  const totalVat      = logs.reduce((s, l) => s + (l.vatAmount || 0), 0);
-  const totalDiscount = logs.reduce((s, l) => s + (l.totalDiscount || 0), 0);
-  const totalCost     = logs.reduce((s, l) => s + (l.cost || 0), 0);
-  const totalPaid     = logs.reduce((s, l) => s + (l.paidAmount || 0), 0);
-  const totalOwing    = logs.reduce((s, l) => s + (l.remainingAmount || 0), 0);
+  if (!can('maintenance', 'cards')) return null;
 
   const handleCardClick = (status: string) => {
     if (!onSelectStatusFilter) return;
@@ -73,6 +198,18 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
       onSelectRoadConditionFilter('off-road-accident');
     }
   };
+
+  const {
+    totalNet,
+    totalVat,
+    totalDiscount,
+    totalCost,
+    totalPaid,
+    totalOwing,
+    totalSubCost,
+    totalNetProfit,
+    totalProfitMargin
+  } = financialSummary;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-4">
@@ -378,9 +515,9 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
               <DollarSign className="w-5 h-5 text-slate-900" />
             </div>
             <div className="ml-3 space-y-1 text-xs sm:text-[13px] w-full min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[#000000]">
-                <span className="font-bold text-[#000000]">NET:</span>
-                <span className="font-mono font-bold text-[#000000]">{formatCurrency(totalNet)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#2563EB]">
+                <span className="font-bold text-[#2563EB]">NET:</span>
+                <span className="font-mono font-bold text-[#2563EB]">{formatCurrency(totalNet)}</span>
               </div>
               <div className="flex items-center justify-between gap-2 text-[#2563EB]">
                 <span className="font-bold text-[#2563EB]">VAT:</span>
@@ -398,14 +535,28 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
                   <span className="font-mono font-bold text-[#D97706]">{formatCurrency(totalCost)}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-2 text-[#047857]">
-                <span className="font-bold text-[#047857]">Paid:</span>
-                <span className="font-mono font-bold text-[#047857]">{formatCurrency(totalPaid)}</span>
+              <div className="flex items-center justify-between gap-2 text-[#059669]">
+                <span className="font-bold text-[#059669]">Paid:</span>
+                <span className="font-mono font-bold text-[#059669]">{formatCurrency(totalPaid)}</span>
               </div>
               <div className="flex items-center justify-between gap-2 text-[#DC2626]">
                 <span className="font-bold text-[#DC2626]">Owing:</span>
                 <span className="font-mono font-bold text-[#DC2626]">{formatCurrency(totalOwing)}</span>
               </div>
+              {(totalSubCost > 0 || (financialSummary.count ?? 0) === 0 || totalNetProfit !== 0) && (
+                <div className="border-t border-[#E2E8F0] my-1 pt-1 space-y-0.5">
+                  <div className="flex items-center justify-between gap-2 text-slate-600">
+                    <span className="font-bold">Dealer Cost:</span>
+                    <span className="font-mono font-bold text-slate-800">{formatCurrency(totalSubCost || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`font-bold ${totalNetProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>Profit:</span>
+                    <span className={`font-mono font-bold ${totalNetProfit >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'}`}>
+                      {totalNetProfit >= 0 ? '+' : ''}{formatCurrency(totalNetProfit || 0)} ({isNaN(totalProfitMargin) ? '0.0' : totalProfitMargin.toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

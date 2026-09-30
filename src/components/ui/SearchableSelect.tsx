@@ -285,37 +285,36 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const isDark = variant === 'dark';
 
   return (
-    <div className="space-y-1 searchable-select-light" ref={wrapperRef}>
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <label className={labelClassName || (isDark ? "searchable-select-label block text-sm font-semibold text-white" : "block text-sm font-bold text-[#0F172A]")}>
-          {label}
-        </label>
+    <div className="space-y-1 searchable-select-light min-w-0" ref={wrapperRef}>
+      <label className={`${labelClassName || (isDark ? "searchable-select-label block text-sm font-semibold text-white" : "block text-sm font-bold text-[#0F172A]")} mb-1 block truncate max-w-full`}>
+        {label}
         {required && (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 shadow-2xs shrink-0"
-            title="Compulsory field - Must fill in"
-          >
-            <span className="text-red-600 font-black text-xs leading-none">*</span>
-            {compulsoryNotice || 'Must fill in'}
-          </span>
+          <span className="text-red-500 ml-1 font-bold select-none" aria-hidden="true">*</span>
         )}
-      </div>
+      </label>
 
       <div className="relative">
         <div
           ref={controlRef}
+          aria-required={required ? 'true' : undefined}
           className={`w-full min-h-[38px] border-[1.5px] transition-all ${
             error
-              ? 'border-red-500'
-              : required
-              ? 'border-[#CBD5E1] border-l-4 border-l-red-500'
-              : 'border-[#CBD5E1]'
+              ? 'border-red-500 ring-1 ring-red-500'
+              : 'border-[#CBD5E1] hover:border-slate-400'
           } rounded-xl bg-white text-[#0F172A] shadow-2xs ${
             disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-          } relative`}
+          } relative overflow-hidden`}
           onClick={() => !disabled && setIsOpen(true)}
         >
-          <div className="flex flex-wrap items-center gap-1 p-1 pr-8">
+          {/* Crisp, non-clipping vertical required indicator */}
+          {required && !error && (
+            <span
+              className="absolute left-0 inset-y-0 w-1 bg-red-500 pointer-events-none rounded-l-xl z-10"
+              aria-hidden="true"
+            />
+          )}
+
+          <div className={`flex flex-wrap items-center gap-1 p-1 pr-8 ${required && !error ? 'pl-2.5' : ''}`}>
             {!isMulti && !isOpen && (
               <div className="px-2 py-1 w-full truncate text-sm font-medium text-[#0F172A]">
                 {selectedIds.length > 0 && selectedIds[0] !== allId ? (
@@ -344,14 +343,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           </div>
 
           {isOpen && !isMulti && (
-            <div className="absolute inset-0 z-10 rounded-xl flex items-center px-3 border bg-white border-blue-500 shadow-xs">
-              <Search className="h-4 w-4 mr-2 text-slate-400" />
+            <div className={`absolute inset-0 z-20 rounded-xl flex items-center pr-3 border bg-white border-blue-500 shadow-xs overflow-hidden ${required && !error ? 'pl-3' : 'px-3'}`}>
+              {required && !error && (
+                <span
+                  className="absolute left-0 inset-y-0 w-1 bg-red-500 pointer-events-none rounded-l-xl z-30"
+                  aria-hidden="true"
+                />
+              )}
+              <Search className="h-4 w-4 mr-2 text-slate-400 shrink-0" />
               <input
                 ref={inputRef}
                 type="text"
                 autoComplete="off"
                 data-lpignore="true"
-                className="flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none text-[#0F172A] placeholder-slate-400"
+                className="flex-1 bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none text-[#0F172A] placeholder-slate-400 min-w-0"
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

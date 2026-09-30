@@ -24,7 +24,7 @@ import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDe
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare, Layers, Briefcase, LayoutGrid } from 'lucide-react';
+import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare, Layers, Briefcase, LayoutGrid, DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
 import InvoiceCommunicationModal from '../components/finance/InvoiceCommunicationModal';
 import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal';
 import { doc, collection, getDocs, updateDoc, writeBatch, onSnapshot } from 'firebase/firestore';
@@ -38,6 +38,8 @@ import { generateBulkDocuments, generateAndUploadDocument, getCompanyDetails } f
 import { InvoiceBulkDocument, InvoiceDocument } from '../components/pdf/documents';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 import { reverseFinanceTransaction } from '../utils/financeTransactions';
+import { syncInvoiceRecord } from '../services/unifiedSync.service';
+import { useFinancialSync } from '../hooks/useFinancialSync';
 import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -48,6 +50,7 @@ const Invoices: React.FC = () => {
   const { transactions } = useFinances();
   const { can } = usePermissions();
   const { user } = useAuth();
+  const { saveAndSync: saveAndSyncFinancialRecord } = useFinancialSync();
   const { formatCurrency } = useFormattedDisplay();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,6 +148,15 @@ const Invoices: React.FC = () => {
   const totalInvoicesAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
   const totalPaidAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
   const totalLookingAmount = finalFilteredInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount || 0) > 0 ? inv.remainingAmount : 0), 0);
+  const totalSubCost = finalFilteredInvoices.reduce((sum, inv) => {
+    let sc = Number(inv.subcontractorCost || 0);
+    if (sc <= 0 && Array.isArray(inv.lineItems)) {
+      sc = inv.lineItems.reduce((acc, li) => acc + (Number(li.subcontractorCost) || 0), 0);
+    }
+    return sum + sc;
+  }, 0);
+  const totalNetProfit = Number((totalInvoicesAmount - totalSubCost).toFixed(2));
+  const totalProfitMargin = totalInvoicesAmount > 0 ? Number(((totalNetProfit / totalInvoicesAmount) * 100).toFixed(1)) : 0;
 
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -213,7 +225,7 @@ const Invoices: React.FC = () => {
       'Department Name': inv.departmentName || '',
       'Account From Name': accounts.find(a => a.id === (inv as any).accountFrom)?.name || '',
       'Account To Name': accounts.find(a => a.id === ((inv as any).accountTo || inv.accountId))?.name || '',
-      'Is Loan': inv.isLoan ? 'Yes' : 'No',
+      'Is Loan': inv.isLoan ? (inv.loanTransactionType === 'income' ? 'Yes (Income)' : 'Yes (Expense)') : 'No',
       'Description': inv.description || ''
     }));
     exportToExcel(exportData, 'invoices');
@@ -302,7 +314,8 @@ const Invoices: React.FC = () => {
               groupId: group ? group.id : null,
               departmentId: department ? department.id : null,
               departmentName: department ? department.name : null,
-              isLoan: row['Is Loan'] === 'Yes',
+              isLoan: String(row['Is Loan'] || '').toLowerCase().startsWith('yes'),
+              loanTransactionType: String(row['Is Loan'] || '').toLowerCase().includes('income') ? 'income' : 'expense',
               description: row['Description'] || '',
               updatedAt: new Date(),
             };
@@ -387,6 +400,17 @@ const Invoices: React.FC = () => {
         referenceId: invoice.id,
         paymentId: paymentId
       });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              entityId: invoice.id,
+              deletedPaymentId: paymentId,
+            },
+          })
+        );
+      }
       
       toast.success('Payment deleted and removed from Finance Ledger');
       const updatedInvoiceObj = { ...invoice, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any };
@@ -477,7 +501,7 @@ const Invoices: React.FC = () => {
 
   const handleStatusChange = async (invoice: Invoice, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'invoices', invoice.id), { paymentStatus: newStatus, updatedAt: new Date() });
+      await saveAndSyncFinancialRecord('INVOICE', { paymentStatus: newStatus }, invoice.id);
       toast.success(`Invoice status updated to ${newStatus.replace('_', ' ')}`);
 
       // Update invoice document with new status in background
@@ -515,38 +539,96 @@ const Invoices: React.FC = () => {
       <input type="file" ref={fileInputRef} hidden accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileImport} />
 
       {/* ── Summary Cards on Top ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+        {/* 1. Gross Billing (Total - Amber) */}
         <div
-          className="bg-blue-50/80 border-blue-200 hover:border-blue-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+          className="bg-amber-50/80 border-amber-200 hover:border-amber-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
         >
           <div>
-            <h4 className="text-xs sm:text-sm font-extrabold text-blue-700 uppercase tracking-wider">Gross Billing</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-blue-950 mt-1">{formatCurrency(totalInvoicesAmount)}</p>
+            <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider">Gross Billing (Total)</h4>
+            <p className="text-xl sm:text-2xl font-black font-mono text-amber-950 mt-1">{formatCurrency(totalInvoicesAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border border-blue-200 bg-white text-blue-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          <div className="rounded-xl p-2.5 border border-amber-200 bg-white text-amber-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
+
+        {/* 2. Total Received (Paid - Green) */}
         <div
-          className="bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+          className="bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
         >
           <div>
-            <h4 className="text-xs sm:text-sm font-extrabold text-emerald-700 uppercase tracking-wider">Total Received</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-950 mt-1">{formatCurrency(totalPaidAmount)}</p>
+            <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Total Received (Paid)</h4>
+            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-950 mt-1">{formatCurrency(totalPaidAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border border-emerald-200 bg-white text-emerald-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          <div className="rounded-xl p-2.5 border border-emerald-200 bg-white text-emerald-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
+
+        {/* 3. Total Outstanding (Owing - Red) */}
         <div
-          className="bg-rose-50/80 border-rose-200 hover:border-rose-400 p-5 sm:p-6 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+          className="bg-rose-50/80 border-rose-200 hover:border-rose-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
         >
           <div>
-            <h4 className="text-xs sm:text-sm font-extrabold text-rose-700 uppercase tracking-wider">Total Outstanding</h4>
-            <p className="text-2xl sm:text-3xl font-black font-mono text-rose-950 mt-1">{formatCurrency(totalLookingAmount)}</p>
+            <h4 className="text-xs font-extrabold text-rose-800 uppercase tracking-wider">Total Outstanding (Owing)</h4>
+            <p className="text-xl sm:text-2xl font-black font-mono text-rose-950 mt-1">{formatCurrency(totalLookingAmount)}</p>
           </div>
-          <div className="rounded-xl p-3 border border-rose-200 bg-white text-rose-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-6 w-6 sm:h-7 sm:w-7" />
+          <div className="rounded-xl p-2.5 border border-rose-200 bg-white text-rose-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
+          </div>
+        </div>
+
+        {/* 4. Subcontractor Cost (Dealer / Cost - Muted Slate Neutral) */}
+        <div
+          className="bg-slate-50/90 border-slate-200 hover:border-slate-300 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
+        >
+          <div>
+            <h4 className="text-xs font-extrabold text-slate-600 uppercase tracking-wider">Dealer / Subcontractor Cost</h4>
+            <p className="text-xl sm:text-2xl font-black font-mono text-slate-800 mt-1">{formatCurrency(totalSubCost)}</p>
+          </div>
+          <div className="rounded-xl p-2.5 border border-slate-200 bg-white text-slate-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
+            <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
+          </div>
+        </div>
+
+        {/* 5. Net Profit (Green for positive, Red for loss) */}
+        <div
+          className={`${
+            totalNetProfit >= 0
+              ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400'
+              : 'bg-rose-50/80 border-rose-200 hover:border-rose-400'
+          } p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md`}
+        >
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h4 className={`text-xs font-extrabold uppercase tracking-wider ${
+                totalNetProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              }`}>
+                Net Profit
+              </h4>
+              <span className={`text-[11px] font-bold px-1.5 py-0.2 rounded border ${
+                totalProfitMargin >= 0
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-rose-100 text-rose-800 border-rose-300'
+              }`}>
+                {totalProfitMargin.toFixed(1)}%
+              </span>
+            </div>
+            <p className={`text-xl sm:text-2xl font-black font-mono mt-1 ${
+              totalNetProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
+            }`}>
+              {totalNetProfit >= 0 ? '+' : ''}{formatCurrency(totalNetProfit)}
+            </p>
+          </div>
+          <div className={`rounded-xl p-2.5 border bg-white shadow-xs group-hover:scale-110 transition-transform shrink-0 ${
+            totalNetProfit >= 0 ? 'border-emerald-200 text-emerald-600' : 'border-rose-200 text-rose-600'
+          }`}>
+            {totalNetProfit >= 0 ? (
+              <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" />
+            ) : (
+              <TrendingDown className="h-5 w-5 sm:h-6 sm:w-6 text-rose-600" />
+            )}
           </div>
         </div>
       </div>
@@ -709,6 +791,7 @@ const Invoices: React.FC = () => {
 
           <InvoiceTable
             invoices={finalFilteredInvoices} vehicles={vehicles} customers={customers}
+            accounts={accounts} groups={groups.map((g) => ({ id: g.id, name: g.name }))}
             onView={(inv) => setSelectedInvoice(inv)} onEdit={(inv) => setEditingInvoice(inv)}
             onDelete={(inv) => setDeletingInvoiceId(inv.id)} onDownload={(inv) => handleOpenLatestInvoicePDF(inv)}
             onRecordPayment={(inv) => setPayingInvoice(inv)} onApplyDiscount={() => {}}
