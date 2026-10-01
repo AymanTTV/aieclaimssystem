@@ -117,81 +117,118 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
       return;
     }
 
-    setLoading(true);
+    // Optimistic calculations for instant feedback
+    const optimisticPaidAmount = (invoice.paidAmount || 0) + paymentAmount;
+    const optimisticRemaining = Math.max(0, invoice.total - optimisticPaidAmount);
+    const optimisticStatus: 'paid' | 'partially_paid' = optimisticRemaining <= 0.001 ? 'paid' : 'partially_paid';
+    const tempPaymentId = `inv_pay_${Date.now()}`;
 
-    try {
-      let documentUrl: string | null = null;
-      
-      if (formData.document) {
-        const storageRef = ref(storage, `receipts/${Date.now()}_${formData.document.name}`);
-        const snap = await uploadBytes(storageRef, formData.document);
-        documentUrl = await getDownloadURL(snap.ref);
-      }
+    // Optimistic UI update: instantly close modal and notify user
+    toast.success('Payment recorded successfully');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('invoiceRecordUpdated', {
+          detail: {
+            id: invoice.id,
+            entityId: invoice.id,
+            paidAmount: optimisticPaidAmount,
+            remainingAmount: optimisticRemaining,
+            paymentStatus: optimisticStatus,
+            action: 'RECORD_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            id: tempPaymentId,
+            entityId: invoice.id,
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            amount: paymentAmount,
+            type: 'income',
+            transactionType: 'INCOME',
+            paymentMethod: formData.method,
+            paymentReference: formData.reference || invoice.invoiceNumber,
+            action: 'RECORD_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+    onClose();
 
-      // Execute unified automatic invoice payment to Finance Ledger sync
-      const res = await recordInvoicePayment({
-        invoice,
-        paymentAmount,
-        paymentMethod: formData.method,
-        paymentDate: formData.paymentDate,
-        paymentReference: formData.reference,
-        notes: formData.notes,
-        documentUrl,
-        allocatedVehicleId: formData.allocatedVehicleId,
-        accountToId: accountTo,
-        accountTo2Id: accountTo2,
-        vehicles,
-        accounts,
-        customers,
-        groups,
-      });
-
-      if (res.success) {
-        // Automatically update the invoice document with the new payment
-        try {
-          const companyDetails = await getCompanyDetails();
-          const targetVehicle = formData.allocatedVehicleId ? vehicles.find(v => v.id === formData.allocatedVehicleId) : vehicle;
-          const updatedInvoice = {
-            ...invoice,
-            paidAmount: res.newPaidAmount ?? ((invoice.paidAmount || 0) + paymentAmount),
-            remainingAmount: res.newRemaining ?? Math.max(0, invoice.total - ((invoice.paidAmount || 0) + paymentAmount)),
-            paymentStatus: (res.paymentStatus as any) || 'paid',
-            payments: [
-              ...(invoice.payments || []),
-              {
-                id: res.paymentId,
-                date: new Date(formData.paymentDate),
-                amount: paymentAmount,
-                method: formData.method,
-                reference: formData.reference || 'N/A',
-                document: documentUrl || null,
-                notes: formData.notes || null,
-              }
-            ],
-            vehicle: targetVehicle || vehicle,
-            customer: customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined)
-          };
-          await generateAndUploadDocument(
-            InvoiceDocument,
-            updatedInvoice,
-            'invoices',
-            invoice.id,
-            'invoices',
-            companyDetails,
-            'documentUrl'
-          );
-        } catch (docErr) {
-          console.warn('Background invoice document update error:', docErr);
+    // Execute background persistence and document generation asynchronously
+    (async () => {
+      try {
+        let documentUrl: string | null = null;
+        if (formData.document) {
+          const storageRef = ref(storage, `receipts/${Date.now()}_${formData.document.name}`);
+          const snap = await uploadBytes(storageRef, formData.document);
+          documentUrl = await getDownloadURL(snap.ref);
         }
 
-        onClose();
+        const res = await recordInvoicePayment({
+          invoice,
+          paymentAmount,
+          paymentMethod: formData.method,
+          paymentDate: formData.paymentDate,
+          paymentReference: formData.reference,
+          notes: formData.notes,
+          documentUrl,
+          allocatedVehicleId: formData.allocatedVehicleId,
+          accountToId: accountTo,
+          accountTo2Id: accountTo2,
+          vehicles,
+          accounts,
+          customers,
+          groups,
+        });
+
+        if (res.success) {
+          // Asynchronously update the invoice PDF document in the background
+          try {
+            const companyDetails = await getCompanyDetails();
+            const targetVehicle = formData.allocatedVehicleId ? vehicles.find(v => v.id === formData.allocatedVehicleId) : vehicle;
+            const updatedInvoice = {
+              ...invoice,
+              paidAmount: res.newPaidAmount ?? optimisticPaidAmount,
+              remainingAmount: res.newRemaining ?? optimisticRemaining,
+              paymentStatus: (res.paymentStatus as any) || optimisticStatus,
+              payments: [
+                ...(invoice.payments || []),
+                {
+                  id: res.paymentId || tempPaymentId,
+                  date: new Date(formData.paymentDate),
+                  amount: paymentAmount,
+                  method: formData.method,
+                  reference: formData.reference || 'N/A',
+                  document: documentUrl || null,
+                  notes: formData.notes || null,
+                }
+              ],
+              vehicle: targetVehicle || vehicle,
+              customer: customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined)
+            };
+            await generateAndUploadDocument(
+              InvoiceDocument,
+              updatedInvoice,
+              'invoices',
+              invoice.id,
+              'invoices',
+              companyDetails,
+              'documentUrl'
+            );
+          } catch (docErr) {
+            console.warn('Background invoice document update error:', docErr);
+          }
+        }
+      } catch (bgError: any) {
+        console.error('Background payment recording error:', bgError);
+        toast.error('Failed to sync payment to server: ' + (bgError?.message || 'Network error'));
       }
-    } catch (error: any) {
-      console.error('Error recording payment:', error);
-      toast.error('Failed to record payment: ' + (error?.message || 'Unknown error'));
-    } finally {
-      setLoading(false);
-    }
+    })();
   };
 
   return (

@@ -75,3 +75,60 @@ export const validateImage = (file: File): boolean => {
 
   return true;
 };
+
+/**
+ * Converts an image file to a Base64 data URI, with optional canvas downscaling.
+ */
+export const fileToBase64 = (
+  file: File,
+  maxWidth = 512,
+  maxHeight = 512,
+  quality = 0.9
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) {
+        reject(new Error('Failed to read file as data URL'));
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width <= maxWidth && height <= maxHeight) {
+          resolve(dataUrl);
+          return;
+        }
+
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(
+            canvas.toDataURL(file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', quality)
+          );
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};

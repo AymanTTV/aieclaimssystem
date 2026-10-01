@@ -10,6 +10,7 @@ import {
   Building2,
   Car,
   Repeat,
+  FileText,
 } from 'lucide-react';
 import {
   format,
@@ -59,6 +60,7 @@ interface FinanceFiltersProps {
   onRecurringFrequencyChange: (value: string) => void;
   profitTrackingFilter?: 'all' | 'has_profit' | 'legacy';
   onProfitTrackingFilterChange?: (value: 'all' | 'has_profit' | 'legacy') => void;
+  onOpenStatementModal?: (customRange?: { start: Date | null; end: Date | null }) => void;
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
@@ -97,6 +99,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   onRecurringFrequencyChange,
   profitTrackingFilter = 'all',
   onProfitTrackingFilterChange,
+  onOpenStatementModal,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -534,11 +537,32 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
           </div>
 
           {/* B. Date Range Presets & Month/Year Drilldown Picker */}
-          <DateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            align="left"
-          />
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+            <DateRangePicker
+              dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+              align="left"
+            />
+            {onOpenStatementModal && (
+              <button
+                type="button"
+                onClick={() => onOpenStatementModal(dateRange)}
+                className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200 rounded-xl transition-all shadow-2xs whitespace-nowrap cursor-pointer shrink-0"
+                title={
+                  dateRange.start && dateRange.end
+                    ? `Generate certified PDF Account Statement for selected period (${format(dateRange.start, 'dd MMM')} – ${format(dateRange.end, 'dd MMM yyyy')})`
+                    : 'Generate certified PDF Account Statement for period'
+                }
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="hidden xl:inline">Account Statement</span>
+                <span className="xl:hidden">Statement</span>
+                {dateRange.start && dateRange.end && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                )}
+              </button>
+            )}
+          </div>
 
           {/* C. Payment Status Dropdown */}
           <div className="relative">

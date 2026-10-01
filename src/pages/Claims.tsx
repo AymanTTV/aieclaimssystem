@@ -40,6 +40,8 @@ import {
   generateBulkDocuments,
 } from '../utils/documentGenerator';
 import { ClaimDocument, ClaimBulkDocument } from '../components/pdf/documents';
+import { pdf } from '@react-pdf/renderer';
+import SplitDocumentPreviewModal from '../components/common/SplitDocumentPreviewModal';
 
 import { Claim } from '../types';
 
@@ -365,6 +367,10 @@ const Claims: React.FC = () => {
   const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
   const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
   const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
+
+  // Split-Screen Document Preview State
+  const [previewClaim, setPreviewClaim] = useState<Claim | null>(null);
+  const [isGeneratingClaimPDF, setIsGeneratingClaimPDF] = useState(false);
 
   const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
   const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
@@ -720,29 +726,20 @@ const Claims: React.FC = () => {
     }
   };
 
-  const handleGeneratePdf = async (c: Claim) => {
-    if (!companyDetails) {
-      return toast.error('Company details not found');
-    }
+  const handleGeneratePdf = (c: Claim) => {
+    setPreviewClaim(c);
+  };
 
-    const normalized: Claim = {
-      ...c,
-      claimReason: Array.isArray(c.claimReason) ? c.claimReason : [c.claimReason as any],
-    };
-
+  const handleDownloadClaimDoc = (url: string) => {
     try {
-      const url = await generateAndUploadDocument(
-        ClaimDocument,
-        normalized,
-        'claims',
-        c.id!,
-        'claims'
-      );
-      window.open(url, '_blank');
-      toast.success('PDF generated and uploaded');
-    } catch (err: any) {
-      console.error('Error generating document:', err);
-      toast.error(`Error generating document: ${err.message || err}`);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = url.split('/').pop() || 'claim-document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      toast.error('Unable to download document');
     }
   };
 
@@ -1127,7 +1124,7 @@ const Claims: React.FC = () => {
         <Modal isOpen onClose={() => setSelectedClaim(null)} title="Claim Details" size="xl">
           <ClaimDetailsModal
             claim={selectedClaim}
-            onDownloadDocument={(url) => window.open(url, '_blank')}
+            onDownloadDocument={handleDownloadClaimDoc}
             onWhatsApp={handleOpenWhatsApp}
             onEmail={handleOpenEmail}
           />
@@ -1170,6 +1167,74 @@ const Claims: React.FC = () => {
           initialChannel={commChannel}
           initialCategory={commCategory}
           initialRecipient={commRecipient}
+        />
+      )}
+
+      {/* --- STANDARDIZED LEFT-SIDE SPLIT PREVIEW CANVAS --- */}
+      {previewClaim && (
+        <SplitDocumentPreviewModal
+          isOpen={!!previewClaim}
+          onClose={() => setPreviewClaim(null)}
+          documentType="condition_of_hire"
+          documentTitle="Claim Record Live Preview"
+          documentReference={previewClaim.clientRef || previewClaim.id}
+          baseCompanyDetails={companyDetails}
+          isGeneratingPDF={isGeneratingClaimPDF}
+          renderDocument={(effectiveCompanyDetails) => {
+            const normalized: Claim = {
+              ...previewClaim,
+              claimReason: Array.isArray(previewClaim.claimReason)
+                ? previewClaim.claimReason
+                : [previewClaim.claimReason as any],
+            };
+            return (
+              <ClaimDocument
+                data={normalized}
+                companyDetails={effectiveCompanyDetails}
+              />
+            );
+          }}
+          onCommitAndGenerate={async (effectiveCompanyDetails) => {
+            setIsGeneratingClaimPDF(true);
+            try {
+              const normalized: Claim = {
+                ...previewClaim,
+                claimReason: Array.isArray(previewClaim.claimReason)
+                  ? previewClaim.claimReason
+                  : [previewClaim.claimReason as any],
+              };
+              const docElement = (
+                <ClaimDocument
+                  data={normalized}
+                  companyDetails={effectiveCompanyDetails}
+                />
+              );
+              const blob = await pdf(docElement).toBlob();
+              
+              const fileName = `Claim_${previewClaim.clientRef || previewClaim.id}.pdf`;
+              saveAs(blob, fileName);
+
+              try {
+                await generateAndUploadDocument(
+                  () => docElement,
+                  normalized,
+                  'claims',
+                  previewClaim.id!,
+                  'claims'
+                );
+              } catch (upErr) {
+                console.warn('Document storage upload notice:', upErr);
+              }
+
+              toast.success('Claim document generated successfully!');
+              setPreviewClaim(null);
+            } catch (err: any) {
+              console.error('Error generating claim PDF:', err);
+              toast.error(`Generation error: ${err.message || err}`);
+            } finally {
+              setIsGeneratingClaimPDF(false);
+            }
+          }}
         />
       )}
 

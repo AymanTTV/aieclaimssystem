@@ -2,14 +2,15 @@
 import React, { useMemo, useState } from 'react';
 import { Invoice, Customer } from '../../types';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { Search, User, AlertCircle } from 'lucide-react';
+import { Search, User, AlertCircle, CalendarClock } from 'lucide-react';
 
 interface CustomerAccountsProps {
   invoices: Invoice[];
   customers: Customer[];
+  onOpenScheduler?: () => void;
 }
 
-const CustomerAccounts: React.FC<CustomerAccountsProps> = ({ invoices, customers }) => {
+const CustomerAccounts: React.FC<CustomerAccountsProps> = ({ invoices, customers, onOpenScheduler }) => {
   const { formatCurrency } = useFormattedDisplay();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -66,22 +67,42 @@ const CustomerAccounts: React.FC<CustomerAccountsProps> = ({ invoices, customers
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold text-gray-800 flex items-center">
-          <User className="w-5 h-5 mr-2 text-primary" />
-          Client Account Balances
-        </h2>
-        <div className="relative w-64">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl shadow-xs border border-gray-200">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 flex items-center">
+            <User className="w-5 h-5 mr-2 text-primary" />
+            Client Account Balances
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Monitor client accounts receivable, aged overdue balances, and automated statement schedules.
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {onOpenScheduler && (
+            <button
+              type="button"
+              onClick={onOpenScheduler}
+              className="inline-flex items-center justify-center px-3.5 py-2 border border-indigo-200 rounded-xl shadow-xs text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer"
+              title="Configure automated monthly or quarterly delivery of PDF account statements via email"
+            >
+              <CalendarClock className="w-4 h-4 mr-1.5 text-indigo-600" />
+              Schedule Statements
+            </button>
+          )}
+
+          <div className="relative flex-1 sm:w-64">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search clients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl leading-5 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs sm:text-sm"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Search clients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-gray-50 focus:bg-white focus:ring-primary focus:border-primary sm:text-sm"
-          />
         </div>
       </div>
 

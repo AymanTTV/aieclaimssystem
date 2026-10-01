@@ -5,29 +5,91 @@ import { Claim } from '../../../types';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
-import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
-// import { doc, getDoc } from 'firebase/firestore'; // Not used in this component, removing comment
+import { formatInlineCompanyFooter, isValidPdfImageSrc } from '../../../utils/legalDocumentUtils';
 
 interface ClaimDocumentProps {
   data: Claim;
   companyDetails?: any;
 }
 
-const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
-  // Header details for AIE Claims LTD
-  const headerDetails = {
-    logoUrl: aieClaimsLogo,
-    fullName: 'AIE Claims LTD',
-    addressLine1: 'United House, 39-41 North Road,',
-    addressLine2: 'London, N7 9DP',
-    phone: '+442080505337',
-    email: 'claims@aieclaims.co.uk',
+const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) => {
+  const page1Entity = companyDetails?.page1Entity || companyDetails;
+  const page2Entity = companyDetails?.page2Entity || companyDetails;
+  const page3Entity = companyDetails?.page3Entity || companyDetails;
+
+  const pageMapping = companyDetails?.pageTemplateMapping;
+  const page1Template = pageMapping?.page1Template || 'standard_claim_record';
+  const page2Template = pageMapping?.page2Template || 'third_party_evidence_schedule';
+  const page3Template = pageMapping?.page3Template || 'claim_management_terms';
+
+  const includePage3 = pageMapping
+    ? Boolean(pageMapping.includePage3 && pageMapping.page3Template !== 'none')
+    : companyDetails?.includeTrailingTC !== false;
+
+  // Dynamic entity details with resilient fallbacks
+  const p1Logo = isValidPdfImageSrc(page1Entity?.logoUrl)
+    ? page1Entity.logoUrl
+    : isValidPdfImageSrc(companyDetails?.logoUrl)
+    ? companyDetails.logoUrl
+    : aieClaimsLogo;
+
+  const p1Name = page1Entity?.fullName || page1Entity?.tradingName || 'AIE Claims LTD';
+  const p1CustomHeader = page1Entity?.headerDisclaimer || companyDetails?.customHeaderText;
+  const p1Address = page1Entity?.officialAddress || 'United House, 39-41 North Road, London, N7 9DP';
+  const p1Phone = page1Entity?.phone || '+442080505337';
+  const p1Email = page1Entity?.email || 'claims@aieclaims.co.uk';
+
+  const p3Logo = isValidPdfImageSrc(page3Entity?.logoUrl)
+    ? page3Entity.logoUrl
+    : p1Logo;
+  const p3Name = page3Entity?.fullName || page3Entity?.tradingName || p1Name;
+  const p3CustomHeader = page3Entity?.headerDisclaimer || p1CustomHeader;
+  const p3Address = page3Entity?.officialAddress || p1Address;
+  const p3Phone = page3Entity?.phone || p1Phone;
+  const p3Email = page3Entity?.email || p1Email;
+
+  // Bank allocation details
+  const activeBank = companyDetails?.selectedBank || {
+    bankName: companyDetails?.bankName,
+    accountName: companyDetails?.accountName || p1Name,
+    accountNumber: companyDetails?.accountNumber,
+    sortCode: companyDetails?.sortCode,
+    iban: companyDetails?.iban,
   };
+  const hasBankDetails = Boolean(activeBank.bankName || activeBank.accountNumber);
+
+  // Dynamic footer text
+  const p1FooterText = formatInlineCompanyFooter(
+    page1Entity || { isClaim: true, fullName: p1Name, officialAddress: p1Address, phone: p1Phone, email: p1Email }
+  );
+  const p3FooterText = formatInlineCompanyFooter(
+    page3Entity || { isClaim: true, fullName: p3Name, officialAddress: p3Address, phone: p3Phone, email: p3Email }
+  );
 
   const licenseNo = data.clientInfo.driverLicenseNumber || 'N/A';
   const licenseExpiry = data.clientInfo.licenseExpiry
     ? formatDate(data.clientInfo.licenseExpiry)
     : 'N/A';
+
+  const getPage3Content = () => {
+    if (page3Template === 'credit_hire_mitigation_terms') {
+      return [
+        '1. CREDIT HIRE & STORAGE MITIGATION: The Client hereby confirms that following the road traffic incident, a genuine and immediate business/personal need for a replacement mobility vehicle arose.',
+        '2. FINANCIAL INABILITY TO REPAIR IMMEDIATELY: The Client did not have access to alternative commercial or private vehicles and was unable to fund upfront repair or replacement without prejudice.',
+        '3. STORAGE & RECOVERY CHARGES: The Client assigns recovery rights for all incurred recovery, secure storage, and credit hire tariffs to the designated claims representative.',
+        '4. COOPERATION COVENANT: The Client agrees to assist the nominated solicitors in recovering costs from the fault insurer, including attending hearings if required.',
+      ];
+    }
+    return (
+      companyDetails?.customTermsText ||
+      companyDetails?.customerTerms ||
+      companyDetails?.termsAndConditions ||
+      `1. Authority to Act: The Client irrevocably authorizes the Company to liaise, negotiate, and process all claims arising from the reported incident.\n2. Duty of Disclosure: The Client confirms that all statements, facts, and circumstances provided herein are true, complete, and accurate to the best of their knowledge.\n3. Third-Party Recovery: The Company reserves the right to instruct solicitors, engineers, and credit hire specialists to pursue indemnity from the fault insurer.\n4. Confidentiality & GDPR: All client and incident data will be processed strictly in compliance with prevailing UK Data Protection and GDPR laws.`
+    )
+      .split(/\r?\n+/)
+      .map((p: string) => p.trim())
+      .filter(Boolean);
+  };
 
   return (
     <Document>
@@ -35,21 +97,35 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
         {/* ========== HEADER ========== */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={headerDetails.logoUrl} style={styles.logo} />
+            {isValidPdfImageSrc(p1Logo) && (
+              <Image src={p1Logo} style={styles.logo} />
+            )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{headerDetails.fullName}</Text>
-            {/* Displaying address on separate lines */}
-            <Text style={styles.companyDetail}>{headerDetails.addressLine1}</Text>
-            <Text style={styles.companyDetail}>{headerDetails.addressLine2}</Text>
-            <Text style={styles.companyDetail}>Tel: {headerDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {headerDetails.email}</Text>
+            <Text style={styles.companyName}>{p1Name}</Text>
+            {Boolean(p1CustomHeader) && (
+              <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                {p1CustomHeader}
+              </Text>
+            )}
+            <Text style={styles.companyDetail}>{p1Address}</Text>
+            <Text style={styles.companyDetail}>Tel: {p1Phone}</Text>
+            <Text style={styles.companyDetail}>Email: {p1Email}</Text>
           </View>
         </View>
 
         {/* ========== TITLE ========== */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Claim Record</Text>
+          <Text style={styles.title}>
+            {page1Template === 'litigation_first_report'
+              ? 'LITIGATION FIRST REPORT OF LOSS (FNOL)'
+              : 'Claim Record'}
+          </Text>
+          {page1Template === 'litigation_first_report' && (
+            <Text style={{ fontSize: 8, color: '#4338CA', fontWeight: 'bold', marginTop: 3 }}>
+              ★ Privileged Legal Dossier • First Notice of Loss Subrogation Report
+            </Text>
+          )}
         </View>
 
         {/* ========== CLIENT & REFERENCE ========== */}
@@ -283,18 +359,80 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data }) => {
           </View>
         )} */}
 
+        {/* ========== BANK ALLOCATION / SETTLEMENT REMITTANCE (IF ALLOCATED) ========== */}
+        {hasBankDetails && (
+          <View style={[styles.section, { marginTop: 10 }]} wrap={false}>
+            <Text style={styles.sectionTitle}>Settlement &amp; Remittance Details</Text>
+            <View style={[styles.card, { marginTop: 4, backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', borderWidth: 1 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                <Text style={{ fontSize: 8.5, color: '#475569' }}>Bank Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.bankName || 'N/A'}</Text></Text>
+                <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountName || companyName}</Text></Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Number: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountNumber || 'N/A'}</Text></Text>
+                <Text style={{ fontSize: 8.5, color: '#475569' }}>Sort Code: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.sortCode || 'N/A'}</Text></Text>
+              </View>
+              {activeBank.iban && (
+                <Text style={{ fontSize: 8, color: '#64748B' }}>IBAN: {activeBank.iban}</Text>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* ========== FOOTER ========== */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            AIE Claims Ltd. Registered in England and Wales with company registration number: 15616639, Registered office address: United House, 39-41 North Road, London, N7 9DP
-          </Text>
-          {/* Page number positioned on the right */}
+          <Text style={styles.footerText}>{p1FooterText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
           />
         </View>
       </Page>
+
+      {/* ========== TRAILING PAGE: AUTO-BOUND TERMS & CONDITIONS ========== */}
+      {includePage3 && (
+        <Page size="A4" style={[styles.page, { paddingBottom: 60 }]}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(p3Logo) && (
+                <Image src={p3Logo} style={styles.logo} />
+              )}
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{p3Name}</Text>
+              {Boolean(p3CustomHeader) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {p3CustomHeader}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{p3Address}</Text>
+              <Text style={styles.companyDetail}>Tel: {p3Phone}</Text>
+              <Text style={styles.companyDetail}>Email: {p3Email}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 15, marginBottom: 15 }}>
+            <Text style={[styles.sectionTitle, { fontSize: 13, textDecoration: 'underline', marginBottom: 12 }]}>
+              {page3Template === 'credit_hire_mitigation_terms'
+                ? 'CREDIT HIRE MITIGATION & STORAGE DECLARATION'
+                : companyDetails?.customTermsTitle || 'TERMS AND CONDITIONS OF CLAIM MANAGEMENT'}
+            </Text>
+            {getPage3Content().map((para: string, idx: number) => (
+              <Text key={idx} style={[styles.text, { fontSize: 8.5, lineHeight: 1.45, marginBottom: 6, textAlign: 'justify', color: '#374151' }]}>
+                {para}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{p3FooterText}</Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      )}
     </Document>
   );
 };

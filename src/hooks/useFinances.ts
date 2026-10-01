@@ -341,8 +341,11 @@ export const useFinances = () => {
   }, []);
 
   const refetchTransactions = useCallback(async () => {
+    // Non-blocking background sync: do not set global loading to true to prevent screen freeze
     try {
-      setLoading(true);
+      // First immediately re-sync from in-memory cache
+      rebuildAndSet();
+      
       const qTx = query(collection(db, 'transactions'), orderBy('date', 'desc'));
       const snapshot = await getDocs(qTx);
       const transactionData: Transaction[] = snapshot.docs.map((docSnap) => {

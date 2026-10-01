@@ -491,7 +491,7 @@ export const AccountStatementDocument: React.FC<AccountStatementDocumentProps> =
       ? 'Monthly Statement'
       : data.statementPeriodType === 'quarterly'
       ? 'Quarterly Statement'
-      : 'Periodic Account Statement';
+      : 'Custom Period Statement';
 
   return (
     <Document>

@@ -531,11 +531,33 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               type: currentType,
           };
 
-          await updateDoc(doc(db, 'transactions', transaction.id), updatePayload);
+          // Optimistic UI update: instantly close modal and notify user
           toast.success('Transaction updated successfully');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('financeRecordUpdated', {
+                detail: {
+                  id: transaction.id,
+                  entityId: transaction.id,
+                  ...updatePayload,
+                  action: 'UPDATE_TRANSACTION',
+                  timestamp: Date.now(),
+                },
+              })
+            );
+          }
+          onClose();
+
+          // Execute Firestore update in the background
+          updateDoc(doc(db, 'transactions', transaction.id), updatePayload).catch((bgErr) => {
+            console.error('Background transaction update error:', bgErr);
+            toast.error('Failed to sync transaction update to server');
+          });
+          return;
       } else {
         const batch = writeBatch(db);
         let operationCount = 0;
+        const optimisticCreatedList: any[] = [];
 
         const mainPrimaryId = currentType === 'income' ? formData.accountTo : formData.accountFrom;
         const mainSecondaryId = currentType === 'income' ? formData.accountTo2 : formData.accountFrom2;
@@ -566,6 +588,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
             batch.set(ref, data);
+            optimisticCreatedList.push(data);
             operationCount++;
         }
 
@@ -589,6 +612,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
             batch.set(ref, data);
+            optimisticCreatedList.push(data);
             operationCount++;
         }
 
@@ -616,6 +640,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
             batch.set(ref, contraData);
+            optimisticCreatedList.push(contraData);
             operationCount++;
         }
 
@@ -625,11 +650,30 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             return;
         }
 
-        await batch.commit();
+        // Optimistic UI update: instantly close modal and notify user
         toast.success(`Created ${operationCount} transaction record(s)`);
-      }
+        if (typeof window !== 'undefined') {
+          optimisticCreatedList.forEach((item) => {
+            window.dispatchEvent(
+              new CustomEvent('financeRecordUpdated', {
+                detail: {
+                  ...item,
+                  action: 'CREATE_TRANSACTION',
+                  timestamp: Date.now(),
+                },
+              })
+            );
+          });
+        }
+        onClose();
 
-      onClose();
+        // Commit batch in the background
+        batch.commit().catch((bgErr) => {
+          console.error('Background transaction batch commit error:', bgErr);
+          toast.error('Failed to sync new transaction(s) to server');
+        });
+        return;
+      }
     } catch (error) {
       console.error('Error saving transaction:', error);
       toast.error(`Failed to save transaction.`);

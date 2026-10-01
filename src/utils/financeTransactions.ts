@@ -745,12 +745,14 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
           });
         } catch {}
 
-        for (const orphanId of orphanedIncomeDocIds) {
-          console.log(`[FinanceLedger Purge] Purging orphaned Income transaction ${orphanId} tied to maintenance order ${targetOrderId || candidateSourceRefId || 'A1'}`);
-          await deleteDoc(doc(db, 'transactions', orphanId)).catch(() => {});
-          try {
-            await deleteDoc(doc(db, 'finance_ledger', orphanId)).catch(() => {});
-          } catch {}
+        if (orphanedIncomeDocIds.size > 0) {
+          const purgeBatch = writeBatch(db);
+          for (const orphanId of orphanedIncomeDocIds) {
+            console.log(`[FinanceLedger Purge] Purging orphaned Income transaction ${orphanId} tied to maintenance order ${targetOrderId || candidateSourceRefId || 'A1'}`);
+            purgeBatch.delete(doc(db, 'transactions', orphanId));
+            purgeBatch.delete(doc(db, 'finance_ledger', orphanId));
+          }
+          await purgeBatch.commit().catch((bgPurgeErr) => console.warn('Background purge error:', bgPurgeErr));
         }
       } catch (purgeErr) {
         console.warn('Error purging orphaned maintenance income entries:', purgeErr);
@@ -758,47 +760,44 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     }
 
     if (existingTxDocId) {
-      // UPDATE in-place: do not insert a duplicate row!
+      // UPDATE in-place: atomic writeBatch roundtrip
       console.log(`[FinanceLedger UPSERT] Updating existing Finance entry in-place: docId = ${existingTxDocId}`);
       const updatePayload = sanitizeForFirestore({
         ...transaction,
         id: existingTxDocId,
         updatedAt: new Date()
       });
-      await updateDoc(doc(db, 'transactions', existingTxDocId), updatePayload);
-      try {
-        await setDoc(
-          doc(db, 'finance_ledger', existingTxDocId),
-          {
-            id: existingTxDocId,
-            ...(resolvedInvId ? { invoiceId: resolvedInvId } : {}),
-            ...updatePayload
-          },
-          { merge: true }
-        );
-      } catch {
-        // ignore
-      }
-      return { success: true, id: existingTxDocId, isUpdate: true };
-    }
-
-    // If Not Found: INSERT a new Finance entry
-    const sanitizedNew = sanitizeForFirestore(transaction);
-    const docRef = await addDoc(collection(db, 'transactions'), sanitizedNew);
-    try {
-      await setDoc(
-        doc(db, 'finance_ledger', docRef.id),
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'transactions', existingTxDocId), updatePayload);
+      batch.set(
+        doc(db, 'finance_ledger', existingTxDocId),
         {
-          id: docRef.id,
+          id: existingTxDocId,
           ...(resolvedInvId ? { invoiceId: resolvedInvId } : {}),
-          ...sanitizedNew
+          ...updatePayload
         },
         { merge: true }
       );
-    } catch {
-      // ignore
+      await batch.commit();
+      return { success: true, id: existingTxDocId, isUpdate: true };
     }
-    return { success: true, id: docRef.id, isUpdate: false };
+
+    // If Not Found: INSERT a new Finance entry in a single atomic batch
+    const sanitizedNew = sanitizeForFirestore(transaction);
+    const newTxRef = doc(collection(db, 'transactions'));
+    const batch = writeBatch(db);
+    batch.set(newTxRef, sanitizedNew);
+    batch.set(
+      doc(db, 'finance_ledger', newTxRef.id),
+      {
+        id: newTxRef.id,
+        ...(resolvedInvId ? { invoiceId: resolvedInvId } : {}),
+        ...sanitizedNew
+      },
+      { merge: true }
+    );
+    await batch.commit();
+    return { success: true, id: newTxRef.id, isUpdate: false };
   } catch (error) {
     console.error('Error creating finance transaction:', error);
     toast.error('Failed to create transaction');

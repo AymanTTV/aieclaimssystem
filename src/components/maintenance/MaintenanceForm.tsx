@@ -525,161 +525,182 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         accountId: vehicleToUseForTransaction.owner.accountId,
         accountName: vehicleToUseForTransaction.owner.accountName
       } : undefined;
-  
-      if (editLog) {
-        await syncMaintenanceRecord(editLog.id, {
-          ...maintenanceData,
+
+      // ── OPTIMISTIC UI UPDATE: Close modal immediately and provide instant feedback ──
+      const optimisticLogId = editLog ? editLog.id : `maint_${Date.now()}`;
+      toast.success(editLog ? 'Maintenance updated successfully' : 'Maintenance scheduled successfully');
+
+      if (typeof window !== 'undefined') {
+        const optimisticEventDetail = {
+          logId: optimisticLogId,
           orderId: orderNumber,
           orderNumber: orderNumber,
           invoiceNumber: invoiceNumber,
-          subcontractorCost: profitMetrics.subcontractorCost,
+          subcontractorCost: editLog ? profitMetrics.subcontractorCost : totalAmount,
           customerBilled: totalAmount,
-          netProfit: profitMetrics.netProfit,
-          profitMarginPercent: profitMetrics.profitMarginPercent,
-          isProfitEdited: true,
-          updatedAt: new Date(),
-          updatedBy: user.id,
-        });
-  
-        if (additionalPayment > 0) {
-          await createFinanceTransaction({
-              type: 'expense',
-              category: maintenanceData.type,
-              amount: additionalPayment,
-              description: maintenanceData.notes || maintenanceData.description,
-              customerName: maintenanceData.serviceProvider,
-              referenceId: editLog.id,
-              vehicleId: vehicleToUseForTransaction.id,
-              vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
-              vehicleOwner,
-              accountFrom: vehicleOwner?.accountId || undefined,
-              paymentMethod: paymentMethod,
-              paymentReference: invoiceNumber || paymentReference || undefined,
-              paymentStatus: maintenanceData.paymentStatus,
-              status: 'completed',
-              date: new Date(),
-              dealerCost: profitMetrics.subcontractorCost,
+          netProfit: editLog ? profitMetrics.netProfit : 0,
+          profitMarginPercent: editLog ? profitMetrics.profitMarginPercent : 0,
+          status: formData.status,
+          vehicleId: manualEntry ? null : selectedVehicleId,
+          action: editLog ? 'UPDATE_MAINTENANCE' : 'CREATE_MAINTENANCE',
+          timestamp: new Date().toISOString(),
+        };
+        window.dispatchEvent(new CustomEvent('maintenanceRecordUpdated', { detail: optimisticEventDetail }));
+        window.dispatchEvent(new CustomEvent('maintenanceCostUpdated', { detail: optimisticEventDetail }));
+        window.dispatchEvent(new CustomEvent('maintenance_updated'));
+      }
+      onClose();
+
+      // ── BACKGROUND ASYNC FIRESTORE PERSISTENCE ──
+      (async () => {
+        try {
+          if (editLog) {
+            await syncMaintenanceRecord(editLog.id, {
+              ...maintenanceData,
+              orderId: orderNumber,
+              orderNumber: orderNumber,
+              invoiceNumber: invoiceNumber,
               subcontractorCost: profitMetrics.subcontractorCost,
               customerBilled: totalAmount,
               netProfit: profitMetrics.netProfit,
               profitMarginPercent: profitMetrics.profitMarginPercent,
               isProfitEdited: true,
-              isEdited: true,
-              linkedInvoiceRef: editLog.id,
+              updatedAt: new Date(),
+              updatedBy: user.id,
+            });
+      
+            if (additionalPayment > 0) {
+              await createFinanceTransaction({
+                  type: 'expense',
+                  category: maintenanceData.type,
+                  amount: additionalPayment,
+                  description: maintenanceData.notes || maintenanceData.description,
+                  customerName: maintenanceData.serviceProvider,
+                  referenceId: editLog.id,
+                  vehicleId: vehicleToUseForTransaction.id,
+                  vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+                  vehicleOwner,
+                  accountFrom: vehicleOwner?.accountId || undefined,
+                  paymentMethod: paymentMethod,
+                  paymentReference: invoiceNumber || paymentReference || undefined,
+                  paymentStatus: maintenanceData.paymentStatus,
+                  status: 'completed',
+                  date: new Date(),
+                  dealerCost: profitMetrics.subcontractorCost,
+                  subcontractorCost: profitMetrics.subcontractorCost,
+                  customerBilled: totalAmount,
+                  netProfit: profitMetrics.netProfit,
+                  profitMarginPercent: profitMetrics.profitMarginPercent,
+                  isProfitEdited: true,
+                  isEdited: true,
+                  linkedInvoiceRef: editLog.id,
+                  orderId: orderNumber,
+                  orderNumber: orderNumber,
+                  invoiceNumber: invoiceNumber,
+                  groupId: vehicleToUseForTransaction.assignedGroupId || undefined,
+                  groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
+                  departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
+                  departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
+              });
+            }
+      
+            if (newAttachments.length) {
+              const uploaded = await uploadMaintenanceAttachments(editLog.id, newAttachments);
+              const merged = [...existingAttachments, ...uploaded];
+              await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
+                attachments: merged,
+              });
+            }
+          } else { 
+            const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
+              ...maintenanceData,
               orderId: orderNumber,
               orderNumber: orderNumber,
               invoiceNumber: invoiceNumber,
-              groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
-              // ✅ ADD THESE LINES:
-              groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
-              departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
-              departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
-          });
-        }
-  
-        if (newAttachments.length) {
-          const uploaded = await uploadMaintenanceAttachments(editLog.id, newAttachments);
-          const merged = [...existingAttachments, ...uploaded];
-          await updateDoc(doc(db, 'maintenanceLogs', editLog.id), {
-            attachments: merged,
-          });
-          setExistingAttachments(merged);
-          setNewAttachments([]);
-        }
-  
-        toast.success('Maintenance updated successfully');
-      } else { 
-        const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
-          ...maintenanceData,
-          orderId: orderNumber,
-          orderNumber: orderNumber,
-          invoiceNumber: invoiceNumber,
-          subcontractorCost: totalAmount,
-          customerBilled: totalAmount,
-          netProfit: 0,
-          profitMarginPercent: 0,
-          isProfitEdited: false,
-          vehicleId: manualEntry ? null : selectedVehicleId,
-          vehicleDetails: manualEntry ? maintenanceData.vehicleDetails : null,
-          createdAt: new Date(),
-          createdBy: user.id,
-        });
-  
-        if (totalPaidAmount > 0) {
-          await createFinanceTransaction({
-            type: 'expense',
-            category: maintenanceData.type,
-            amount: totalPaidAmount,
-            description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
-            customerName: maintenanceData.serviceProvider,
-            referenceId: docRef.id,
-            vehicleId: vehicleToUseForTransaction.id,
-            vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
-            vehicleOwner,
-            accountFrom: vehicleOwner?.accountId || undefined,
-            paymentMethod: paymentMethod,
-            paymentReference: invoiceNumber || paymentReference || undefined, 
-            paymentStatus: maintenanceData.paymentStatus,
-            status: 'completed',
-            date: new Date(),
-            subcontractorCost: totalAmount,
-            customerBilled: totalAmount,
-            netProfit: 0,
-            profitMarginPercent: 0,
-            orderId: orderNumber,
-            orderNumber: orderNumber,
-            invoiceNumber: invoiceNumber,
-            groupId: vehicleToUseForTransaction.assignedGroupId || undefined, // ✅ Attach Group ID
-            // ✅ ADD THESE LINES:
-            groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
-            departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
-            departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
-          });
-        }
-  
-        if (newAttachments.length) {
-          const uploaded = await uploadMaintenanceAttachments(docRef.id, newAttachments);
-          await updateDoc(doc(db, 'maintenanceLogs', docRef.id), {
-            attachments: uploaded,
-          });
-          setExistingAttachments(uploaded);
-          setNewAttachments([]);
-        }
-  
-         if (!manualEntry && formData.currentMileage !== (vehicles.find(v=>v.id === selectedVehicleId)!).mileage) {
-          await createMileageHistoryRecord(
-            vehicles.find(v=>v.id === selectedVehicleId)!,
-            formData.currentMileage,
-            user.name || 'System',
-            'Updated during maintenance'
-          );
-        }
-  
-        toast.success('Maintenance scheduled successfully');
-      }
+              subcontractorCost: totalAmount,
+              customerBilled: totalAmount,
+              netProfit: 0,
+              profitMarginPercent: 0,
+              isProfitEdited: false,
+              vehicleId: manualEntry ? null : selectedVehicleId,
+              vehicleDetails: manualEntry ? maintenanceData.vehicleDetails : null,
+              createdAt: new Date(),
+              createdBy: user.id,
+            });
+      
+            if (totalPaidAmount > 0) {
+              await createFinanceTransaction({
+                type: 'expense',
+                category: maintenanceData.type,
+                amount: totalPaidAmount,
+                description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
+                customerName: maintenanceData.serviceProvider,
+                referenceId: docRef.id,
+                vehicleId: vehicleToUseForTransaction.id,
+                vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+                vehicleOwner,
+                accountFrom: vehicleOwner?.accountId || undefined,
+                paymentMethod: paymentMethod,
+                paymentReference: invoiceNumber || paymentReference || undefined, 
+                paymentStatus: maintenanceData.paymentStatus,
+                status: 'completed',
+                date: new Date(),
+                subcontractorCost: totalAmount,
+                customerBilled: totalAmount,
+                netProfit: 0,
+                profitMarginPercent: 0,
+                orderId: orderNumber,
+                orderNumber: orderNumber,
+                invoiceNumber: invoiceNumber,
+                groupId: vehicleToUseForTransaction.assignedGroupId || undefined,
+                groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
+                departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
+                departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
+              });
+            }
+      
+            if (newAttachments.length) {
+              const uploaded = await uploadMaintenanceAttachments(docRef.id, newAttachments);
+              await updateDoc(doc(db, 'maintenanceLogs', docRef.id), {
+                attachments: uploaded,
+              });
+            }
+      
+            if (!manualEntry && formData.currentMileage !== (vehicles.find(v=>v.id === selectedVehicleId)!).mileage) {
+              await createMileageHistoryRecord(
+                vehicles.find(v=>v.id === selectedVehicleId)!,
+                formData.currentMileage,
+                user.name || 'System',
+                'Updated during maintenance'
+              );
+            }
+          }
 
-      // Sync vehicle availability:
-      // The vehicle is unavailable until the maintenance is marked completed
-      if (!manualEntry && selectedVehicleId) {
-        if (maintenanceData.status === 'completed') {
-          await checkVehicleStatus(selectedVehicleId);
-        } else {
-          const reason = maintenanceData.status === 'parts-backorder'
-            ? 'Awaiting parts backorder'
-            : maintenanceData.status === 'workshop'
-            ? 'In workshop'
-            : maintenanceData.status === 'bodywork'
-            ? 'In bodywork'
-            : maintenanceData.status === 'off-road' || dueToAccident || isNonDrivable
-            ? 'Off-road non-drivable due to accident repair'
-            : maintenanceData.status === 'pending'
-            ? 'Pending maintenance authorization'
-            : 'In maintenance';
-          await updateVehicleStatus(selectedVehicleId, 'maintenance', reason);
+          // Sync vehicle availability:
+          if (!manualEntry && selectedVehicleId) {
+            if (maintenanceData.status === 'completed') {
+              await checkVehicleStatus(selectedVehicleId);
+            } else {
+              const reason = maintenanceData.status === 'parts-backorder'
+                ? 'Awaiting parts backorder'
+                : maintenanceData.status === 'workshop'
+                ? 'In workshop'
+                : maintenanceData.status === 'bodywork'
+                ? 'In bodywork'
+                : maintenanceData.status === 'off-road' || dueToAccident || isNonDrivable
+                ? 'Off-road non-drivable due to accident repair'
+                : maintenanceData.status === 'pending'
+                ? 'Pending maintenance authorization'
+                : 'In maintenance';
+              await updateVehicleStatus(selectedVehicleId, 'maintenance', reason);
+            }
+          }
+        } catch (bgErr) {
+          console.error('Background maintenance persistence error:', bgErr);
+          toast.error('Failed to sync maintenance record to server');
         }
-      }
-
-      onClose();
+      })();
+      return;
     } catch (error) {
       console.error(error);
       toast.error(

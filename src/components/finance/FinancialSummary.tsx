@@ -471,7 +471,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             {secondarySummaryCards.map((c) => (
               <div
                 key={c.key}
-                className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
+                className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all group relative"
               >
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{c.label}</p>
@@ -479,7 +479,22 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
                     {c.value}
                   </p>
                 </div>
-                <div className={`p-2.5 rounded-xl border shadow-xs ${c.iconBg}`}>{c.icon}</div>
+                <div className="flex items-center gap-2">
+                  {c.key === 'aie_skyline' && onOpenStatementModal && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenStatementModal(aieSkylineData.id !== 'aie_default' ? aieSkylineData.id : undefined);
+                      }}
+                      className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-2 rounded-xl bg-white hover:bg-indigo-50 text-indigo-600 border border-slate-200 hover:border-indigo-300 shadow-2xs transition-all cursor-pointer"
+                      title="Generate certified Account Statement PDF"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+                  )}
+                  <div className={`p-2.5 rounded-xl border shadow-xs ${c.iconBg}`}>{c.icon}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -542,7 +557,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
               {displayedOtherCards.map((c) => (
                 <div
                   key={c.key}
-                  className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all"
+                  className="bg-slate-50/70 rounded-2xl shadow-2xs p-4 sm:p-5 border border-slate-200 hover:border-slate-300 text-slate-900 flex items-center justify-between transition-all group relative"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate">
@@ -552,7 +567,22 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
                       {c.value}
                     </p>
                   </div>
-                  <div className={`p-2.5 rounded-xl border shadow-xs ${c.iconBg}`}>{c.icon}</div>
+                  <div className="flex items-center gap-2">
+                    {onOpenStatementModal && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenStatementModal(c.key);
+                        }}
+                        className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-2 rounded-xl bg-white hover:bg-indigo-50 text-indigo-600 border border-slate-200 hover:border-indigo-300 shadow-2xs transition-all cursor-pointer"
+                        title={`Generate certified Account Statement for ${c.label}`}
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                    )}
+                    <div className={`p-2.5 rounded-xl border shadow-xs ${c.iconBg}`}>{c.icon}</div>
+                  </div>
                 </div>
               ))}
             </div>

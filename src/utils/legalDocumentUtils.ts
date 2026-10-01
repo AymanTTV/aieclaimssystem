@@ -201,11 +201,15 @@ export const formatClaimCompanyFooter = (_companyDetails?: any): string => {
  * Row 2: "Registered Office: United House, 39-41 North Road, London, N7 9DP. | VAT No: 453448875"
  */
 export const formatInlineCompanyFooter = (companyDetails?: any): string => {
+  if (companyDetails?.customFooterText && typeof companyDetails.customFooterText === 'string' && companyDetails.customFooterText.trim()) {
+    return companyDetails.customFooterText.trim();
+  }
+
   if (
     companyDetails?.isClaim ||
     companyDetails?.useAieClaims ||
-    companyDetails?.fullName?.toLowerCase().includes('claim') ||
-    companyDetails?.name?.toLowerCase().includes('claim')
+    (companyDetails?.fullName?.toLowerCase().includes('claim') && !companyDetails?.fullName?.toLowerCase().includes('skyline')) ||
+    (companyDetails?.name?.toLowerCase().includes('claim') && !companyDetails?.name?.toLowerCase().includes('skyline'))
   ) {
     return AIE_CLAIMS_FOOTER_TEXT;
   }
@@ -229,7 +233,7 @@ export const formatInlineCompanyFooter = (companyDetails?: any): string => {
   }
 
   // Row 1: Company entity and registration number
-  const row1 = `${name}, registered in England and Wales (Company No: ${regNo})`;
+  const row1 = regNo ? `${name}, registered in England and Wales (Company No: ${regNo})` : name;
 
   // Row 2: Registered office and VAT number
   const row2Parts: string[] = [];
@@ -249,5 +253,9 @@ export const formatInlineCompanyFooter = (companyDetails?: any): string => {
 
 export const DEFAULT_INLINE_COMPANY_FOOTER =
   'AIE Skyline Limited, registered in England and Wales (Company No: 14592207)\nRegistered Office: United House, 39-41 North Road, London, N7 9DP. | VAT No: 453448875';
+
+export const isValidPdfImageSrc = (v: any): v is string => {
+  return typeof v === 'string' && v.trim().length > 0 && !v.includes('[object') && !v.startsWith('blob:null');
+};
 
 

@@ -6,7 +6,7 @@ import { RENTAL_RATES } from '../../utils/rentalCalculations';
 import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
-import { getHireCommencementDate, formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
+import { getHireCommencementDate, formatInlineCompanyFooter, splitParagraphs } from '../../utils/legalDocumentUtils';
 import { styles } from './styles';
 
 const localStyles = StyleSheet.create({
@@ -358,32 +358,109 @@ const RentalAgreement: React.FC<{
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
 
-  const footerText = formatInlineCompanyFooter(companyDetails);
+  const page1Entity = (companyDetails as any)?.page1Entity || companyDetails;
+  const page2Entity = (companyDetails as any)?.page2Entity || companyDetails;
+  const page3Entity = (companyDetails as any)?.page3Entity || companyDetails;
+
+  const pageMapping = (companyDetails as any)?.pageTemplateMapping;
+  const page1Template = pageMapping?.page1Template || 'standard_rental_agreement';
+  const page2Template = pageMapping?.page2Template || 'checkout_inspection_condition';
+  const page3Template = pageMapping?.page3Template || 'statutory_hire_terms';
+
+  const includePage2 = pageMapping
+    ? Boolean(pageMapping.includePage2 && pageMapping.page2Template !== 'none')
+    : Boolean(
+        rental.checkOutCondition != null ||
+        (includeImages && (rental.checkOutImages?.length || 0) > 0) ||
+        (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0)
+      );
+
+  const includePage3 = pageMapping
+    ? Boolean(pageMapping.includePage3 && pageMapping.page3Template !== 'none')
+    : companyDetails?.includeTrailingTC !== false;
+
+  const page1FooterText = formatInlineCompanyFooter(page1Entity);
+  const page2FooterText = formatInlineCompanyFooter(page2Entity);
+  const page3FooterText = formatInlineCompanyFooter(page3Entity);
+
+  const getPage1Title = () => {
+    const agreementNum = rental.rentalAgreementNumber ? `#${rental.rentalAgreementNumber}` : '';
+    if (page1Template === 'executive_chauffeur_agreement') {
+      return `EXECUTIVE & CHAUFFEUR HIRE AGREEMENT ${agreementNum}`;
+    }
+    if (page1Template === 'compact_rental_voucher') {
+      return `VEHICLE HIRE BOOKING & RENTAL VOUCHER ${agreementNum}`;
+    }
+    return `RENTAL AGREEMENT ${agreementNum}`;
+  };
+
+  const getPage3TermsContent = () => {
+    if (page3Template === 'strict_commercial_terms') {
+      return [
+        '1. COMMERCIAL EXCESS & SECURITY DEPOSIT: The Hirer agrees that any damage excess, unrecovered insurance losses, penalties, and traffic/parking fines will be charged immediately to the Hirer or deducted from security deposits.',
+        '2. AUTHORIZED DRIVER COVENANTS: Only vetted, fully licensed drivers named in this Agreement are insured to operate the vehicle. Any breach invalidates fleet insurance coverage and creates personal liability for all damages.',
+        '3. PROHIBITED USES & SUBLEASING: The vehicle shall not be operated off-road, subleased, used for courier parcel hauling (unless expressly permitted in writing), or used for towing or racing.',
+        '4. MAINTENANCE, TIRES & FLUIDS: The Hirer covenants to inspect engine oil, coolant, and tire pressures weekly or every 250 miles. Running the vehicle with deficient fluids constitutes gross negligence.',
+        '5. TIMELY RETURN & SUBROGATION: The vehicle must be returned at the appointed check-in timestamp. Failure to return without written authorization incurs standard daily rate plus 25% recovery penalty.',
+      ];
+    }
+    if (page3Template === 'satisfaction_notice_terms') {
+      return [
+        '1. VEHICLE ACCEPTANCE & CONDITION ACKNOWLEDGEMENT: The Hirer confirms that the vehicle described in this agreement has been received in clean, roadworthy, and acceptable cosmetic and mechanical condition as recorded in the Inspection Report.',
+        '2. OPERATIONAL SAFETY VERIFICATION: The Hirer has personally verified that all vehicle safety systems, including headlights, brake lights, indicators, tires, windscreen wipers, and horn, operate satisfactorily.',
+        '3. DECLARATION OF FIT & PROPER USE: The Hirer undertakes to operate the vehicle in compliance with all applicable Road Traffic Acts and statutory speed regulations.',
+        '4. FINAL SIGN-OFF & SATISFACTION: By accepting hand-over, the Hirer confirms that no undisclosed pre-existing damage exists and agrees to indemnify the Company against subsequent unreported damage upon check-in.',
+      ];
+    }
+    return splitParagraphs(
+      companyDetails?.customTermsText ||
+      companyDetails?.hireAgreementText ||
+      companyDetails?.conditionOfHireText ||
+      companyDetails?.termsAndConditions ||
+      '1. Standard terms and conditions apply. By signing this agreement, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement.\n2. The Hirer agrees to maintain the vehicle in roadworthy condition and report any defects immediately.\n3. The vehicle must be returned on the agreed date and time.'
+    );
+  };
 
   return (
     <Document>
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE 1: MAIN AGREEMENT & CONTRACT SPECIFICATIONS
+         ══════════════════════════════════════════════════════════════ */}
       <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
         <View style={localStyles.content}>
           {/* HEADER */}
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(companyDetails?.logoUrl) && (
-                <Image src={companyDetails.logoUrl} style={styles.logo} />
+              {isValidPdfImageSrc(page1Entity?.logoUrl) && (
+                <Image src={page1Entity.logoUrl} style={styles.logo} />
               )}
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
-              <Text style={styles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+              <Text style={styles.companyName}>{page1Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              {Boolean(page1Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {page1Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{page1Entity?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page1Entity?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page1Entity?.email || 'N/A'}</Text>
             </View>
           </View>
 
           {/* TITLE */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>
-              RENTAL AGREEMENT {rental.rentalAgreementNumber ? `#${rental.rentalAgreementNumber}` : ''}
-            </Text>
+            <Text style={styles.title}>{getPage1Title()}</Text>
+            {page1Template === 'executive_chauffeur_agreement' && (
+              <Text style={{ fontSize: 8, color: '#4338CA', fontWeight: 'bold', marginTop: 3 }}>
+                ★ Licensed Private Hire &amp; Executive Fleet Service Standard • Luxury Class Contract
+              </Text>
+            )}
+            {page1Template === 'compact_rental_voucher' && (
+              <Text style={{ fontSize: 8, color: '#047857', fontWeight: 'bold', marginTop: 3 }}>
+                ★ Official Rental Booking Voucher &amp; Vehicle Release Authorization
+              </Text>
+            )}
           </View>
 
           {/* HORIZONTAL HIRER DETAILS CARD */}
@@ -757,11 +834,11 @@ const RentalAgreement: React.FC<{
               </View>
             ))}
 
-          {/* TERMS AND CONDITIONS */}
+          {/* TERMS AND CONDITIONS SUMMARY & SIGNATURES */}
           <View style={[styles.section, localStyles.termsSection]}>
-            <Text style={styles.sectionTitle} minPresenceAhead={60}>TERMS AND CONDITIONS</Text>
+            <Text style={styles.sectionTitle} minPresenceAhead={60}>DECLARATION &amp; TERMS ACKNOWLEDGEMENT</Text>
             <Text style={styles.text}>
-              {companyDetails.termsAndConditions || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement.'}
+              {companyDetails.termsAndConditions || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement, confirms receipt of the vehicle in good order, and authorizes payment allocation.'}
             </Text>
           </View>
 
@@ -781,7 +858,7 @@ const RentalAgreement: React.FC<{
                 <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
               )}
               <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
-              <Text style={localStyles.compactText}>{companyDetails.name || 'AIE SKYLINE'}</Text>
+              <Text style={localStyles.compactText}>{page1Entity?.tradingName || page1Entity?.fullName || 'AIE SKYLINE'}</Text>
               <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
             </View>
           </View>
@@ -789,13 +866,321 @@ const RentalAgreement: React.FC<{
 
         {/* FOOTER */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{footerText}</Text>
+          <Text style={styles.footerText}>{page1FooterText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
           />
         </View>
       </Page>
+
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE 2: INSPECTION, SUBSTITUTION, OR CHARGE LEDGER
+         ══════════════════════════════════════════════════════════════ */}
+      {includePage2 && (
+        <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(page2Entity?.logoUrl) && (
+                <Image src={page2Entity.logoUrl} style={styles.logo} />
+              )}
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{page2Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              {Boolean(page2Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {page2Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{page2Entity?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page2Entity?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page2Entity?.email || 'N/A'}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 10 }}>
+            {/* SUB-TEMPLATE A: VEHICLE CONDITION & INSPECTION PHOTOS */}
+            {page2Template === 'checkout_inspection_condition' && (
+              <View>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.title, { fontSize: 13 }]}>
+                    VEHICLE CONDITION &amp; INSPECTION REPORT (PAGE 2)
+                  </Text>
+                </View>
+
+                {/* CHECK-OUT CONDITION */}
+                <View style={[styles.sectionBreak, { marginTop: 6 }]} wrap={false}>
+                  <View style={styles.infoCard}>
+                    <Text style={styles.infoCardTitle}>Main Vehicle Condition at Check-Out</Text>
+                    <View style={styles.grid}>
+                      <View style={styles.gridItem}>
+                        <Text style={styles.subLabel}>Check-Out Date &amp; Time:</Text>
+                        <Text style={styles.subValue}>{formatDateTime(rental.startDate)}</Text>
+                      </View>
+                      <View style={styles.gridItem}>
+                        <Text style={styles.subLabel}>Mileage Out:</Text>
+                        <Text style={styles.subValue}>
+                          {rental.checkOutCondition?.mileage?.toLocaleString() ?? 'N/A'} miles
+                        </Text>
+                      </View>
+                      <View style={styles.gridItem}>
+                        <Text style={styles.subLabel}>Fuel Level:</Text>
+                        <Text style={styles.subValue}>{rental.checkOutCondition?.fuelLevel ?? 100}%</Text>
+                      </View>
+                      <View style={styles.gridItem}>
+                        <Text style={styles.subLabel}>Cleanliness:</Text>
+                        <Text style={styles.subValue}>
+                          {rental.checkOutCondition?.isClean ? 'Clean & Roadworthy' : 'Needs Cleaning'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {rental.checkOutCondition?.hasDamage && (
+                      <View style={styles.highlight}>
+                        <Text style={styles.highlightText}>Recorded Damage (Out):</Text>
+                        <Text>{rental.checkOutCondition.damageDescription}</Text>
+                      </View>
+                    )}
+
+                    {includeImages && (rental.checkOutCondition?.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out High-Res Inspection Images:</Text>
+                        <View style={styles.grid}>
+                          {(rental.checkOutCondition?.images || [])
+                            .filter(isValidPdfImageSrc)
+                            .slice(0, 6)
+                            .map((url, idx) => (
+                              <View key={idx} style={[styles.gridItem, { width: '31%', margin: '1%' }]}>
+                                <View style={styles.imageContainer}>
+                                  <Image src={url} style={{ width: '100%', height: 75, objectFit: 'contain' }} />
+                                </View>
+                                <Text style={styles.imageCaption}>{`Photo ${idx + 1}`}</Text>
+                              </View>
+                            ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* RETURN CONDITION */}
+                {rental.status === 'completed' && rental.returnCondition && (
+                  <View style={[styles.sectionBreak, { marginTop: 10 }]} wrap={false}>
+                    <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN (CHECK-IN)</Text>
+                    <View style={styles.card}>
+                      <View style={styles.grid}>
+                        <View style={styles.gridItem}>
+                          <Text style={styles.subLabel}>Return Date &amp; Time:</Text>
+                          <Text style={styles.subValue}>{formatDateTime(rental.returnCondition.date)}</Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                          <Text style={styles.subLabel}>Return Mileage:</Text>
+                          <Text style={styles.subValue}>{rental.returnCondition.mileage.toLocaleString()} miles</Text>
+                        </View>
+                        <View style={styles.gridItem}>
+                          <Text style={styles.subLabel}>Return Charges:</Text>
+                          <Text style={styles.subValue}>£{rental.returnCondition.totalCharges.toFixed(2)}</Text>
+                        </View>
+                      </View>
+
+                      {includeImages && (rental.returnCondition.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                        <View style={[styles.grid, { marginTop: 6 }]}>
+                          {(rental.returnCondition.images || [])
+                            .filter(isValidPdfImageSrc)
+                            .slice(0, 6)
+                            .map((img, i) => (
+                              <Image
+                                key={i}
+                                src={img}
+                                style={{ width: '31%', margin: '1%', height: 70, objectFit: 'contain' }}
+                              />
+                            ))}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* SUB-TEMPLATE B: SUBSTITUTION FLEET SCHEDULE */}
+            {page2Template === 'substitution_fleet_schedule' && (
+              <View>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.title, { fontSize: 13 }]}>
+                    SUBSTITUTION VEHICLES SCHEDULE &amp; RECORD (PAGE 2)
+                  </Text>
+                </View>
+
+                {renderSubstitutionVehicles()}
+
+                {rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0 ? (
+                  rental.hireSubstitutionDetails.map((sub, index) => (
+                    <View key={`sub_card_${index}`} style={[styles.sectionBreak, { marginTop: 8 }]} wrap={false}>
+                      <View style={styles.infoCard}>
+                        <Text style={styles.infoCardTitle}>
+                          Substitution Record #{index + 1}: {sub.make} {sub.model}
+                        </Text>
+                        <View style={styles.grid}>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Hand-over Date:</Text>
+                            <Text style={styles.subValue}>{formatDateTime(sub.givenAt)}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Hand-over Mileage:</Text>
+                            <Text style={styles.subValue}>{sub.mileage?.toLocaleString() ?? 'N/A'}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Fuel Out:</Text>
+                            <Text style={styles.subValue}>{sub.fuelLevel ?? 'N/A'}%</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Cleanliness:</Text>
+                            <Text style={styles.subValue}>{sub.isClean ? 'Clean' : 'Needs Wash'}</Text>
+                          </View>
+                        </View>
+                        {sub.hasDamage && (
+                          <View style={styles.highlight}>
+                            <Text style={styles.highlightText}>Recorded Damage:</Text>
+                            <Text>{sub.damageDescription}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={[styles.card, { marginTop: 10, padding: 15 }]}>
+                    <Text style={{ fontSize: 9, color: '#4B5563', textAlign: 'center' }}>
+                      No substitute vehicles assigned. Primary hire vehicle remains continuously allocated.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* SUB-TEMPLATE C: DETAILED CHARGE LEDGER */}
+            {page2Template === 'detailed_charge_ledger' && (
+              <View>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.title, { fontSize: 13 }]}>
+                    ITEMIZED RATE &amp; CHARGE SCHEDULE (PAGE 2)
+                  </Text>
+                </View>
+
+                <View style={[styles.card, { marginTop: 10 }]}>
+                  <Text style={styles.infoCardTitle}>Hire Calculation &amp; Tariff Ledger</Text>
+                  <View style={{ marginTop: 8 }}>
+                    <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingBottom: 4 }]}>
+                      <Text style={[styles.label, { width: '40%' }]}>Charge Description</Text>
+                      <Text style={[styles.label, { width: '20%' }]}>Tariff / Rate</Text>
+                      <Text style={[styles.label, { width: '20%' }]}>Quantity / Period</Text>
+                      <Text style={[styles.label, { width: '20%', textAlign: 'right' }]}>Total (GBP)</Text>
+                    </View>
+
+                    <View style={[styles.row, { paddingVertical: 4 }]}>
+                      <Text style={[styles.value, { width: '40%' }]}>Base Vehicle Hire Tariff</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>£{rentalRate.toFixed(2)}</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>Per {rental.type === 'weekly' ? 'Week' : 'Day'}</Text>
+                      <Text style={[styles.value, { width: '20%', textAlign: 'right' }]}>£{rentalRate.toFixed(2)}</Text>
+                    </View>
+
+                    <View style={[styles.row, { paddingVertical: 4 }]}>
+                      <Text style={[styles.value, { width: '40%' }]}>Security Deposit Covenants</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>£{vehicle.securityDeposit || 500}</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>1 Hold</Text>
+                      <Text style={[styles.value, { width: '20%', textAlign: 'right' }]}>£{vehicle.securityDeposit || 500}</Text>
+                    </View>
+
+                    <View style={[styles.row, { paddingVertical: 4 }]}>
+                      <Text style={[styles.value, { width: '40%' }]}>Collision Damage Waiver / Excess</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>Standard Fleet</Text>
+                      <Text style={[styles.value, { width: '20%' }]}>Included</Text>
+                      <Text style={[styles.value, { width: '20%', textAlign: 'right' }]}>£0.00</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* PAGE 2 FOOTER */}
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{page2FooterText}</Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE 3: TRAILING STATUTORY / COMMERCIAL TERMS & CONDITIONS
+         ══════════════════════════════════════════════════════════════ */}
+      {includePage3 && (
+        <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(page3Entity?.logoUrl) && (
+                <Image src={page3Entity.logoUrl} style={styles.logo} />
+              )}
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{page3Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              {Boolean(page3Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {page3Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{page3Entity?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page3Entity?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page3Entity?.email || 'N/A'}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 15, marginBottom: 15 }}>
+            <Text style={[styles.sectionTitle, { fontSize: 12, textDecoration: 'underline', marginBottom: 12 }]}>
+              {page3Template === 'strict_commercial_terms'
+                ? 'COMMERCIAL FLEET & DAMAGE EXCESS COVENANTS'
+                : page3Template === 'satisfaction_notice_terms'
+                ? 'SATISFACTION NOTICE & HIRER SIGN-OFF'
+                : companyDetails?.customTermsTitle || 'STATUTORY TERMS AND CONDITIONS OF VEHICLE HIRE'}
+            </Text>
+            {getPage3TermsContent().map((para, i) => (
+              <Text key={i} style={[styles.text, { fontSize: 8.5, lineHeight: 1.45, marginBottom: 6, textAlign: 'justify', color: '#374151' }]}>
+                {para}
+              </Text>
+            ))}
+          </View>
+
+          {/* Optional Sign-off box on Page 3 for Satisfaction Notice */}
+          {page3Template === 'satisfaction_notice_terms' && (
+            <View style={[styles.card, { marginTop: 15, padding: 10 }]} wrap={false}>
+              <Text style={[styles.subLabel, { fontWeight: 'bold', marginBottom: 6 }]}>
+                Hirer Acceptance &amp; Satisfaction Declaration
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                <View style={{ width: '48%' }}>
+                  <Text style={{ fontSize: 8, color: '#6B7280' }}>Hirer Name:</Text>
+                  <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{customer.name}</Text>
+                </View>
+                <View style={{ width: '48%' }}>
+                  <Text style={{ fontSize: 8, color: '#6B7280' }}>Date of Acknowledgment:</Text>
+                  <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{formatDate(signatureDate)}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{page3FooterText}</Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      )}
     </Document>
   );
 };

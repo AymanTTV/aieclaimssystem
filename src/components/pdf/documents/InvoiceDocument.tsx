@@ -147,6 +147,11 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           </View>
           <View style={globalStyles.headerRight}>
             <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            {Boolean(companyDetails?.customHeaderText) && (
+              <Text style={[globalStyles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                {companyDetails.customHeaderText}
+              </Text>
+            )}
             <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
             <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
             <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
@@ -215,30 +220,61 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         {/* BOTTOM SECTION */}
         <View style={localStyles.bottomContainer} wrap={false}>
           {/* Card 1: Payment Details */}
-          <View style={[localStyles.cardBox, { width: '48%' }]}>
-            <Text style={localStyles.cardTitle}>Payment Details</Text>
-            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Bank:</Text>
-              <Text style={localStyles.value}>{companyDetails?.bankName || 'LLOYDS BANK'}</Text>
-            </View>
-            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
-              <Text style={localStyles.value}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-            </View>
-            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Number:</Text>
-              <Text style={localStyles.value}>{companyDetails?.accountNumber || '30513162'}</Text>
-            </View>
-            <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-              <Text style={[localStyles.label, { textTransform: 'none' }]}>Sort Code:</Text>
-              <Text style={localStyles.value}>{companyDetails?.sortCode || '30-99-50'}</Text>
-            </View>
-            <View style={{ marginTop: 10 }}>
-              <Text style={[localStyles.label, { fontSize: 8, textTransform: 'none', fontStyle: 'italic' }]}>
-                Please use Invoice {displayInvoiceNumber} as reference.
-              </Text>
-            </View>
-          </View>
+          {(() => {
+            const activeBank =
+              companyDetails?.selectedBank ||
+              (data as any).bankAllocation || {
+                bankName: (data as any).bankName || companyDetails?.bankName,
+                accountName: (data as any).accountName || companyDetails?.accountName || companyDetails?.fullName,
+                accountNumber: (data as any).accountNumber || companyDetails?.accountNumber,
+                sortCode: (data as any).sortCode || companyDetails?.sortCode,
+                iban: (data as any).iban || companyDetails?.iban,
+              };
+
+            return (
+              <View style={[localStyles.cardBox, { width: '48%' }]}>
+                <Text style={localStyles.cardTitle}>Payment Details</Text>
+                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Bank:</Text>
+                  <Text style={localStyles.value}>
+                    {activeBank.bankName || 'LLOYDS BANK'}
+                  </Text>
+                </View>
+                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
+                  <Text style={localStyles.value}>
+                    {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                  </Text>
+                </View>
+                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Number:</Text>
+                  <Text style={localStyles.value}>
+                    {activeBank.accountNumber || '30513162'}
+                  </Text>
+                </View>
+                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Sort Code:</Text>
+                  <Text style={localStyles.value}>
+                    {activeBank.sortCode || '30-99-50'}
+                  </Text>
+                </View>
+                {(activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban) && (
+                  <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
+                    <Text style={[localStyles.label, { textTransform: 'none' }]}>IBAN:</Text>
+                    <Text style={localStyles.value}>
+                      {activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[localStyles.label, { fontSize: 8, textTransform: 'none', fontStyle: 'italic' }]}>
+                    Please use Invoice {displayInvoiceNumber} as reference.
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
+
 
           {/* Card 2: Summary */}
           <View style={[localStyles.cardBox, { width: '48%' }]}>
@@ -297,41 +333,54 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
       </Page>
 
       {/* --- PAGE 2: Terms & Conditions --- */}
-      <Page size="A4" style={globalStyles.page}>
-         <View style={globalStyles.header} fixed>
-          <View style={globalStyles.headerLeft}>
-            {isValidPdfImageSrc(companyDetails?.logoUrl) && (
-              <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
-            )}
+      {companyDetails?.includeTrailingTC !== false && (
+        <Page size="A4" style={globalStyles.page}>
+          <View style={globalStyles.header} fixed>
+            <View style={globalStyles.headerLeft}>
+              {isValidPdfImageSrc(companyDetails?.logoUrl) && (
+                <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
+              )}
+            </View>
+            <View style={globalStyles.headerRight}>
+              <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+              {Boolean(companyDetails?.customHeaderText) && (
+                <Text style={[globalStyles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {companyDetails.customHeaderText}
+                </Text>
+              )}
+              <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
+              <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
+              <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+            </View>
           </View>
-          <View style={globalStyles.headerRight}>
-            <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-            <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-            <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
-            <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
-          </View>
-        </View>
 
-        <View style={{ marginTop: 20 }}>
-          <Text style={tcStyles.termTitle}>Invoice Terms</Text>
-
-          <View style={tcStyles.termSection}>
-            <Text style={tcStyles.termText}>
-              {companyDetails?.generalInvoiceTerms || 'Standard terms and conditions apply. Payment is due within the period stated on this invoice.'}
+          <View style={{ marginTop: 20 }}>
+            <Text style={tcStyles.termTitle}>
+              {companyDetails?.customTermsTitle || 'Terms & Conditions'}
             </Text>
-          </View>
-        </View>
 
-        <View style={globalStyles.footer} fixed>
-          <Text style={globalStyles.footerText}>
-            {formatInlineCompanyFooter(companyDetails)}
-          </Text>
-          <Text
-            style={globalStyles.pageNumber}
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          />
-        </View>
-      </Page>
+            <View style={tcStyles.termSection}>
+              {(companyDetails?.customTermsText || companyDetails?.generalInvoiceTerms || companyDetails?.termsAndConditions || 'Standard terms and conditions apply. Payment is due within the period stated on this invoice.')
+                .split(/\r?\n+/)
+                .map((paragraph: string, idx: number) => (
+                  <Text key={idx} style={tcStyles.termText}>
+                    {paragraph.trim()}
+                  </Text>
+                ))}
+            </View>
+          </View>
+
+          <View style={globalStyles.footer} fixed>
+            <Text style={globalStyles.footerText}>
+              {formatInlineCompanyFooter(companyDetails)}
+            </Text>
+            <Text
+              style={globalStyles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      )}
     </Document>
   );
 };

@@ -27,6 +27,7 @@ import { FleetBIReportModal } from '../components/finance/FleetBIReportModal';
 import { ProfitPayoutActionBar } from '../components/finance/ProfitPayoutActionBar';
 import { ProfitPayoutModal } from '../components/finance/ProfitPayoutModal';
 import RecentAccountTransfers from '../components/finance/RecentAccountTransfers';
+import { AccountStatementModal } from '../components/finance/AccountStatementModal';
 
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { pdf } from '@react-pdf/renderer'; 
@@ -512,6 +513,12 @@ const Finance: React.FC = () => {
   
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showBIReportModal, setShowBIReportModal] = useState(false);
+  const [showAccountStatementModal, setShowAccountStatementModal] = useState<boolean>(false);
+  const [statementInitialAccountId, setStatementInitialAccountId] = useState<string | undefined>(undefined);
+  const [statementInitialPeriodType, setStatementInitialPeriodType] = useState<'monthly' | 'quarterly' | 'custom'>('monthly');
+  const [statementInitialStartDate, setStatementInitialStartDate] = useState<string | undefined>(undefined);
+  const [statementInitialEndDate, setStatementInitialEndDate] = useState<string | undefined>(undefined);
+  const [statementInitialOpenPreview, setStatementInitialOpenPreview] = useState<boolean>(false);
 
   const [showProfitPayoutModal, setShowProfitPayoutModal] = useState(false);
   const [payoutVehicleId, setPayoutVehicleId] = useState<string | undefined>(undefined);
@@ -697,6 +704,31 @@ const Finance: React.FC = () => {
     });
   }, [filteredTransactions, departmentFilter]);
 
+  const handleOpenStatementModal = useCallback((customRange?: { start: Date | null; end: Date | null }, accId?: string, openPreview: boolean = false) => {
+    if (accId) {
+      setStatementInitialAccountId(accId);
+    } else if (typeof accountFilter === 'string' && accountFilter !== 'all') {
+      setStatementInitialAccountId(accountFilter);
+    } else if (Array.isArray(accountFilter) && accountFilter.length === 1 && accountFilter[0] !== 'all') {
+      setStatementInitialAccountId(accountFilter[0]);
+    } else {
+      setStatementInitialAccountId(undefined);
+    }
+
+    const rangeToUse = customRange || dateRange;
+    if (rangeToUse?.start && rangeToUse?.end) {
+      setStatementInitialPeriodType('custom');
+      setStatementInitialStartDate(format(rangeToUse.start, 'yyyy-MM-dd'));
+      setStatementInitialEndDate(format(rangeToUse.end, 'yyyy-MM-dd'));
+    } else {
+      setStatementInitialPeriodType('monthly');
+      setStatementInitialStartDate(undefined);
+      setStatementInitialEndDate(undefined);
+    }
+    setStatementInitialOpenPreview(openPreview);
+    setShowAccountStatementModal(true);
+  }, [accountFilter, dateRange]);
+
   useEffect(() => { setSelectedTransactionIds(new Set()); }, [searchQuery, type, category, paymentStatus, dateRange, selectedOwner, accountFilter, groupFilter, departmentFilter, showLinked, recurringFilter, profitTrackingFilter]);
 
   const handleViewTransaction = useCallback((txn: Transaction) => {
@@ -778,30 +810,80 @@ const Finance: React.FC = () => {
 
   const handleConfirmDeleteSingle = async () => {
     if (!selectedTransaction) return;
-    setDeleteLoading(true);
-    const toastId = toast.loading(`Deleting transaction...`);
-    try {
-      await deleteDoc(doc(db, 'transactions', selectedTransaction.id));
-      toast.success("Transaction deleted", { id: toastId });
-      setShowDeleteLinkedModal(false); setShowDeleteModal(false);
-      setLinkedTransactionsToDelete(null); setSelectedTransaction(null);
-    } catch (err) { toast.error("Failed", { id: toastId });
-    } finally { setDeleteLoading(false); }
+    const txToDelete = selectedTransaction;
+    setShowDeleteLinkedModal(false);
+    setShowDeleteModal(false);
+    setLinkedTransactionsToDelete(null);
+    setSelectedTransaction(null);
+    toast.success("Transaction deleted");
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            id: txToDelete.id,
+            entityId: txToDelete.id,
+            action: 'DELETE_TRANSACTION',
+            deletedPaymentId: txToDelete.paymentId || txToDelete.id,
+            timestamp: Date.now(),
+          },
+        })
+      );
+      window.dispatchEvent(new CustomEvent('finance_updated'));
+    }
+
+    (async () => {
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, 'transactions', txToDelete.id));
+        batch.delete(doc(db, 'finance_ledger', txToDelete.id));
+        await batch.commit();
+      } catch (err) {
+        console.error("Background delete transaction error:", err);
+        toast.error("Failed to delete transaction on server");
+      }
+    })();
   };
 
   const handleConfirmDeleteLinked = async () => {
     if (!linkedTransactionsToDelete || linkedTransactionsToDelete.length === 0) return;
-    setDeleteLoading(true);
-    const count = linkedTransactionsToDelete.length;
-    const toastId = toast.loading(`Deleting ${count} linked...`);
-    try {
-      const batch = writeBatch(db);
-      linkedTransactionsToDelete.forEach(txn => batch.delete(doc(db, 'transactions', txn.id)));
-      await batch.commit();
-      toast.success(`${count} linked deleted`, { id: toastId });
-      setShowDeleteLinkedModal(false); setLinkedTransactionsToDelete(null); setSelectedTransaction(null);
-    } catch (err) { toast.error(`Failed`, { id: toastId });
-    } finally { setDeleteLoading(false); }
+    const toDelete = [...linkedTransactionsToDelete];
+    const count = toDelete.length;
+    setShowDeleteLinkedModal(false);
+    setLinkedTransactionsToDelete(null);
+    setSelectedTransaction(null);
+    toast.success(`${count} linked transactions deleted`);
+
+    if (typeof window !== 'undefined') {
+      toDelete.forEach((txn) => {
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              id: txn.id,
+              entityId: txn.id,
+              action: 'DELETE_TRANSACTION',
+              deletedPaymentId: txn.paymentId || txn.id,
+              timestamp: Date.now(),
+            },
+          })
+        );
+      });
+      window.dispatchEvent(new CustomEvent('finance_updated'));
+    }
+
+    (async () => {
+      try {
+        const batch = writeBatch(db);
+        toDelete.forEach((txn) => {
+          batch.delete(doc(db, 'transactions', txn.id));
+          batch.delete(doc(db, 'finance_ledger', txn.id));
+        });
+        await batch.commit();
+      } catch (err) {
+        console.error("Background delete linked transactions error:", err);
+        toast.error("Failed to delete linked transactions on server");
+      }
+    })();
   };
 
   const handleAssignTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowAssignModal(true); }, []);
@@ -1293,6 +1375,7 @@ const Finance: React.FC = () => {
         totalSubcontractorExpenses={verifiedSubcontractorExpenses}
         totalSubcontractorNetProfit={totalSubcontractorNetProfit}
         subcontractorProfitMargin={subcontractorProfitMargin}
+        onOpenStatementModal={(accId) => handleOpenStatementModal(dateRange, accId)}
       />
 
       {/* HORIZONTAL TAB / PILL NAVIGATION MENU */}
@@ -1385,6 +1468,8 @@ const Finance: React.FC = () => {
             onAddExpense={() => setShowAddExpense(true)} 
             onAddRecurring={() => setShowRecurringModal(true)} 
             onOpenBIReport={() => setShowBIReportModal(true)}
+            onOpenStatementModal={() => handleOpenStatementModal(dateRange)}
+            onOpenStatementPreview={() => handleOpenStatementModal(dateRange, undefined, true)}
             onGeneratePDF={handleGeneratePDF} period="month" onPeriodChange={() => {}} type={type} onTypeChange={setType} 
             onManageGroups={() => setManageOpen(true)} 
             onManageDepartments={() => setShowManageDepartments(true)}
@@ -1413,6 +1498,7 @@ const Finance: React.FC = () => {
             recurringFilter={recurringFilter} onRecurringFilterChange={setRecurringFilter}
             recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
             profitTrackingFilter={profitTrackingFilter} onProfitTrackingFilterChange={setProfitTrackingFilter}
+            onOpenStatementModal={handleOpenStatementModal}
           />
 
           {selectedTransactionIds.size > 0 && (can('finance', 'assign') || can('finance', 'delete')) && (
@@ -1509,6 +1595,7 @@ const Finance: React.FC = () => {
             totalSubcontractorExpenses={verifiedSubcontractorExpenses}
             totalSubcontractorNetProfit={totalSubcontractorNetProfit}
             subcontractorProfitMargin={subcontractorProfitMargin}
+            onOpenStatementModal={(accId) => handleOpenStatementModal(dateRange, accId)}
           />
 
           {/* RECENT ACCOUNT TRANSFERS AUDIT LOG */}
@@ -1681,6 +1768,18 @@ const Finance: React.FC = () => {
         initialVehicleId={payoutVehicleId}
         initialAccountId={payoutAccountId}
         initialTab={payoutTab}
+      />
+
+      <AccountStatementModal
+        isOpen={showAccountStatementModal}
+        onClose={() => setShowAccountStatementModal(false)}
+        accounts={accounts}
+        transactions={transactions}
+        initialAccountId={statementInitialAccountId}
+        initialPeriodType={statementInitialPeriodType}
+        initialStartDate={statementInitialStartDate}
+        initialEndDate={statementInitialEndDate}
+        initialOpenPreview={statementInitialOpenPreview}
       />
 
     </div>

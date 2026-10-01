@@ -20,6 +20,7 @@ import {
   ChevronRight,
   TrendingUp,
   TrendingDown,
+  Eye,
 } from 'lucide-react';
 import {
   format,
@@ -29,6 +30,10 @@ import {
   startOfQuarter,
   endOfQuarter,
   subQuarters,
+  subDays,
+  startOfYear,
+  endOfYear,
+  differenceInDays,
 } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
@@ -42,6 +47,7 @@ import {
 } from '../pdf/documents/AccountStatementDocument';
 import companySignatureFallback from '../../assets/signiture.png';
 import companyLogoFallback from '../../assets/logo.png';
+import AccountStatementPreviewModal from './AccountStatementPreviewModal';
 
 interface AccountStatementModalProps {
   isOpen: boolean;
@@ -50,6 +56,9 @@ interface AccountStatementModalProps {
   transactions: Transaction[];
   initialAccountId?: string;
   initialPeriodType?: 'monthly' | 'quarterly' | 'custom';
+  initialStartDate?: string;
+  initialEndDate?: string;
+  initialOpenPreview?: boolean;
 }
 
 export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
@@ -59,6 +68,9 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
   transactions,
   initialAccountId,
   initialPeriodType = 'monthly',
+  initialStartDate,
+  initialEndDate,
+  initialOpenPreview = false,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
   const { user } = useAuth();
@@ -83,10 +95,10 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
 
   // Custom Range State
   const [customStartDate, setCustomStartDate] = useState<string>(() => {
-    return format(startOfMonth(now), 'yyyy-MM-dd');
+    return initialStartDate || format(startOfMonth(now), 'yyyy-MM-dd');
   });
   const [customEndDate, setCustomEndDate] = useState<string>(() => {
-    return format(endOfMonth(now), 'yyyy-MM-dd');
+    return initialEndDate || format(endOfMonth(now), 'yyyy-MM-dd');
   });
 
   // Statement Options
@@ -97,6 +109,40 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
     'Official periodic account statement. Reconciled against double-entry General Ledger records.'
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+  const [companyDetails, setCompanyDetails] = useState<any>({
+    fullName: 'AIE Skyline Limited',
+    tradingName: 'AIE Skyline',
+    officialAddress: 'Unit 4, Business Park, London, United Kingdom',
+    phone: '+44 20 8123 4567',
+    email: 'accounts@aieskyline.co.uk',
+    signature: companySignatureFallback,
+    logoUrl: companyLogoFallback,
+  });
+
+  // Fetch company details on mount
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
+        if (companyDoc.exists() && isMounted) {
+          const cData = companyDoc.data();
+          setCompanyDetails((prev: any) => ({
+            ...prev,
+            ...cData,
+            signature: cData.signature || cData.signatureUrl || companySignatureFallback,
+            logoUrl: cData.logoUrl || cData.logo || companyLogoFallback,
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch companySettings, using defaults:', err);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Prepopulate initial account
   useEffect(() => {
@@ -106,6 +152,24 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
       setSelectedAccountId(accounts[0].id);
     }
   }, [initialAccountId, accounts]);
+
+  // Synchronize when modal opens with new initial period/dates
+  useEffect(() => {
+    if (isOpen) {
+      if (initialPeriodType) {
+        setPeriodType(initialPeriodType);
+      }
+      if (initialStartDate) {
+        setCustomStartDate(initialStartDate);
+      }
+      if (initialEndDate) {
+        setCustomEndDate(initialEndDate);
+      }
+      if (initialOpenPreview) {
+        setShowPreviewModal(true);
+      }
+    }
+  }, [isOpen, initialPeriodType, initialStartDate, initialEndDate, initialOpenPreview]);
 
   // Selected Account Object
   const selectedAccount = useMemo(() => {
@@ -328,9 +392,56 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
     };
   }, [selectedAccount, transactions, dateRangeStart, dateRangeEnd]);
 
+  // ── ACTIVE STATEMENT DATA (MEMOIZED FOR REAL-TIME PREVIEW & PDF GENERATION) ──
+  const activeStatementData: AccountStatementData | null = useMemo(() => {
+    if (!selectedAccount) return null;
+    return {
+      statementReference: statementRef || `STMT-${format(new Date(), 'yyyyMMdd')}`,
+      statementPeriodType: periodType,
+      periodLabel,
+      dateFrom: dateRangeStart,
+      dateTo: dateRangeEnd,
+      generatedDate: new Date(),
+      account: {
+        id: selectedAccount.id,
+        name: selectedAccount.name,
+        accountType: selectedAccount.accountType,
+        vehicleName: (selectedAccount as any).vehicleName,
+        vehicleReg: (selectedAccount as any).vehicleReg,
+        currency: 'GBP (£)',
+      },
+      openingBalance: statementCalculations.openingBalance,
+      totalInflows: statementCalculations.totalInflows,
+      totalOutflows: statementCalculations.totalOutflows,
+      netMovement: statementCalculations.netMovement,
+      closingBalance: statementCalculations.closingBalance,
+      inflowCount: statementCalculations.inflowCount,
+      outflowCount: statementCalculations.outflowCount,
+      transactions: statementCalculations.transactionsInPeriod,
+      categoryBreakdown: statementCalculations.categoryBreakdown,
+      notes: statementNotes,
+      signatoryName: user?.name || 'Chief Financial Officer',
+      signatoryRole: 'Director of Fleet Finance',
+      includeSignature,
+      includeLedger,
+    };
+  }, [
+    selectedAccount,
+    statementRef,
+    periodType,
+    periodLabel,
+    dateRangeStart,
+    dateRangeEnd,
+    statementCalculations,
+    statementNotes,
+    user?.name,
+    includeSignature,
+    includeLedger,
+  ]);
+
   // ── GENERATE AND DOWNLOAD PDF STATEMENT ──
   const handleGeneratePDF = async () => {
-    if (!selectedAccount) {
+    if (!selectedAccount || !activeStatementData) {
       toast.error('Please select an account.');
       return;
     }
@@ -339,70 +450,12 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
     const toastId = toast.loading(`Generating official ${periodLabel} statement...`);
 
     try {
-      // 1. Fetch Company Settings
-      let companyDetails: any = {
-        fullName: 'AIE Skyline Limited',
-        tradingName: 'AIE Skyline',
-        officialAddress: 'Unit 4, Business Park, London, United Kingdom',
-        phone: '+44 20 8123 4567',
-        email: 'accounts@aieskyline.co.uk',
-        signature: companySignatureFallback,
-        logoUrl: companyLogoFallback,
-      };
-
-      try {
-        const companyDoc = await getDoc(doc(db, 'companySettings', 'details'));
-        if (companyDoc.exists()) {
-          const cData = companyDoc.data();
-          companyDetails = {
-            ...companyDetails,
-            ...cData,
-            signature: cData.signature || cData.signatureUrl || companySignatureFallback,
-            logoUrl: cData.logoUrl || cData.logo || companyLogoFallback,
-          };
-        }
-      } catch (err) {
-        console.warn('Could not fetch companySettings, using defaults:', err);
-      }
-
-      // 2. Prepare Statement Payload
-      const statementData: AccountStatementData = {
-        statementReference: statementRef || `STMT-${format(new Date(), 'yyyyMMdd')}`,
-        statementPeriodType: periodType,
-        periodLabel,
-        dateFrom: dateRangeStart,
-        dateTo: dateRangeEnd,
-        generatedDate: new Date(),
-        account: {
-          id: selectedAccount.id,
-          name: selectedAccount.name,
-          accountType: selectedAccount.accountType,
-          vehicleName: (selectedAccount as any).vehicleName,
-          vehicleReg: (selectedAccount as any).vehicleReg,
-          currency: 'GBP (£)',
-        },
-        openingBalance: statementCalculations.openingBalance,
-        totalInflows: statementCalculations.totalInflows,
-        totalOutflows: statementCalculations.totalOutflows,
-        netMovement: statementCalculations.netMovement,
-        closingBalance: statementCalculations.closingBalance,
-        inflowCount: statementCalculations.inflowCount,
-        outflowCount: statementCalculations.outflowCount,
-        transactions: statementCalculations.transactionsInPeriod,
-        categoryBreakdown: statementCalculations.categoryBreakdown,
-        notes: statementNotes,
-        signatoryName: user?.name || 'Chief Financial Officer',
-        signatoryRole: 'Director of Fleet Finance',
-        includeSignature,
-        includeLedger,
-      };
-
-      // 3. Render PDF Blob
+      // Render PDF Blob using @react-pdf/renderer
       const blob = await pdf(
-        <AccountStatementDocument data={statementData} companyDetails={companyDetails} />
+        <AccountStatementDocument data={activeStatementData} companyDetails={companyDetails} />
       ).toBlob();
 
-      // 4. Trigger Download
+      // Trigger Download
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -415,6 +468,7 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
       URL.revokeObjectURL(url);
 
       toast.success('Account statement PDF downloaded successfully!', { id: toastId });
+      setShowPreviewModal(false);
       onClose();
     } catch (err: any) {
       console.error('Error generating account statement PDF:', err);
@@ -432,12 +486,13 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
   ];
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Generate Account Statement"
-      size="2xl"
-    >
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Generate Account Statement"
+        size="2xl"
+      >
       <div className="space-y-6 text-left">
         {/* Modal Intro Banner */}
         <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -451,10 +506,10 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
               </span>
             </div>
             <h3 className="text-base sm:text-lg font-bold mt-1 text-white tracking-tight">
-              Monthly &amp; Quarterly Account Statement Generator
+              State-of-the-Art Account Statement Generator
             </h3>
             <p className="text-xs text-slate-300 mt-0.5">
-              Generate certified financial account statements with opening/closing balances, categorized cashflow, itemized ledger, and digital signature.
+              Generate certified financial account statements for monthly, quarterly, or custom date periods with opening/closing balances, categorized cashflow, itemized ledger, and digital signature.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
@@ -692,28 +747,110 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
 
           {/* CUSTOM RANGE SELECTOR */}
           {periodType === 'custom' && (
-            <div className="grid grid-cols-2 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl text-slate-800"
-                />
+            <div className="space-y-3.5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+              {/* Quick Custom Range Presets */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Quick Custom Presets:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: 'This Month', start: startOfMonth(now), end: endOfMonth(now) },
+                    { label: 'Last Month', start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) },
+                    { label: 'Last 30 Days', start: subDays(now, 30), end: now },
+                    { label: 'Last 60 Days', start: subDays(now, 60), end: now },
+                    { label: 'Last 90 Days', start: subDays(now, 90), end: now },
+                    { label: 'Year to Date (YTD)', start: startOfYear(now), end: now },
+                    { label: 'Past 6 Months', start: subMonths(now, 6), end: now },
+                    { label: 'Full Year 2026', start: new Date(2026, 0, 1), end: new Date(2026, 11, 31) },
+                    { label: 'Previous Year 2025', start: new Date(2025, 0, 1), end: new Date(2025, 11, 31) },
+                  ].map((preset) => {
+                    const sStr = format(preset.start, 'yyyy-MM-dd');
+                    const eStr = format(preset.end, 'yyyy-MM-dd');
+                    const isSelected = customStartDate === sStr && customEndDate === eStr;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          setCustomStartDate(sStr);
+                          setCustomEndDate(eStr);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl text-slate-800"
-                />
+
+              {/* Exact Date Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                    <span>Start Date</span>
+                    <span className="text-[10px] font-normal text-slate-400">Inclusive</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                    <span>End Date</span>
+                    <span className="text-[10px] font-normal text-slate-400">Inclusive</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Period Duration Pill & Status */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/80 text-xs">
+                <div className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>
+                    Selected Span:{' '}
+                    <strong className="text-slate-900 font-mono">
+                      {(() => {
+                        try {
+                          const s = new Date(customStartDate);
+                          const e = new Date(customEndDate);
+                          if (e < s) return 'Invalid range (End date is before Start date)';
+                          const days = Math.max(1, differenceInDays(e, s) + 1);
+                          return `${days} days (${format(s, 'dd MMM yyyy')} to ${format(e, 'dd MMM yyyy')})`;
+                        } catch {
+                          return 'Custom period';
+                        }
+                      })()}
+                    </strong>
+                  </span>
+                </div>
+                {customStartDate && customEndDate && new Date(customEndDate) < new Date(customStartDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const temp = customStartDate;
+                      setCustomStartDate(customEndDate);
+                      setCustomEndDate(temp);
+                    }}
+                    className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+                  >
+                    Swap Dates to Fix
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -860,6 +997,18 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
               Cancel
             </button>
 
+            {/* ── REAL-TIME PREVIEW BUTTON ── */}
+            <button
+              type="button"
+              onClick={() => setShowPreviewModal(true)}
+              disabled={!selectedAccount || !activeStatementData}
+              className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100/90 text-indigo-700 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Real-time live PDF preview using @react-pdf/renderer before generating"
+            >
+              <Eye className="w-4 h-4 text-indigo-600" />
+              <span>Preview Statement</span>
+            </button>
+
             <button
               type="button"
               onClick={handleGeneratePDF}
@@ -882,6 +1031,17 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
         </div>
       </div>
     </Modal>
+
+    {/* ── REAL-TIME ACCOUNT STATEMENT PREVIEW MODAL ── */}
+    <AccountStatementPreviewModal
+      isOpen={showPreviewModal}
+      onClose={() => setShowPreviewModal(false)}
+      statementData={activeStatementData}
+      companyDetails={companyDetails}
+      onDownloadPDF={handleGeneratePDF}
+      isGeneratingPDF={isGeneratingPDF}
+    />
+    </>
   );
 };
 

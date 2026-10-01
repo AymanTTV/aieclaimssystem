@@ -339,255 +339,269 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
         ? log.invoiceNumber.trim()
         : (log.orderNumber ? `INV-${String(log.orderNumber).replace(/^#/, '')}` : `INV-MAINT-${log.id.slice(-6).toUpperCase()}`);
 
-      let linkedInvoiceId: string | undefined = undefined;
+      // ── OPTIMISTIC UI UPDATE: Instantly update React local state, notify, and close modal ──
+      setLocalPayments(cleanedPayments);
 
-      // ===================================================================
-      // OPTION A ("both") & OPTION C ("invoice"): GENERATE OFFICIAL INVOICE
-      // ===================================================================
-      // Generate an Outstanding / Unpaid Invoice in the Invoicing module.
-      // Payment Status: DO NOT automatically mark the invoice as paid. Keep status OUTSTANDING / UNPAID (full Billed Total as Owing).
-      // Manual Settlement: The invoice must remain Outstanding until a user manually opens the Invoice page and records/clears the payment.
-      if (destination === 'both' || destination === 'invoice') {
-        try {
-          const invRefCol = collection(db, 'invoices');
-          const qByRef = query(invRefCol, where('referenceId', '==', log.id));
-          const snapByRef = await getDocs(qByRef);
+      const optimisticEventDetail = {
+        logId: log.id,
+        orderId: log.orderNumber || log.id,
+        orderNumber: log.orderNumber || log.id,
+        invoiceNumber: targetInvoiceNum,
+        dealerCost: profitMetrics.subcontractorCost,
+        subcontractorCost: profitMetrics.subcontractorCost,
+        customerBilled: billedAmount,
+        netProfit: profitMetrics.netProfit,
+        profitMarginPercent: profitMetrics.profitMarginPercent,
+        isProfitEdited: true,
+        isEdited: true,
+        paidAmount: newPaid,
+        remainingAmount: newRemaining,
+        paymentStatus: newPaymentStatus,
+        payments: cleanedPayments,
+        timestamp: new Date().toISOString(),
+      };
 
-          let existingInvDoc = snapByRef.docs[0];
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('maintenanceRecordUpdated', { detail: optimisticEventDetail }));
+        window.dispatchEvent(new CustomEvent('maintenanceCostUpdated', { detail: optimisticEventDetail }));
+        window.dispatchEvent(new CustomEvent('financeRecordUpdated', { detail: optimisticEventDetail }));
+        window.dispatchEvent(new CustomEvent('finance_updated'));
+        window.dispatchEvent(new CustomEvent('invoices_updated'));
+        window.dispatchEvent(new CustomEvent('maintenance_updated'));
+      }
 
-          if (!existingInvDoc && targetInvoiceNum) {
-            const qByNum = query(invRefCol, where('invoiceNumber', '==', targetInvoiceNum));
-            const snapByNum = await getDocs(qByNum);
-            if (!snapByNum.empty) {
-              existingInvDoc = snapByNum.docs[0];
+      toast.success(
+        destination === 'both'
+          ? 'Payment recorded: Posted as Expense & Invoice generated'
+          : destination === 'finance'
+          ? (editingPaymentId ? 'Expense updated in Finance Ledger' : 'Payment recorded: Posted as Expense')
+          : 'Payment recorded: Invoice generated in Invoicing module'
+      );
+      onClose();
+
+      // ── BACKGROUND ASYNC FIRESTORE PERSISTENCE ──
+      (async () => {
+        let linkedInvoiceId: string | undefined = undefined;
+
+        // ===================================================================
+        // OPTION A ("both") & OPTION C ("invoice"): GENERATE OFFICIAL INVOICE
+        // ===================================================================
+        if (destination === 'both' || destination === 'invoice') {
+          try {
+            const invRefCol = collection(db, 'invoices');
+            const qByRef = query(invRefCol, where('referenceId', '==', log.id));
+            const snapByRef = await getDocs(qByRef);
+
+            let existingInvDoc = snapByRef.docs[0];
+
+            if (!existingInvDoc && targetInvoiceNum) {
+              const qByNum = query(invRefCol, where('invoiceNumber', '==', targetInvoiceNum));
+              const snapByNum = await getDocs(qByNum);
+              if (!snapByNum.empty) {
+                existingInvDoc = snapByNum.docs[0];
+              }
             }
-          }
 
-          const invoicePayload: Record<string, any> = {
-            invoiceNumber: targetInvoiceNum,
+            const invoicePayload: Record<string, any> = {
+              invoiceNumber: targetInvoiceNum,
+              referenceId: log.id,
+              maintenanceJobId: log.id,
+              maintenanceOrderId: log.orderNumber || log.id,
+              paymentId: paymentId,
+              orderId: log.orderNumber || log.id,
+              orderNumber: log.orderNumber || log.id,
+              date: parsedPaymentDate,
+              dueDate: log.invoiceDueDate 
+                ? (log.invoiceDueDate instanceof Date ? log.invoiceDueDate : (log.invoiceDueDate as any).toDate ? (log.invoiceDueDate as any).toDate() : new Date(log.invoiceDueDate))
+                : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              completedDate: log.completedDate 
+                ? (log.completedDate instanceof Date ? log.completedDate : (log.completedDate as any).toDate ? (log.completedDate as any).toDate() : new Date(log.completedDate))
+                : null,
+              category: log.type || 'Maintenance',
+              description: `Maintenance Job: ${log.type || 'Service'} | Order: ${log.orderNumber || log.id}${formData.notes ? ` - ${formData.notes}` : ''}`,
+              notes: formData.notes || log.notes || null,
+              vehicleId: log.vehicleId || vehicle?.id || null,
+              vehicleName: vehicle 
+                ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
+                : (log.vehicleDetails ? `${log.vehicleDetails.make} ${log.vehicleDetails.model} (${log.vehicleDetails.registrationNumber})` : null),
+              customerId: log.customerId || null,
+              customerName: log.serviceProvider || vehicle?.owner?.name || 'Fleet Service Provider',
+              amount: billedAmount,
+              netAmount: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
+              vatAmount: log.vatAmount || parseFloat((billedAmount - (log.netAmount || (billedAmount / 1.2))).toFixed(2)),
+              total: billedAmount,
+              subTotal: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
+              paidAmount: 0,
+              remainingAmount: billedAmount,
+              amountOwing: billedAmount,
+              owing: billedAmount,
+              paymentStatus: 'unpaid',
+              status: 'unpaid',
+              subcontractorCost: profitMetrics.subcontractorCost,
+              dealerCost: profitMetrics.subcontractorCost,
+              customerBilled: billedAmount,
+              netProfit: profitMetrics.netProfit,
+              profitMarginPercent: profitMetrics.profitMarginPercent,
+              isProfitEdited: true,
+              isEdited: true,
+              payments: [],
+              paymentMethod: null,
+              paymentReference: null,
+              accountId: effectiveAccountId || null,
+              accountName: effectiveAccountName || null,
+              accountFrom: effectiveAccountId || null,
+              accountTo: effectiveAccountId || null,
+              groupId: mappedDepartmentAccount.groupId || vehicle?.assignedGroupId || null,
+              groupName: mappedDepartmentAccount.groupName || vehicle?.assignedGroupName || null,
+              departmentId: mappedDepartmentAccount.departmentId || vehicle?.assignedDepartmentId || null,
+              departmentName: mappedDepartmentAccount.departmentName || vehicle?.assignedDepartmentName || null,
+              lineItems: [
+                {
+                  description: log.description || `Maintenance: ${log.type || 'Service'}`,
+                  quantity: 1,
+                  unitPrice: billedAmount,
+                  net: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
+                  vat: log.vatAmount || parseFloat((billedAmount - (log.netAmount || (billedAmount / 1.2))).toFixed(2)),
+                  total: billedAmount,
+                  subcontractorCost: profitMetrics.subcontractorCost,
+                  dealerCost: profitMetrics.subcontractorCost,
+                  netProfit: profitMetrics.netProfit,
+                  profitMarginPercent: profitMetrics.profitMarginPercent,
+                  vehicleId: log.vehicleId || vehicle?.id || null,
+                  vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : null,
+                }
+              ],
+              type: 'income',
+              transactionType: 'INCOME',
+              skipLedgerIncome: true,
+              preventFinanceSync: true,
+              entityType: 'MAINTENANCE',
+              maintenanceJobId: log.id,
+              maintenanceOrderId: log.orderNumber || log.id,
+              updatedAt: new Date(),
+            };
+
+            if (existingInvDoc) {
+              linkedInvoiceId = existingInvDoc.id;
+              await updateDoc(doc(db, 'invoices', existingInvDoc.id), sanitizeForFirestore(invoicePayload));
+            } else {
+              invoicePayload.createdAt = new Date();
+              invoicePayload.createdBy = currentUserId;
+              const newDoc = await addDoc(collection(db, 'invoices'), sanitizeForFirestore(invoicePayload));
+              linkedInvoiceId = newDoc.id;
+            }
+          } catch (invErr) {
+            console.warn('Error creating/updating invoice for maintenance payment:', invErr);
+          }
+        }
+
+        await syncMaintenanceRecord(log.id, {
+          payments: cleanedPayments,
+          paidAmount: newPaid,
+          remainingAmount: newRemaining,
+          paymentStatus: newPaymentStatus,
+          paymentMethod: formData.method,
+          paymentReference: formData.reference?.trim() || null,
+          notes: formData.notes?.trim() || log.notes || null,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          dealerCost: profitMetrics.subcontractorCost,
+          customerBilled: billedAmount,
+          netProfit: profitMetrics.netProfit,
+          profitMarginPercent: profitMetrics.profitMarginPercent,
+          orderId: log.orderNumber || log.id,
+          orderNumber: log.orderNumber || log.id,
+          invoiceNumber: targetInvoiceNum,
+          invoiceId: linkedInvoiceId,
+          updatedAt: new Date(),
+          updatedBy: currentUserId
+        });
+
+        await updateDoc(
+          doc(db, 'maintenanceLogs', log.id),
+          sanitizeForFirestore({
+            payments: cleanedPayments,
+            paidAmount: newPaid,
+            remainingAmount: newRemaining,
+            paymentStatus: newPaymentStatus,
+            updatedAt: new Date(),
+            updatedBy: currentUserId
+          })
+        );
+
+        const vehicleOwner = vehicle?.owner
+          ? {
+              name: vehicle.owner.name,
+              isDefault: vehicle.owner.isDefault ?? false,
+            }
+          : undefined;
+
+        if (editingPaymentId) {
+          await reverseFinanceTransaction({
             referenceId: log.id,
+            paymentId: isLegacyEdit ? undefined : editingPaymentId
+          });
+        }
+
+        if (destination === 'both' || destination === 'finance') {
+          const totalLogCost = log.cost || 1; 
+          const vatRatio = (log.vatAmount || 0) / totalLogCost;
+          const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
+      
+          const paymentVatAmount = paymentAmount * vatRatio;
+          const paymentNetAmount = paymentAmount * netRatio;
+
+          await createFinanceTransaction({
+            type: 'expense',
+            transactionType: 'EXPENSE',
+            entryType: 'DEBIT',
+            category: log.type || 'Maintenance',
+            amount: paymentAmount,
+            netAmount: parseFloat(paymentNetAmount.toFixed(2)),
+            vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
+            description: `Maintenance Expense | Order: ${log.orderNumber || 'N/A'} | Inv: ${targetInvoiceNum}${formData.notes ? ` - ${formData.notes}` : ''}`,
+            customerName: log.serviceProvider || vehicle?.owner?.name,
+            referenceId: log.id,
+            sourceReferenceId: log.id,
             maintenanceJobId: log.id,
             maintenanceOrderId: log.orderNumber || log.id,
+            vehicleId: log.vehicleId,
+            vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
+            vehicleOwner,
+            accountFrom: effectiveAccountId || undefined,
+            accountTo: effectiveAccountId || undefined,
+            accountName: effectiveAccountName || undefined,
+            paymentMethod: formData.method,
+            paymentReference: targetInvoiceNum || paymentId, 
             paymentId: paymentId,
-            orderId: log.orderNumber || log.id,
-            orderNumber: log.orderNumber || log.id,
+            paymentStatus: 'expense',
+            status: 'completed',
             date: parsedPaymentDate,
-            dueDate: log.invoiceDueDate 
-              ? (log.invoiceDueDate instanceof Date ? log.invoiceDueDate : (log.invoiceDueDate as any).toDate ? (log.invoiceDueDate as any).toDate() : new Date(log.invoiceDueDate))
-              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            completedDate: log.completedDate 
-              ? (log.completedDate instanceof Date ? log.completedDate : (log.completedDate as any).toDate ? (log.completedDate as any).toDate() : new Date(log.completedDate))
-              : null,
-            category: log.type || 'Maintenance',
-            description: `Maintenance Job: ${log.type || 'Service'} | Order: ${log.orderNumber || log.id}${formData.notes ? ` - ${formData.notes}` : ''}`,
-            notes: formData.notes || log.notes || null,
-            vehicleId: log.vehicleId || vehicle?.id || null,
-            vehicleName: vehicle 
-              ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
-              : (log.vehicleDetails ? `${log.vehicleDetails.make} ${log.vehicleDetails.model} (${log.vehicleDetails.registrationNumber})` : null),
-            customerId: log.customerId || null,
-            customerName: log.serviceProvider || vehicle?.owner?.name || 'Fleet Service Provider',
-            amount: billedAmount,
-            netAmount: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
-            vatAmount: log.vatAmount || parseFloat((billedAmount - (log.netAmount || (billedAmount / 1.2))).toFixed(2)),
-            total: billedAmount,
-            subTotal: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
-            // STRICT RULE: DO NOT automatically mark invoice as paid. Keep as OUTSTANDING / UNPAID with full Billed Total as Owing
-            paidAmount: 0,
-            remainingAmount: billedAmount,
-            amountOwing: billedAmount,
-            owing: billedAmount,
-            paymentStatus: 'unpaid',
-            status: 'unpaid',
-            subcontractorCost: profitMetrics.subcontractorCost,
             dealerCost: profitMetrics.subcontractorCost,
+            subcontractorCost: profitMetrics.subcontractorCost,
             customerBilled: billedAmount,
             netProfit: profitMetrics.netProfit,
             profitMarginPercent: profitMetrics.profitMarginPercent,
             isProfitEdited: true,
             isEdited: true,
-            payments: [], // Empty payments array until manual settlement on Invoice page
-            paymentMethod: null,
-            paymentReference: null,
-            // Automatically inherited account & department from vehicle
-            accountId: effectiveAccountId || null,
-            accountName: effectiveAccountName || null,
-            accountFrom: effectiveAccountId || null,
-            accountTo: effectiveAccountId || null,
-            groupId: mappedDepartmentAccount.groupId || vehicle?.assignedGroupId || null,
-            groupName: mappedDepartmentAccount.groupName || vehicle?.assignedGroupName || null,
-            departmentId: mappedDepartmentAccount.departmentId || vehicle?.assignedDepartmentId || null,
-            departmentName: mappedDepartmentAccount.departmentName || vehicle?.assignedDepartmentName || null,
-            lineItems: [
-              {
-                description: log.description || `Maintenance: ${log.type || 'Service'}`,
-                quantity: 1,
-                unitPrice: billedAmount,
-                net: log.netAmount || parseFloat((billedAmount / 1.2).toFixed(2)),
-                vat: log.vatAmount || parseFloat((billedAmount - (log.netAmount || (billedAmount / 1.2))).toFixed(2)),
-                total: billedAmount,
-                subcontractorCost: profitMetrics.subcontractorCost,
-                dealerCost: profitMetrics.subcontractorCost,
-                netProfit: profitMetrics.netProfit,
-                profitMarginPercent: profitMetrics.profitMarginPercent,
-                vehicleId: log.vehicleId || vehicle?.id || null,
-                vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : null,
-              }
-            ],
-            type: 'income',
-            transactionType: 'INCOME',
-            skipLedgerIncome: true, // STRICT RULE: Never create a paired Income transaction on Finance Ledger for maintenance
-            preventFinanceSync: true,
+            linkedInvoiceRef: log.id,
+            invoiceId: linkedInvoiceId,
             entityType: 'MAINTENANCE',
-            maintenanceJobId: log.id,
-            maintenanceOrderId: log.orderNumber || log.id,
-            updatedAt: new Date(),
-          };
+            orderId: log.orderNumber || log.id,
+            orderNumber: log.orderNumber || log.id,
+            invoiceNumber: targetInvoiceNum,
+            groupId: mappedDepartmentAccount.groupId || vehicle?.assignedGroupId || undefined,
+            groupName: mappedDepartmentAccount.groupName || vehicle?.assignedGroupName || undefined,
+            departmentId: mappedDepartmentAccount.departmentId || vehicle?.assignedDepartmentId || undefined,
+            departmentName: mappedDepartmentAccount.departmentName || vehicle?.assignedDepartmentName || undefined
+          });
 
-          if (existingInvDoc) {
-            linkedInvoiceId = existingInvDoc.id;
-            await updateDoc(doc(db, 'invoices', existingInvDoc.id), sanitizeForFirestore(invoicePayload));
-          } else {
-            invoicePayload.createdAt = new Date();
-            invoicePayload.createdBy = currentUserId;
-            const newDoc = await addDoc(collection(db, 'invoices'), sanitizeForFirestore(invoicePayload));
-            linkedInvoiceId = newDoc.id;
-          }
-        } catch (invErr) {
-          console.warn('Error creating/updating invoice for maintenance payment:', invErr);
+          await purgeOrphanedMaintenanceIncomeEntries(log.orderNumber || log.id || 'A1');
         }
-      }
-
-      await syncMaintenanceRecord(log.id, {
-        payments: cleanedPayments,
-        paidAmount: newPaid,
-        remainingAmount: newRemaining,
-        paymentStatus: newPaymentStatus,
-        paymentMethod: formData.method,
-        paymentReference: formData.reference?.trim() || null,
-        notes: formData.notes?.trim() || log.notes || null,
-        subcontractorCost: profitMetrics.subcontractorCost,
-        dealerCost: profitMetrics.subcontractorCost,
-        customerBilled: billedAmount,
-        netProfit: profitMetrics.netProfit,
-        profitMarginPercent: profitMetrics.profitMarginPercent,
-        orderId: log.orderNumber || log.id,
-        orderNumber: log.orderNumber || log.id,
-        invoiceNumber: targetInvoiceNum,
-        invoiceId: linkedInvoiceId,
-        updatedAt: new Date(),
-        updatedBy: currentUserId
+      })().catch((err) => {
+        console.error('Background maintenance payment sync error:', err);
+        toast.error('Failed to sync maintenance payment to server');
       });
-
-      await updateDoc(
-        doc(db, 'maintenanceLogs', log.id),
-        sanitizeForFirestore({
-          payments: cleanedPayments,
-          paidAmount: newPaid,
-          remainingAmount: newRemaining,
-          paymentStatus: newPaymentStatus,
-          updatedAt: new Date(),
-          updatedBy: currentUserId
-        })
-      );
-
-      const vehicleOwner = vehicle?.owner
-        ? {
-            name: vehicle.owner.name,
-            isDefault: vehicle.owner.isDefault ?? false,
-          }
-        : undefined;
-
-      if (editingPaymentId) {
-        await reverseFinanceTransaction({
-          referenceId: log.id,
-          paymentId: isLegacyEdit ? undefined : editingPaymentId
-        });
-      }
-
-      // ===================================================================
-      // OPTION A ("both") & OPTION B ("finance"): POST EXPENSE TO FINANCE LEDGER
-      // ===================================================================
-      // When "Both" or "Finance Page Only" is selected, post ONLY ONE SINGLE EXPENSE entry
-      // strictly with type: 'EXPENSE', entryType: 'DEBIT'.
-      // DO NOT generate a paired Income transaction entry on the Finance Ledger.
-      if (destination === 'both' || destination === 'finance') {
-        const totalLogCost = log.cost || 1; 
-        const vatRatio = (log.vatAmount || 0) / totalLogCost;
-        const netRatio = (log.netAmount || log.cost || 0) / totalLogCost;
-    
-        const paymentVatAmount = paymentAmount * vatRatio;
-        const paymentNetAmount = paymentAmount * netRatio;
-
-        await createFinanceTransaction({
-          type: 'expense',
-          transactionType: 'EXPENSE',
-          entryType: 'DEBIT',
-          category: log.type || 'Maintenance',
-          amount: paymentAmount,
-          netAmount: parseFloat(paymentNetAmount.toFixed(2)),
-          vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
-          description: `Maintenance Expense | Order: ${log.orderNumber || 'N/A'} | Inv: ${targetInvoiceNum}${formData.notes ? ` - ${formData.notes}` : ''}`,
-          customerName: log.serviceProvider || vehicle?.owner?.name,
-          referenceId: log.id,
-          sourceReferenceId: log.id,
-          maintenanceJobId: log.id,
-          maintenanceOrderId: log.orderNumber || log.id,
-          vehicleId: log.vehicleId,
-          vehicleName: vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})` : undefined,
-          vehicleOwner,
-          // Automatically inherit the account/department pre-assigned to the vehicle
-          accountFrom: effectiveAccountId || undefined,
-          accountTo: effectiveAccountId || undefined,
-          accountName: effectiveAccountName || undefined,
-          paymentMethod: formData.method,
-          paymentReference: targetInvoiceNum || paymentId, 
-          paymentId: paymentId,
-          paymentStatus: 'expense',
-          status: 'completed',
-          date: parsedPaymentDate,
-          dealerCost: profitMetrics.subcontractorCost,
-          subcontractorCost: profitMetrics.subcontractorCost,
-          customerBilled: billedAmount,
-          netProfit: profitMetrics.netProfit,
-          profitMarginPercent: profitMetrics.profitMarginPercent,
-          isProfitEdited: true,
-          isEdited: true,
-          linkedInvoiceRef: log.id,
-          invoiceId: linkedInvoiceId,
-          entityType: 'MAINTENANCE',
-          orderId: log.orderNumber || log.id,
-          orderNumber: log.orderNumber || log.id,
-          invoiceNumber: targetInvoiceNum,
-          groupId: mappedDepartmentAccount.groupId || vehicle?.assignedGroupId || undefined,
-          groupName: mappedDepartmentAccount.groupName || vehicle?.assignedGroupName || undefined,
-          departmentId: mappedDepartmentAccount.departmentId || vehicle?.assignedDepartmentId || undefined,
-          departmentName: mappedDepartmentAccount.departmentName || vehicle?.assignedDepartmentName || undefined
-        });
-
-        // Ensure any duplicate/orphaned Income entries tied to this maintenance order are cleanly purged
-        await purgeOrphanedMaintenanceIncomeEntries(log.orderNumber || log.id || 'A1');
-      }
-
-      setLocalPayments(cleanedPayments);
-
-      // Trigger cross-page refresh events
-      try {
-        window.dispatchEvent(new CustomEvent('finance_updated'));
-        window.dispatchEvent(new CustomEvent('invoices_updated'));
-        window.dispatchEvent(new CustomEvent('maintenance_updated'));
-      } catch {
-        // Safe fallback
-      }
-
-      toast.success(
-        destination === 'both'
-          ? 'Payment recorded: Posted as Expense to Finance Ledger AND Outstanding Invoice generated in Invoicing module'
-          : destination === 'finance'
-          ? (editingPaymentId ? 'Expense updated in Finance Ledger' : 'Payment recorded: Posted directly as Expense to Finance Ledger')
-          : 'Payment recorded: Official Invoice generated in Invoicing module (Status: Outstanding / Unpaid)'
-      );
-      onClose();
+      return;
     } catch (err) {
       console.error('Error recording maintenance payment:', err);
       toast.error('Failed to process payment destination');

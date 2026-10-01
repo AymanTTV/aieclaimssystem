@@ -25,9 +25,10 @@ import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDe
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 
 import Modal from '../components/ui/Modal';
-import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare, Layers, Briefcase, LayoutGrid, DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
+import { Plus, Download, Upload, PoundSterling, Receipt, Users, Settings, FileText, AlertTriangle, MessageCircle, Mail, Settings2, MessageSquare, Layers, Briefcase, LayoutGrid, DollarSign, TrendingUp, TrendingDown, Percent, CalendarClock } from 'lucide-react';
 import InvoiceCommunicationModal from '../components/finance/InvoiceCommunicationModal';
 import TemplateQuickAccessModal, { QuickAccessModalType } from '../components/common/TemplateQuickAccessModal';
+import { StatementSchedulerModal } from '../components/invoices/StatementSchedulerModal';
 import { doc, collection, getDocs, updateDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { exportToExcel } from '../utils/excel';
@@ -38,6 +39,8 @@ import { useAuth } from '../context/AuthContext';
 import { useSharedAccounts } from '../hooks/useSharedAccounts';
 import { generateBulkDocuments, generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { InvoiceBulkDocument, InvoiceDocument } from '../components/pdf/documents';
+import { pdf } from '@react-pdf/renderer';
+import SplitDocumentPreviewModal from '../components/common/SplitDocumentPreviewModal';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 import { reverseFinanceTransaction, purgeFinanceTransactionsForInvoice } from '../utils/financeTransactions';
 import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
@@ -82,6 +85,7 @@ const Invoices: React.FC = () => {
 
   const [quickAccessModalOpen, setQuickAccessModalOpen] = useState(false);
   const [quickAccessType, setQuickAccessType] = useState<QuickAccessModalType>('messageTemplates');
+  const [showStatementScheduler, setShowStatementScheduler] = useState(false);
   useEffect(() => {
     const unsub = unifiedCategoryService.subscribe((cats) => {
       setCategories(cats.map((c) => c.name));
@@ -188,6 +192,7 @@ const Invoices: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
 
@@ -209,28 +214,42 @@ const Invoices: React.FC = () => {
   };
 
   const confirmBulkDelete = async () => {
-    setBulkDeleteLoading(true);
-    const toastId = toast.loading(`Deleting ${selectedInvoiceIds.size} invoices...`);
-    try {
-      const batch = writeBatch(db);
-      selectedInvoiceIds.forEach(id => {
-        batch.delete(doc(db, 'invoices', id));
-      });
-      await batch.commit();
+    if (selectedInvoiceIds.size === 0) return;
+    const idsToDelete = Array.from(selectedInvoiceIds);
+    setSelectedInvoiceIds(new Set()); 
+    setShowBulkDeleteConfirm(false);
+    toast.success(`${idsToDelete.length} invoice(s) deleted successfully`);
 
-      // Purge finance transactions for all deleted invoices
-      for (const id of selectedInvoiceIds) {
-        await purgeFinanceTransactionsForInvoice(id);
-      }
-      
-      toast.success('Invoices deleted successfully', { id: toastId });
-      setSelectedInvoiceIds(new Set()); 
-      setShowBulkDeleteConfirm(false);
-    } catch (error) {
-      toast.error('Failed to delete invoices', { id: toastId });
-    } finally {
-      setBulkDeleteLoading(false);
+    // Optimistically update invoice list in memory
+    if (typeof window !== 'undefined') {
+      idsToDelete.forEach((id) => {
+        window.dispatchEvent(
+          new CustomEvent('invoiceRecordUpdated', {
+            detail: { id, action: 'DELETE_INVOICE', timestamp: Date.now() },
+          })
+        );
+      });
+      window.dispatchEvent(new CustomEvent('invoices_updated'));
+      window.dispatchEvent(new CustomEvent('finance_updated'));
     }
+
+    // Execute Firestore writeBatch in background
+    (async () => {
+      try {
+        const batch = writeBatch(db);
+        idsToDelete.forEach((id) => {
+          batch.delete(doc(db, 'invoices', id));
+        });
+        await batch.commit();
+
+        for (const id of idsToDelete) {
+          await purgeFinanceTransactionsForInvoice(id);
+        }
+      } catch (error) {
+        console.error('Background bulk delete error:', error);
+        toast.error('Failed to complete background bulk invoice delete');
+      }
+    })();
   };
 
   const handleExport = () => {
@@ -420,51 +439,17 @@ const Invoices: React.FC = () => {
       if (newPaidAmount >= invoice.total - 0.01 && invoice.total > 0) newStatus = 'paid';
       else if (newPaidAmount > 0) newStatus = 'partially_paid';
 
-      await updateDoc(doc(db, 'invoices', invoice.id), {
+      // 1. OPTIMISTIC UI UPDATE: Instantly reflect deleted payment
+      const updatedInvoiceObj = {
+        ...invoice,
         payments: updatedPayments,
         paidAmount: newPaidAmount,
         remainingAmount: newRemaining < 0 ? 0 : newRemaining,
-        paymentStatus: newStatus,
-        updatedAt: new Date()
-      });
+        paymentStatus: newStatus as any,
+      };
+      setSelectedInvoice(prev => (prev ? { ...prev, ...updatedInvoiceObj } : null));
+      toast.success('Payment deleted and removed from Finance Ledger');
 
-      await reverseFinanceTransaction({
-        referenceId: invoice.id,
-        invoiceId: invoice.id,
-        paymentId: paymentId,
-        amount: paymentToDelete.amount
-      });
-
-      // Synchronize updated invoice payment status and amounts to Finance
-      await syncInvoiceRecord(invoice.id, {
-        payments: updatedPayments,
-        paidAmount: newPaidAmount,
-        remainingAmount: newRemaining < 0 ? 0 : newRemaining,
-        paymentStatus: newStatus,
-      }).catch((syncErr) => console.warn('Sync invoice on payment delete notice:', syncErr));
-
-      // Purge from backend server payment ledger
-      try {
-        const apiRes = await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
-          method: 'DELETE',
-        });
-        if (!apiRes.ok) {
-          console.warn(`Backend delete payment API returned status ${apiRes.status}`);
-        }
-      } catch (apiErr) {
-        console.warn('Backend server payment delete notice:', apiErr);
-      }
-
-      // Immediately invalidate finance ledger global cache atom and trigger manual re-fetch
-      invalidateFinanceLedgerCache(paymentId);
-      await manuallyRefetchFinanceLedger().catch((fetchErr) => {
-        console.warn('Manual ledger re-fetch notice:', fetchErr);
-      });
-      if (refetchTransactions) {
-        await refetchTransactions().catch(() => {});
-      }
-
-      // Cache invalidation across Finance Ledger & Summary Cards
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('financeRecordUpdated', {
@@ -491,64 +476,108 @@ const Invoices: React.FC = () => {
             },
           })
         );
+        window.dispatchEvent(new CustomEvent('invoices_updated'));
+        window.dispatchEvent(new CustomEvent('finance_updated'));
       }
-      
-      toast.success('Payment deleted and removed from Finance Ledger');
-      const updatedInvoiceObj = { ...invoice, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any };
-      setSelectedInvoice(prev => prev ? {...prev, payments: updatedPayments, paidAmount: newPaidAmount, remainingAmount: newRemaining, paymentStatus: newStatus as any} : null);
 
-      // Automatically update the invoice document on payment delete
-      try {
-        const companyDetails = await getCompanyDetails();
-        const vehicle = vehicles.find(v => v.id === invoice.vehicleId);
-        const customer = customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined);
-        await generateAndUploadDocument(
-          InvoiceDocument,
-          { ...updatedInvoiceObj, vehicle, customer },
-          'invoices',
-          invoice.id,
-          'invoices',
-          companyDetails
-        );
-      } catch (docErr) {
-        console.warn('Background invoice document update error:', docErr);
-      }
+      // 2. BACKGROUND ASYNC FIRESTORE PERSISTENCE
+      (async () => {
+        try {
+          await updateDoc(doc(db, 'invoices', invoice.id), {
+            payments: updatedPayments,
+            paidAmount: newPaidAmount,
+            remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+            paymentStatus: newStatus,
+            updatedAt: new Date()
+          });
+
+          await reverseFinanceTransaction({
+            referenceId: invoice.id,
+            invoiceId: invoice.id,
+            paymentId: paymentId,
+            amount: paymentToDelete.amount
+          });
+
+          // Synchronize updated invoice payment status and amounts to Finance
+          await syncInvoiceRecord(invoice.id, {
+            payments: updatedPayments,
+            paidAmount: newPaidAmount,
+            remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+            paymentStatus: newStatus,
+          }).catch((syncErr) => console.warn('Sync invoice on payment delete notice:', syncErr));
+
+          // Purge from backend server payment ledger
+          try {
+            await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
+              method: 'DELETE',
+            });
+          } catch (apiErr) {
+            console.warn('Backend server payment delete notice:', apiErr);
+          }
+
+          invalidateFinanceLedgerCache(paymentId);
+          await manuallyRefetchFinanceLedger().catch(() => {});
+          if (refetchTransactions) {
+            await refetchTransactions().catch(() => {});
+          }
+
+          // Update invoice PDF document
+          try {
+            const companyDetails = await getCompanyDetails();
+            const vehicle = vehicles.find(v => v.id === invoice.vehicleId);
+            const customer = customers.find(c => c.id === invoice.customerId) || (invoice.customerName ? { name: invoice.customerName, mobile: invoice.customerPhone } : undefined);
+            await generateAndUploadDocument(
+              InvoiceDocument,
+              { ...updatedInvoiceObj, vehicle, customer },
+              'invoices',
+              invoice.id,
+              'invoices',
+              companyDetails
+            );
+          } catch (docErr) {
+            console.warn('Background invoice document update error:', docErr);
+          }
+        } catch (bgErr) {
+          console.error('Background payment delete error:', bgErr);
+          toast.error('Failed to sync payment deletion to server');
+        }
+      })();
     } catch (err) {
       toast.error('Failed to delete payment');
     }
   };
 
-  const handleOpenLatestInvoicePDF = async (inv: Invoice) => {
-    try {
-      toast.loading('Generating latest invoice PDF…');
-      const companyDetails = await getCompanyDetails();
-      const vehicle = vehicles.find(v => v.id === inv.vehicleId);
-      const customer = customers.find(c => c.id === inv.customerId) || (inv.customerName ? { name: inv.customerName, mobile: inv.customerPhone } : undefined);
+  const handleOpenLatestInvoicePDF = (inv: Invoice) => {
+    setPreviewInvoice(inv);
+  };
 
-      const url = await generateAndUploadDocument(
-        InvoiceDocument,
-        { ...inv, vehicle, customer }, 
-        'invoices',
-        inv.id,
-        'invoices',
-        companyDetails,
-        'documentUrl'
-      );
-      toast.dismiss();
-      toast.success('Latest invoice PDF opened');
-      if (url) {
-        const finalUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
-        window.open(finalUrl, '_blank');
-      }
-    } catch (err) {
-      toast.dismiss();
-      console.error('Failed to generate latest invoice PDF:', err);
-      if (inv.documentUrl) {
-        const fallbackUrl = inv.documentUrl.includes('?') ? `${inv.documentUrl}&_t=${Date.now()}` : `${inv.documentUrl}?_t=${Date.now()}`;
-        window.open(fallbackUrl, '_blank');
-      } else {
-        toast.error('Failed to generate latest invoice PDF');
-      }
+  const handleGenerateAndCommitInvoice = async (inv: Invoice, effectiveCompanyDetails: any) => {
+    const toastId = toast.loading('Compiling and downloading customized invoice PDF…');
+    try {
+      const vehicle = vehicles.find((v) => v.id === inv.vehicleId);
+      const customer = customers.find((c) => c.id === inv.customerId) || (inv.customerName ? { name: inv.customerName, mobile: inv.customerPhone } : undefined);
+
+      const blob = await pdf(
+        <InvoiceDocument
+          data={{ ...inv, vehicle, customer }}
+          companyDetails={effectiveCompanyDetails}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeNum = (inv.invoiceNumber || inv.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `Invoice_${safeNum}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Invoice PDF generated and downloaded successfully!', { id: toastId });
+    } catch (err: any) {
+      console.error('Failed to generate customized invoice PDF:', err);
+      toast.error(`Failed to generate invoice PDF: ${err?.message || 'Error'}`, { id: toastId });
     }
   };
 
@@ -815,6 +844,15 @@ const Invoices: React.FC = () => {
             </>
           )}
 
+          <button
+            type="button"
+            onClick={() => setShowStatementScheduler(true)}
+            className="inline-flex whitespace-nowrap flex-shrink-0 items-center justify-center px-3 sm:px-3.5 py-2 border border-indigo-200 rounded-xl shadow-xs text-xs sm:text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 hover:text-indigo-900 active:scale-95 transition-all cursor-pointer"
+            title="Configure automated monthly or quarterly delivery of PDF account statements to customers via email"
+          >
+            <CalendarClock className="h-4 w-4 mr-1.5 text-indigo-600 pointer-events-none" /> Statement Scheduler
+          </button>
+
           {can('invoices', 'create') && (
             <button
               onClick={() => setShowForm(true)}
@@ -895,7 +933,11 @@ const Invoices: React.FC = () => {
         </div>
       ) : (
         <div className="animate-fadeIn">
-          <CustomerAccounts invoices={invoices} customers={customers} />
+          <CustomerAccounts
+            invoices={invoices}
+            customers={customers}
+            onOpenScheduler={() => setShowStatementScheduler(true)}
+          />
         </div>
       )}
 
@@ -964,6 +1006,37 @@ const Invoices: React.FC = () => {
       <Modal isOpen={!!deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} title="Delete Invoice">
         {deletingInvoiceId && <InvoiceDeleteModal invoiceId={deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} />}
       </Modal>
+
+      {/* --- STANDARDIZED LEFT-SIDE SPLIT PREVIEW CANVAS --- */}
+      {previewInvoice && (
+        <SplitDocumentPreviewModal
+          isOpen={!!previewInvoice}
+          onClose={() => setPreviewInvoice(null)}
+          documentType="invoice"
+          documentTitle="Invoice Live Preview"
+          documentReference={previewInvoice.invoiceNumber || previewInvoice.id}
+          baseCompanyDetails={companyDetails}
+          initialBankId={(previewInvoice as any).bankAllocation?.id || (previewInvoice as any).bankAccountId}
+          renderDocument={(effectiveCompanyDetails) => {
+            const vehicle = vehicles.find((v) => v.id === previewInvoice.vehicleId);
+            const customer =
+              customers.find((c) => c.id === previewInvoice.customerId) ||
+              (previewInvoice.customerName
+                ? ({ name: previewInvoice.customerName, mobile: previewInvoice.customerPhone } as any)
+                : undefined);
+            return (
+              <InvoiceDocument
+                data={{ ...previewInvoice, vehicle, customer }}
+                companyDetails={effectiveCompanyDetails}
+              />
+            );
+          }}
+          onCommitAndGenerate={async (effectiveCompanyDetails) => {
+            await handleGenerateAndCommitInvoice(previewInvoice, effectiveCompanyDetails);
+            setPreviewInvoice(null);
+          }}
+        />
+      )}
 
      <Modal isOpen={!!payingInvoice} onClose={() => setPayingInvoice(null)} title="Record Payment" size="xl">
         {payingInvoice && (
@@ -1063,6 +1136,13 @@ const Invoices: React.FC = () => {
          </div>
        </div>
       </Modal>
+
+      <StatementSchedulerModal
+        isOpen={showStatementScheduler}
+        onClose={() => setShowStatementScheduler(false)}
+        customers={customers}
+        invoices={invoices}
+      />
     </div>
   );
 };

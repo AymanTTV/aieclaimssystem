@@ -36,6 +36,47 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
     // Wait until the user object is fully loaded
     if (!user) return;
 
+    const handleMaintenanceEvent = (e: any) => {
+      const detail = e?.detail;
+      if (!detail) return;
+
+      setLogs((prev) => {
+        if (detail.action === 'DELETE_MAINTENANCE' && detail.logId) {
+          return prev.filter((l) => l.id !== detail.logId);
+        }
+        if (detail.action === 'CREATE_MAINTENANCE' && detail.logId) {
+          const exists = prev.some((l) => l.id === detail.logId);
+          if (exists) return prev;
+          return [{ id: detail.logId, ...detail } as MaintenanceLog, ...prev];
+        }
+
+        const idx = prev.findIndex(
+          (l) =>
+            l.id === detail.logId ||
+            (detail.orderNumber && (l.orderNumber === detail.orderNumber || l.orderId === detail.orderNumber))
+        );
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            ...detail,
+            status: detail.status || updated[idx].status,
+            completedDate: detail.completedDate ? (detail.completedDate instanceof Date ? detail.completedDate : new Date(detail.completedDate)) : updated[idx].completedDate,
+            paidAmount: detail.paidAmount !== undefined ? Number(detail.paidAmount) : updated[idx].paidAmount,
+            remainingAmount: detail.remainingAmount !== undefined ? Number(detail.remainingAmount) : updated[idx].remainingAmount,
+            paymentStatus: detail.paymentStatus || updated[idx].paymentStatus,
+            payments: detail.payments || updated[idx].payments,
+          };
+          return updated;
+        }
+        return prev;
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('maintenanceRecordUpdated', handleMaintenanceEvent);
+    }
+
     let q = query(collection(db, 'maintenanceLogs'), orderBy('date', 'desc'));
     
     if (vehicleId) {
@@ -106,7 +147,12 @@ export const useMaintenanceLogs = (vehicleId?: string) => {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('maintenanceRecordUpdated', handleMaintenanceEvent);
+      }
+    };
   }, [vehicleId, user]); 
 
   return { logs, loading, error };

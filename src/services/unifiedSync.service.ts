@@ -311,7 +311,9 @@ export async function syncMaintenanceRecord(
     logPayload.invoiceNumber = invNum;
   }
 
-  await updateDoc(logRef, sanitizeForFirestore(logPayload));
+  // Use a single Firestore writeBatch for atomic and rapid execution
+  const syncBatch = writeBatch(db);
+  syncBatch.update(logRef, sanitizeForFirestore(logPayload));
 
   // 2. Find and update linked invoices in Firestore
   const invoicesToUpdate = new Map<string, any>();
@@ -371,7 +373,7 @@ export async function syncMaintenanceRecord(
         }));
       }
 
-      await updateDoc(doc(db, 'invoices', invId), sanitizeForFirestore(invPayload));
+      syncBatch.update(doc(db, 'invoices', invId), sanitizeForFirestore(invPayload));
     }
   } catch (err) {
     console.warn('Error syncing linked invoices from maintenance:', err);
@@ -473,10 +475,8 @@ export async function syncMaintenanceRecord(
       // Purge any duplicate or paired Income entries tied to this maintenance job
       if (isIncome) {
         console.log(`[FinanceLedger Audit] Purging duplicate Income entry ${txId} during maintenance sync`);
-        await deleteDoc(doc(db, 'transactions', txId)).catch(() => {});
-        try {
-          await deleteDoc(doc(db, 'finance_ledger', txId)).catch(() => {});
-        } catch {}
+        syncBatch.delete(doc(db, 'transactions', txId));
+        syncBatch.delete(doc(db, 'finance_ledger', txId));
         continue;
       }
 
@@ -501,11 +501,12 @@ export async function syncMaintenanceRecord(
       }
       if (invNum) txPayload.invoiceNumber = invNum;
 
-      await updateDoc(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
-      try {
-        await setDoc(doc(db, 'finance_ledger', txId), sanitizeForFirestore({ id: txId, ...txPayload }), { merge: true });
-      } catch {}
+      syncBatch.update(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
+      syncBatch.set(doc(db, 'finance_ledger', txId), sanitizeForFirestore({ id: txId, ...txPayload }), { merge: true });
     }
+
+    // Commit all updates (log, invoices, transactions) atomically in a single roundtrip
+    await syncBatch.commit();
 
     // Always run orphan purge for this maintenance order / Order #A1
     await purgeOrphanedMaintenanceIncomeEntries(orderNum || logId || 'A1');
@@ -816,7 +817,9 @@ export async function syncInvoiceRecord(
     invPayload.invoiceNumber = invNum;
   }
 
-  await updateDoc(invRef, sanitizeForFirestore(invPayload));
+  // Atomic batch write for invoice and all linked transactions
+  const syncBatch = writeBatch(db);
+  syncBatch.update(invRef, sanitizeForFirestore(invPayload));
 
   // 2. DIRECTIONAL EDITING HIERARCHY RULE:
   // EDITED ON INVOICE PAGE (Mid-Level Source):
@@ -849,6 +852,7 @@ export async function syncInvoiceRecord(
       console.log(
         `[FinanceLedger Audit] [syncFinancialRecord:INVOICE] Skipping transaction generation for maintenance invoice ${invoiceId}. Maintenance records are strictly recorded as single EXPENSE entries.`
       );
+      await syncBatch.commit();
       await purgeOrphanedMaintenanceIncomeEntries(orderNum || refId || 'A1');
       return;
     }
@@ -994,8 +998,8 @@ export async function syncInvoiceRecord(
           const existsInUpdated = currentPayments.some((p: any) => String(p.id) === String(txData.paymentId));
           if (!existsInUpdated) {
             // Payment was deleted from invoice! Delete from transactions and finance_ledger
-            await deleteDoc(doc(db, 'transactions', txId)).catch(() => {});
-            await deleteDoc(doc(db, 'finance_ledger', txId)).catch(() => {});
+            syncBatch.delete(doc(db, 'transactions', txId));
+            syncBatch.delete(doc(db, 'finance_ledger', txId));
             continue;
           }
         }
@@ -1081,43 +1085,23 @@ export async function syncInvoiceRecord(
               : `Invoice #${resolvedInvNum || invoiceId.slice(0, 8)}`);
         }
 
-        console.log(
-          `[FinanceLedger Audit] [UPSERT:UPDATE] Pre-commit verification: transaction ${txId} ` +
-          `(isPayment=${isPaymentTx}) updating with invoiceNumber="${txPayload.invoiceNumber}", ` +
-          `transactionType="${txPayload.transactionType}", type="${txPayload.type}"`
-        );
-
-        await updateDoc(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
-        try {
-          await setDoc(doc(db, 'finance_ledger', txId), sanitizeForFirestore({ id: txId, ...txPayload }), { merge: true });
-        } catch {
-          // ignore
-        }
-      }
-
-      invalidateFinanceLedgerCache();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('financeRecordUpdated', {
-            detail: {
-              entityId: invoiceId,
-              action: 'UPDATE_INVOICE',
-              timestamp: Date.now(),
-            },
-          })
-        );
+        syncBatch.update(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
+        syncBatch.set(doc(db, 'finance_ledger', txId), sanitizeForFirestore({ id: txId, ...txPayload }), { merge: true });
       }
     } else {
       if (isMaintenanceLinked) {
         console.log(
           `[FinanceLedger Audit] Skipping auto-creation of Income transaction for maintenance invoice ${invoiceId} (Order #${orderNum || 'N/A'}). Maintenance must only be recorded as EXPENSE.`
         );
+        await syncBatch.commit();
         return;
       }
 
       // Create corresponding transaction in Finance Ledger for the invoice
       const resolvedInvNum = invNum || existingInv.invoiceNumber || updates.invoiceNumber;
+      const newTxRef = doc(collection(db, 'transactions'));
       const newTx: Record<string, any> = {
+        id: newTxRef.id,
         entityId: invoiceId,
         entityType: 'INVOICE',
         referenceId: invoiceId,
@@ -1161,12 +1145,24 @@ export async function syncInvoiceRecord(
         `in collection 'transactions' & 'finance_ledger' with invoiceNumber="${resolvedInvNum}", transactionType="${expectedTransactionType}", type="${expectedTxType}"`
       );
 
-      const addedDoc = await addDoc(collection(db, 'transactions'), sanitizeForFirestore(newTx));
-      try {
-        await setDoc(doc(db, 'finance_ledger', addedDoc.id), sanitizeForFirestore({ id: addedDoc.id, ...newTx }), { merge: true });
-      } catch {
-        // ignore
-      }
+      syncBatch.set(newTxRef, sanitizeForFirestore(newTx));
+      syncBatch.set(doc(db, 'finance_ledger', newTxRef.id), sanitizeForFirestore(newTx), { merge: true });
+    }
+
+    // Atomically commit batch write in a single roundtrip
+    await syncBatch.commit();
+    invalidateFinanceLedgerCache();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: invoiceId,
+            action: 'UPDATE_INVOICE',
+            timestamp: Date.now(),
+          },
+        })
+      );
     }
   } catch (err) {
     console.warn('Error syncing linked transactions from invoice:', err);
@@ -1265,19 +1261,17 @@ export async function syncTransactionRecord(
     txPayload.invoiceNumber = invNum;
   }
 
-  await updateDoc(txRef, sanitizeForFirestore(txPayload));
-  try {
-    await setDoc(
-      doc(db, 'finance_ledger', transactionId),
-      sanitizeForFirestore({
-        id: transactionId,
-        ...txPayload
-      }),
-      { merge: true }
-    );
-  } catch {
-    // ignore
-  }
+  // Use unified writeBatch for transactions, finance_ledger, and rentals in a single roundtrip
+  const syncBatch = writeBatch(db);
+  syncBatch.update(txRef, sanitizeForFirestore(txPayload));
+  syncBatch.set(
+    doc(db, 'finance_ledger', transactionId),
+    sanitizeForFirestore({
+      id: transactionId,
+      ...txPayload,
+    }),
+    { merge: true }
+  );
 
   // 2. DIRECTIONAL EDITING HIERARCHY RULE:
   // EDITED ON FINANCE PAGE (Bottom-Level Ledger):
@@ -1325,11 +1319,14 @@ export async function syncTransactionRecord(
       if (updates.completionStatus || updates.status) {
         rentPayload.status = normalizeCompletionStatus(updates.completionStatus || updates.status).toLowerCase();
       }
-      await updateDoc(doc(db, 'rentals', rentDocId), sanitizeForFirestore(rentPayload));
+      syncBatch.update(doc(db, 'rentals', rentDocId), sanitizeForFirestore(rentPayload));
     }
   } catch (err) {
     console.warn('Error syncing linked rentals from transaction:', err);
   }
+
+  // Commit all writes in a single roundtrip
+  await syncBatch.commit();
 
   // Real-time events & backend notification
   try {

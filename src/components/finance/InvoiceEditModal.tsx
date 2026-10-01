@@ -439,201 +439,21 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
         `transactionType (Verified): "${payload.transactionType}" (type: "${payload.type}")`
       );
 
-      await syncInvoiceRecord(invoice.id, payload);
-
-      const fullInv = { id: invoice.id, ...invoice, ...payload } as any;
-      const pdfVehicle = mainVehicle;
-      const pdfCustomer = customers.find(c => c.id === formData.customerId);
-      
-      let finalDocUrl = invoice.documentUrl || '';
-      if (formData.uploadedDocument) {
-         const stRef = ref(storage, `invoices/${invoice.id}/${formData.uploadedDocument.name}`);
-         const snap = await uploadBytes(stRef, formData.uploadedDocument);
-         finalDocUrl = await getDownloadURL(snap.ref);
-         await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: finalDocUrl });
-      } else {
-         const companyDetails = await getCompanyDetails();
-         if (companyDetails) {
-            finalDocUrl = await generateAndUploadDocument(
-              InvoiceDocument, { ...fullInv, vehicle: pdfVehicle, customer: pdfCustomer }, 
-              'invoices', invoice.id, 'invoices', companyDetails
-            );
-         }
-      }
-
-      const groupsByVehicle = new Map<string, { net: number, vat: number, gross: number, vehicleName: string }>();
-      lineItems.forEach(li => {
-          const gross = li.quantity * li.unitPrice;
-          const discountAmt = (li.discount / 100) * gross;
-          const itemNet = gross - discountAmt;
-          const itemVat = li.includeVAT ? itemNet * 0.2 : 0;
-          const itemTotal = itemNet + itemVat;
-
-          const vId = li.vehicleId || formData.vehicleId || 'unassigned';
-          const vName = li.vehicleName || formData.vehicleName || 'Unassigned / General';
-
-          if (!groupsByVehicle.has(vId)) {
-              groupsByVehicle.set(vId, { net: 0, vat: 0, gross: 0, vehicleName: vName });
-          }
-          const group = groupsByVehicle.get(vId)!;
-          group.net += itemNet;
-          group.vat += itemVat;
-          group.gross += itemTotal;
-      });
-
-      const txRef = collection(db, 'transactions');
-      const qExp = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'expense'));
-      const qInc = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'income'));
-      const [snapExp, snapInc] = await Promise.all([getDocs(qExp), getDocs(qInc)]);
-      const batch = writeBatch(db);
-      snapExp.forEach(d => {
-        const cat = d.data().category;
-        const desc = d.data().description || '';
-        if (cat === 'Loan Provided' || cat === 'Loan Received' || cat === (invoice.category || 'Loan Provided') || desc.includes('Loan')) {
-           batch.delete(d.ref);
-        }
-      });
-      snapInc.forEach(d => {
-        const cat = d.data().category;
-        const desc = d.data().description || '';
-        if (cat === 'Loan Provided' || cat === 'Loan Received' || desc.includes('Loan')) {
-           batch.delete(d.ref);
-        }
-      });
-      await batch.commit();
-
-      if (formData.isLoan) {
-          const loanType: 'expense' | 'income' = formData.loanTransactionType === 'income' ? 'income' : 'expense';
-          const defaultCategory = loanType === 'income' ? 'Loan Received' : 'Loan Provided';
-          const loanLabel = loanType === 'income' ? 'Loan Received (Income)' : 'Loan Provided (Expense)';
-
-          for (const [vId, totals] of groupsByVehicle.entries()) {
-              const targetVehicle = vehicles.find(v => v.id === vId);
-              const vehicleOwner = targetVehicle?.owner 
-                  ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
-                  : { name: 'AIE Skyline Limited', isDefault: true };
-
-              const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
-              const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
-              const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
-              const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
-
-              await createFinanceTransaction({
-                  type: loanType,
-                  transactionType: loanType === 'income' ? 'INCOME' : 'EXPENSE',
-                  category: formData.category || defaultCategory,
-                  amount: totals.gross,
-                  description: [formData.description, `${loanLabel} for Invoice ${invoiceNumberToSave}`].filter(Boolean).join(' - '),
-                  referenceId: invoice.id,
-                  sourceReferenceId: invoice.id,
-                  linkedInvoiceRef: invoice.id,
-                  entityId: invoice.id,
-                  entityType: 'INVOICE',
-                  invoiceNumber: invoiceNumberToSave,
-                  vehicleId: vId === 'unassigned' ? undefined : vId,
-                  vehicleName: totals.vehicleName,
-                  vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
-                  customerId: payload.customerId || undefined,
-                  customerName: payload.customerName || undefined,
-                  paymentMethod: 'internal',
-                  paymentStatus: 'paid',
-                  date: new Date(formData.date), 
-                  subcontractorCost: profitMetrics.subcontractorCost,
-                  dealerCost: profitMetrics.subcontractorCost,
-                  customerBilled: total,
-                  netProfit: profitMetrics.netProfit,
-                  profitMarginPercent: profitMetrics.profitMarginPercent,
-                  accountFrom: formData.accountFrom || undefined,
-                  accountTo: formData.accountTo || undefined,
-                  groupId: rawGroupId || undefined, 
-                  groupName: resolvedGroupName || undefined, 
-                  departmentId: targetDeptId || undefined, 
-                  departmentName: targetDeptName || undefined 
-              });
-          }
-      }
-
-      if (!formData.isLoan && formData.isAddingPayment && payNow > 0) {
-          let finalAccountId = formData.accountTo || formData.accountId;
-          if (!finalAccountId) {
-              const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
-              if (defaultAcc) finalAccountId = defaultAcc.id;
-          }
-            
-          const actualCategory = formData.category === 'Other' && formData.customCategory 
-              ? formData.customCategory 
-              : (formData.category || 'Invoice Payment');
-
-          for (const [vId, totals] of groupsByVehicle.entries()) {
-              const targetVehicle = vehicles.find(v => v.id === vId);
-              const vehicleOwner = targetVehicle?.owner 
-                  ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
-                  : { name: 'AIE Skyline Limited', isDefault: true };
-
-              const ratio = total > 0 ? totals.gross / total : 0;
-              const allocatedPayment = payNow * ratio;
-
-              const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
-              const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
-              const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
-              const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
-
-              if (allocatedPayment > 0) {
-                  await createFinanceTransaction({
-                      type: 'income',
-                      transactionType: 'INCOME',
-                      category: actualCategory,
-                      amount: allocatedPayment,
-                      description: [formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${invoiceNumberToSave}`,
-                      referenceId: invoice.id,
-                      sourceReferenceId: invoice.id,
-                      linkedInvoiceRef: invoice.id,
-                      entityId: invoice.id,
-                      entityType: 'INVOICE',
-                      vehicleId: vId === 'unassigned' ? undefined : vId,
-                      vehicleName: totals.vehicleName,
-                      vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
-                      customerId: payload.customerId || undefined,
-                      customerName: payload.customerName || undefined,
-                      paymentMethod: formData.paymentMethod,
-                      paymentReference: actualReference, // ✅ Restored human-readable reference
-                      paymentId: newPaymentId, // ✅ Dedicated system link
-                      paymentStatus: newStatus as any,
-                      date: new Date(),
-                      subcontractorCost: profitMetrics.subcontractorCost,
-                      dealerCost: profitMetrics.subcontractorCost,
-                      customerBilled: total,
-                      netProfit: profitMetrics.netProfit,
-                      profitMarginPercent: profitMetrics.profitMarginPercent,
-                      orderId: (invoice as any).orderNumber || (invoice as any).orderId || null,
-                      orderNumber: (invoice as any).orderNumber || (invoice as any).orderId || null,
-                      invoiceNumber: invoiceNumberToSave || null,
-                      accountTo: finalAccountId || null,
-                      groupId: rawGroupId || null, 
-                      groupName: resolvedGroupName || null, 
-                      departmentId: targetDeptId || null, 
-                      departmentName: targetDeptName || null 
-                  });
-              }
-          }
-      }
-
-      const newPayments = updatedPayments;
-      const totalPaid = newTotalPaid;
-
-      const updatedInvoiceObj: Invoice = {
+      const optimisticInvoiceObj: Invoice = {
         ...invoice,
         ...payload,
         id: invoice.id,
-        documentUrl: finalDocUrl || invoice.documentUrl,
-        payments: newPayments,
-        paidAmount: totalPaid,
+        documentUrl: invoice.documentUrl,
+        payments: updatedPayments,
+        paidAmount: newTotalPaid,
         remainingAmount: newRemaining,
         paymentStatus: newStatus as any,
       } as Invoice;
 
-      setSavedInvoiceForShare(updatedInvoiceObj);
+      // ── 1. OPTIMISTIC UI UPDATES (INSTANT FEEDBACK) ──
+      // Instantly update state, close modals, and notify user without awaiting network roundtrips
       setShowConfirmModal(false);
+      setSavedInvoiceForShare(optimisticInvoiceObj);
 
       // Execute selected post-save actions
       const hasWhatsApp = postSaveActions.whatsapp;
@@ -641,7 +461,7 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
       const hasPrintPdf = postSaveActions.printPdf;
 
       if (hasPrintPdf) {
-        handlePrintOrDownloadPDF(updatedInvoiceObj);
+        handlePrintOrDownloadPDF(optimisticInvoiceObj);
       }
 
       if (hasWhatsApp) {
@@ -655,15 +475,223 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
       }
 
       const expectedTransactionType = formData.isLoan ? 'EXPENSE' : 'INCOME';
-      console.log(
-        `[InvoiceEditModal Audit] Pre-save verification: Invoice ${invoiceNumberToSave} | isLoan=${formData.isLoan} ` +
-        `=> Ledger transactionType verified as: ${expectedTransactionType}`
+      toast.success(
+        `Invoice ${invoiceNumberToSave} updated!`,
+        { duration: 3000 }
       );
 
-      toast.success(
-        `Invoice ${invoiceNumberToSave} updated! Ledger transactionType: ${expectedTransactionType}`,
-        { duration: 4500 }
-      );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('invoiceRecordUpdated', {
+            detail: {
+              ...optimisticInvoiceObj,
+              action: 'UPDATE_INVOICE',
+              timestamp: Date.now(),
+            },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              entityId: invoice.id,
+              invoiceId: invoice.id,
+              ...payload,
+              action: 'UPDATE_INVOICE',
+              timestamp: Date.now(),
+            },
+          })
+        );
+        window.dispatchEvent(new CustomEvent('invoices_updated'));
+        window.dispatchEvent(new CustomEvent('finance_updated'));
+      }
+
+      // ── 2. BACKGROUND ASYNC FIRESTORE PERSISTENCE ──
+      (async () => {
+        try {
+          await syncInvoiceRecord(invoice.id, payload);
+
+          const fullInv = { id: invoice.id, ...invoice, ...payload } as any;
+          const pdfVehicle = mainVehicle;
+          const pdfCustomer = customers.find(c => c.id === formData.customerId);
+          
+          let finalDocUrl = invoice.documentUrl || '';
+          if (formData.uploadedDocument) {
+             const stRef = ref(storage, `invoices/${invoice.id}/${formData.uploadedDocument.name}`);
+             const snap = await uploadBytes(stRef, formData.uploadedDocument);
+             finalDocUrl = await getDownloadURL(snap.ref);
+             await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: finalDocUrl });
+          } else {
+             const companyDetails = await getCompanyDetails();
+             if (companyDetails) {
+                finalDocUrl = await generateAndUploadDocument(
+                  InvoiceDocument, { ...fullInv, vehicle: pdfVehicle, customer: pdfCustomer }, 
+                  'invoices', invoice.id, 'invoices', companyDetails
+                );
+             }
+          }
+
+          const groupsByVehicle = new Map<string, { net: number, vat: number, gross: number, vehicleName: string }>();
+          lineItems.forEach(li => {
+              const gross = li.quantity * li.unitPrice;
+              const discountAmt = (li.discount / 100) * gross;
+              const itemNet = gross - discountAmt;
+              const itemVat = li.includeVAT ? itemNet * 0.2 : 0;
+              const itemTotal = itemNet + itemVat;
+
+              const vId = li.vehicleId || formData.vehicleId || 'unassigned';
+              const vName = li.vehicleName || formData.vehicleName || 'Unassigned / General';
+
+              if (!groupsByVehicle.has(vId)) {
+                  groupsByVehicle.set(vId, { net: 0, vat: 0, gross: 0, vehicleName: vName });
+              }
+              const group = groupsByVehicle.get(vId)!;
+              group.net += itemNet;
+              group.vat += itemVat;
+              group.gross += itemTotal;
+          });
+
+          const txRef = collection(db, 'transactions');
+          const qExp = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'expense'));
+          const qInc = query(txRef, where('referenceId', '==', invoice.id), where('type', '==', 'income'));
+          const [snapExp, snapInc] = await Promise.all([getDocs(qExp), getDocs(qInc)]);
+          const batch = writeBatch(db);
+          snapExp.forEach(d => {
+            const cat = d.data().category;
+            const desc = d.data().description || '';
+            if (cat === 'Loan Provided' || cat === 'Loan Received' || cat === (invoice.category || 'Loan Provided') || desc.includes('Loan')) {
+               batch.delete(d.ref);
+            }
+          });
+          snapInc.forEach(d => {
+            const cat = d.data().category;
+            const desc = d.data().description || '';
+            if (cat === 'Loan Provided' || cat === 'Loan Received' || desc.includes('Loan')) {
+               batch.delete(d.ref);
+            }
+          });
+          await batch.commit();
+
+          if (formData.isLoan) {
+              const loanType: 'expense' | 'income' = formData.loanTransactionType === 'income' ? 'income' : 'expense';
+              const defaultCategory = loanType === 'income' ? 'Loan Received' : 'Loan Provided';
+              const loanLabel = loanType === 'income' ? 'Loan Received (Income)' : 'Loan Provided (Expense)';
+
+              for (const [vId, totals] of groupsByVehicle.entries()) {
+                  const targetVehicle = vehicles.find(v => v.id === vId);
+                  const vehicleOwner = targetVehicle?.owner 
+                      ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
+                      : { name: 'AIE Skyline Limited', isDefault: true };
+
+                  const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
+                  const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
+                  const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
+                  const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
+
+                  await createFinanceTransaction({
+                      type: loanType,
+                      transactionType: loanType === 'income' ? 'INCOME' : 'EXPENSE',
+                      category: formData.category || defaultCategory,
+                      amount: totals.gross,
+                      description: [formData.description, `${loanLabel} for Invoice ${invoiceNumberToSave}`].filter(Boolean).join(' - '),
+                      referenceId: invoice.id,
+                      sourceReferenceId: invoice.id,
+                      linkedInvoiceRef: invoice.id,
+                      entityId: invoice.id,
+                      entityType: 'INVOICE',
+                      invoiceNumber: invoiceNumberToSave,
+                      vehicleId: vId === 'unassigned' ? undefined : vId,
+                      vehicleName: totals.vehicleName,
+                      vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
+                      customerId: payload.customerId || undefined,
+                      customerName: payload.customerName || undefined,
+                      paymentMethod: 'internal',
+                      paymentStatus: 'paid',
+                      date: new Date(formData.date), 
+                      subcontractorCost: profitMetrics.subcontractorCost,
+                      dealerCost: profitMetrics.subcontractorCost,
+                      customerBilled: total,
+                      netProfit: profitMetrics.netProfit,
+                      profitMarginPercent: profitMetrics.profitMarginPercent,
+                      accountFrom: formData.accountFrom || undefined,
+                      accountTo: formData.accountTo || undefined,
+                      groupId: rawGroupId || undefined, 
+                      groupName: resolvedGroupName || undefined, 
+                      departmentId: targetDeptId || undefined, 
+                      departmentName: targetDeptName || undefined 
+                  });
+              }
+          }
+
+          if (!formData.isLoan && formData.isAddingPayment && payNow > 0) {
+              let finalAccountId = formData.accountTo || formData.accountId;
+              if (!finalAccountId) {
+                  const defaultAcc = financeAccounts.find(a => a.name.toUpperCase().includes('AIE SKYLINE ACCOUNT'));
+                  if (defaultAcc) finalAccountId = defaultAcc.id;
+              }
+                
+              const actualCategory = formData.category === 'Other' && formData.customCategory 
+                  ? formData.customCategory 
+                  : (formData.category || 'Invoice Payment');
+
+              for (const [vId, totals] of groupsByVehicle.entries()) {
+                  const targetVehicle = vehicles.find(v => v.id === vId);
+                  const vehicleOwner = targetVehicle?.owner 
+                      ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
+                      : { name: 'AIE Skyline Limited', isDefault: true };
+
+                  const ratio = total > 0 ? totals.gross / total : 0;
+                  const allocatedPayment = payNow * ratio;
+
+                  const rawGroupId = targetVehicle?.assignedGroupId || payload.groupId;
+                  const resolvedGroupName = groups.find(g => g.id === rawGroupId || g.name === rawGroupId)?.name;
+                  const targetDeptId = payload.departmentId || targetVehicle?.assignedDepartmentId;
+                  const targetDeptName = payload.departmentName || targetVehicle?.assignedDepartmentName || departments.find(d => d.id === targetDeptId || d.name === targetDeptId)?.name;
+
+                  if (allocatedPayment > 0) {
+                      await createFinanceTransaction({
+                          type: 'income',
+                          transactionType: 'INCOME',
+                          category: actualCategory,
+                          amount: allocatedPayment,
+                          description: [formData.description, formData.paymentNotes, formData.paymentReference ? `Ref: ${formData.paymentReference}` : ''].filter(Boolean).join(' - ') || `Payment for Invoice ${invoiceNumberToSave}`,
+                          referenceId: invoice.id,
+                          sourceReferenceId: invoice.id,
+                          linkedInvoiceRef: invoice.id,
+                          entityId: invoice.id,
+                          entityType: 'INVOICE',
+                          vehicleId: vId === 'unassigned' ? undefined : vId,
+                          vehicleName: totals.vehicleName,
+                          vehicleOwner: vId === 'unassigned' && formData.manualVehicleEntry ? undefined : vehicleOwner,
+                          customerId: payload.customerId || undefined,
+                          customerName: payload.customerName || undefined,
+                          paymentMethod: formData.paymentMethod,
+                          paymentReference: actualReference,
+                          paymentId: newPaymentId,
+                          paymentStatus: newStatus as any,
+                          date: new Date(),
+                          subcontractorCost: profitMetrics.subcontractorCost,
+                          dealerCost: profitMetrics.subcontractorCost,
+                          customerBilled: total,
+                          netProfit: profitMetrics.netProfit,
+                          profitMarginPercent: profitMetrics.profitMarginPercent,
+                          orderId: (invoice as any).orderNumber || (invoice as any).orderId || null,
+                          orderNumber: (invoice as any).orderNumber || (invoice as any).orderId || null,
+                          invoiceNumber: invoiceNumberToSave || null,
+                          accountTo: finalAccountId || null,
+                          groupId: rawGroupId || null, 
+                          groupName: resolvedGroupName || null, 
+                          departmentId: targetDeptId || null, 
+                          departmentName: targetDeptName || null 
+                      });
+                  }
+              }
+          }
+        } catch (bgErr: any) {
+          console.error('Background invoice update error:', bgErr);
+          toast.error('Failed to sync invoice update to server: ' + (bgErr?.message || 'Network error'));
+        }
+      })();
+      return;
     } catch (err) {
       console.error(err);
       toast.error('Failed to update invoice');

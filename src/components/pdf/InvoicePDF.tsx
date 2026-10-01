@@ -93,13 +93,27 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, vehicle, compan
         </View>
 
         {/* Payment Instructions */}
-        <View style={[styles.card, styles.sectionBreak, { width: '48%' }]} wrap={false}>
-          <Text style={styles.infoCardTitle}>Payment Details</Text>
-          <Text>Bank: {companyDetails.bankName}</Text>
-          <Text>Sort Code: {companyDetails.sortCode}</Text>
-          <Text>Account Number: {companyDetails.accountNumber}</Text>
-          <Text>Reference: AIE-INV-{invoice.id.slice(-8).toUpperCase()}</Text>
-        </View>
+        {(() => {
+          const activeBank =
+            (companyDetails as any)?.selectedBank ||
+            (invoice as any)?.bankAllocation || {
+              bankName: companyDetails.bankName,
+              sortCode: companyDetails.sortCode,
+              accountNumber: companyDetails.accountNumber,
+              accountName: companyDetails.accountName,
+            };
+
+          return (
+            <View style={[styles.card, styles.sectionBreak, { width: '48%' }]} wrap={false}>
+              <Text style={styles.infoCardTitle}>Payment Details</Text>
+              <Text>Bank: {activeBank.bankName || 'LLOYDS BANK'}</Text>
+              {activeBank.accountName && <Text>Account Name: {activeBank.accountName}</Text>}
+              <Text>Sort Code: {activeBank.sortCode || '30-99-50'}</Text>
+              <Text>Account Number: {activeBank.accountNumber || '30513162'}</Text>
+              <Text>Reference: AIE-INV-{invoice.id.slice(-8).toUpperCase()}</Text>
+            </View>
+          );
+        })()}
 
         {/* Footer */}
         <View style={styles.footer} fixed>

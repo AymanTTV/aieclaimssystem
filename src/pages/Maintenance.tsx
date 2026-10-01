@@ -313,34 +313,51 @@ const Maintenance: React.FC = () => {
         return toast.error('Maintenance Invoice Number is required to complete this record.');
       }
 
-      setModalLoading(true);
-      try {
-         await syncMaintenanceRecord(log.id, {
+      // Optimistic UI update: instantly close modal and notify user
+      toast.success('Maintenance marked as completed! Vehicle is now available for hire.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('maintenanceRecordUpdated', {
+            detail: {
+              logId: log.id,
+              orderId: formData.orderNumber,
+              orderNumber: formData.orderNumber,
+              invoiceNumber: formData.invoiceNumber,
+              serviceProvider: formData.serviceProvider,
+              status: 'completed',
+              completedDate: formData.completedDate || new Date().toISOString(),
+              action: 'COMPLETE_MAINTENANCE',
+              timestamp: Date.now(),
+            },
+          })
+        );
+      }
+      onClose();
+
+      // Perform sync in the background
+      (async () => {
+        try {
+          await syncMaintenanceRecord(log.id, {
             orderNumber: formData.orderNumber,
             orderId: formData.orderNumber,
             invoiceNumber: formData.invoiceNumber,
             serviceProvider: formData.serviceProvider,
             nextServiceDate: formData.nextServiceDate ? parseISO(formData.nextServiceDate) : null,
-            completedDate: formData.completedDate ? parseISO(formData.completedDate) : new Date(), // ✅ Added custom completion date payload
+            completedDate: formData.completedDate ? parseISO(formData.completedDate) : new Date(),
             description: formData.description,
             notes: formData.notes,
             status: 'completed',
-            updatedAt: new Date()
-         });
+            updatedAt: new Date(),
+          });
 
-         // Restore vehicle availability once maintenance/repair is completed
-         if (log.vehicleId) {
+          if (log.vehicleId) {
             await checkVehicleStatus(log.vehicleId);
-         }
-
-         toast.success('Maintenance marked as completed! Vehicle is now available for hire.');
-         onClose();
-      } catch (err) {
-         toast.error('Failed to complete maintenance');
-         console.error(err);
-      } finally {
-         setModalLoading(false);
-      }
+          }
+        } catch (bgErr) {
+          console.error('Background maintenance completion error:', bgErr);
+          toast.error('Failed to sync completion status to server');
+        }
+      })();
     };
 
     return (

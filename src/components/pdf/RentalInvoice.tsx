@@ -232,11 +232,26 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     ? `#${rental.rentalAgreementNumber}` 
     : `AIE-${rental.id.slice(-8).toUpperCase()}`;
 
+  const page1Entity = (companyDetails as any)?.page1Entity || companyDetails;
+  const page2Entity = (companyDetails as any)?.page2Entity || companyDetails;
+  const page3Entity = (companyDetails as any)?.page3Entity || companyDetails;
+
+  const pageMapping = (companyDetails as any)?.pageTemplateMapping;
+  const page1Template = pageMapping?.page1Template || 'standard_rental_invoice';
+  const page2Template = pageMapping?.page2Template || 'itemized_line_breakdown';
+  const page3Template = pageMapping?.page3Template || 'rental_invoice_terms';
+
   const isCompany = customer?.type === 'company';
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
 
-  const footerText = formatInlineCompanyFooter(companyDetails);
+  const page1FooterText = formatInlineCompanyFooter(page1Entity);
+  const page2FooterText = formatInlineCompanyFooter(page2Entity);
+  const page3FooterText = formatInlineCompanyFooter(page3Entity);
+
+  const invoiceTitle = page1Template === 'credit_hire_settlement_invoice'
+    ? 'CREDIT HIRE SETTLEMENT INVOICE'
+    : 'RENTAL INVOICE';
 
   return (
     <Document>
@@ -244,18 +259,30 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       <Page size="A4" style={[styles.page, { paddingBottom: 40 }]}>
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} cache={false}/>}
+            {isValidPdfImageSrc(page1Entity?.logoUrl) && (
+              <Image src={page1Entity.logoUrl} style={styles.logo} cache={false} />
+            )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
+            <Text style={styles.companyName}>{page1Entity.fullName || 'AIE Skyline Limited'}</Text>
+            {Boolean(page1Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+              <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                {page1Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+              </Text>
+            )}
+            <Text style={styles.companyDetail}>{page1Entity.officialAddress}</Text>
+            <Text style={styles.companyDetail}>Tel: {page1Entity.phone}</Text>
+            <Text style={styles.companyDetail}>Email: {page1Entity.email}</Text>
           </View>
         </View>
 
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>RENTAL INVOICE</Text>
+          <Text style={styles.title}>{invoiceTitle}</Text>
+          {page1Template === 'credit_hire_settlement_invoice' && (
+            <Text style={{ fontSize: 8, color: '#DC2626', fontWeight: 'bold', marginTop: 3 }}>
+              ★ Insurer Subrogation &amp; Credit Hire Settlement Claim Ledger
+            </Text>
+          )}
         </View>
 
         {/* Horizontal Info Card */}
@@ -373,30 +400,60 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }} wrap={false}>
           
           {/* Card 1: Payment Details */}
-          <View style={[compactCardStyles.card, { width: '48%' }]}>
-            <Text style={compactCardStyles.title}>Payment Details</Text>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Bank:</Text>
-              <Text style={compactCardStyles.value}>{companyDetails?.bankName || 'LLOYDS BANK'}</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Account Name:</Text>
-              <Text style={compactCardStyles.value}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Account Number:</Text>
-              <Text style={compactCardStyles.value}>{companyDetails?.accountNumber || '30513162'}</Text>
-            </View>
-            <View style={compactCardStyles.row}>
-              <Text style={compactCardStyles.label}>Sort Code:</Text>
-              <Text style={compactCardStyles.value}>{companyDetails?.sortCode || '30-99-50'}</Text>
-            </View>
-            <View style={{ marginTop: 8 }}>
-              <Text style={[compactCardStyles.label, { fontSize: 7.5, width: '100%', fontStyle: 'italic' }]}>
-                Please use Invoice {displayInvoiceNumber} as reference.
-              </Text>
-            </View>
-          </View>
+          {(() => {
+            const activeBank =
+              (companyDetails as any)?.selectedBank ||
+              (rental as any)?.bankAllocation || {
+                bankName: (rental as any)?.bankName || companyDetails?.bankName,
+                accountName: (rental as any)?.accountName || companyDetails?.accountName || companyDetails?.fullName,
+                accountNumber: (rental as any)?.accountNumber || companyDetails?.accountNumber,
+                sortCode: (rental as any)?.sortCode || companyDetails?.sortCode,
+                iban: (rental as any)?.iban || companyDetails?.iban,
+              };
+
+            return (
+              <View style={[compactCardStyles.card, { width: '48%' }]}>
+                <Text style={compactCardStyles.title}>Payment Details</Text>
+                <View style={compactCardStyles.row}>
+                  <Text style={compactCardStyles.label}>Bank:</Text>
+                  <Text style={compactCardStyles.value}>
+                    {activeBank.bankName || 'LLOYDS BANK'}
+                  </Text>
+                </View>
+                <View style={compactCardStyles.row}>
+                  <Text style={compactCardStyles.label}>Account Name:</Text>
+                  <Text style={compactCardStyles.value}>
+                    {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                  </Text>
+                </View>
+                <View style={compactCardStyles.row}>
+                  <Text style={compactCardStyles.label}>Account Number:</Text>
+                  <Text style={compactCardStyles.value}>
+                    {activeBank.accountNumber || '30513162'}
+                  </Text>
+                </View>
+                <View style={compactCardStyles.row}>
+                  <Text style={compactCardStyles.label}>Sort Code:</Text>
+                  <Text style={compactCardStyles.value}>
+                    {activeBank.sortCode || '30-99-50'}
+                  </Text>
+                </View>
+                {(activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban) && (
+                  <View style={compactCardStyles.row}>
+                    <Text style={compactCardStyles.label}>IBAN:</Text>
+                    <Text style={compactCardStyles.value}>
+                      {activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[compactCardStyles.label, { fontSize: 7.5, width: '100%', fontStyle: 'italic' }]}>
+                    Please use Invoice {displayInvoiceNumber} as reference.
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
 
           {/* Card 2: Summary */}
           <View style={[compactCardStyles.card, { width: '48%' }]}>
@@ -457,7 +514,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         </View>
 
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{footerText}</Text>
+          <Text style={styles.footerText}>{page1FooterText}</Text>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
@@ -468,7 +525,21 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       {/* Payment History Pages (Rendered BEFORE Terms & Conditions) */}
       {paymentPages.map((pagePayments, idx) => (
         <Page key={idx} size="A4" style={styles.page}>
-          <Text style={styles.sectionTitle}>Payment History</Text>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(page2Entity?.logoUrl) && (
+                <Image src={page2Entity.logoUrl} style={styles.logo} cache={false} />
+              )}
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{page2Entity.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyDetail}>{page2Entity.officialAddress}</Text>
+              <Text style={styles.companyDetail}>Tel: {page2Entity.phone}</Text>
+              <Text style={styles.companyDetail}>Email: {page2Entity.email}</Text>
+            </View>
+          </View>
+
+          <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Payment History &amp; Remittance Schedule</Text>
           <View style={styles.table} breakInside="avoid">
             <View style={styles.tableHeader} fixed>
               <Text style={[styles.tableCell, { flex: 1 }]}>Date</Text>
@@ -486,7 +557,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
             ))}
           </View>
           <View style={styles.footer} fixed>
-            <Text style={styles.footerText}>{footerText}</Text>
+            <Text style={styles.footerText}>{page2FooterText}</Text>
             <Text 
               style={styles.pageNumber} 
               render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} 
@@ -496,38 +567,58 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       ))}
 
       {/* --- FINAL PAGE: Terms & Conditions --- */}
-      <Page size="A4" style={styles.page}>
-         <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            {companyDetails.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} cache={false}/>}
+      {companyDetails?.includeTrailingTC !== false && (
+        <Page size="A4" style={styles.page}>
+           <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {isValidPdfImageSrc(page3Entity?.logoUrl) && (
+                <Image src={page3Entity.logoUrl} style={styles.logo} cache={false} />
+              )}
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{page3Entity.fullName || 'AIE Skyline Limited'}</Text>
+              {Boolean(page3Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {page3Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{page3Entity.officialAddress}</Text>
+              <Text style={styles.companyDetail}>Tel: {page3Entity.phone}</Text>
+              <Text style={styles.companyDetail}>Email: {page3Entity.email}</Text>
+            </View>
           </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyDetails.fullName}</Text>
-            <Text style={styles.companyDetail}>{companyDetails.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyDetails.email}</Text>
-          </View>
-        </View>
 
-        <View style={{ marginTop: 0 }}>
-          <Text style={tcStyles.termTitle}>Rental Invoice Terms</Text>
-
-          {/* DYNAMIC TERMS INJECTED HERE */}
-          <View style={tcStyles.termSection}>
-            <Text style={tcStyles.termText}>
-              {companyDetails.rentalInvoiceTerms || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this agreement.'}
+          <View style={{ marginTop: 10 }}>
+            <Text style={tcStyles.termTitle}>
+              {page3Template === 'strict_net30_terms'
+                ? 'COMMERCIAL DEBT RECOVERY & NET-30 TERMS'
+                : companyDetails.customTermsTitle || 'Rental Invoice Terms'}
             </Text>
-          </View>
-        </View>
 
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{footerText}</Text>
-          <Text
-            style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          />
-        </View>
-      </Page>
+            {/* DYNAMIC TERMS INJECTED HERE */}
+            <View style={tcStyles.termSection}>
+              {(page3Template === 'strict_net30_terms'
+                ? '1. PAYMENT WINDOW & STATUTORY INTEREST: Payment is due strictly within 30 calendar days from invoice date. Under the Late Payment of Commercial Debts (Interest) Act 1998, statutory interest at 8% plus Bank of England base rate applies to overdue balances.\n2. COMPENSATION & DEBT RECOVERY: The Creditor reserves statutory compensation entitlement (£40 - £100 per late invoice) and all third-party legal recovery disbursements.\n3. DISPUTE TIMELINE: Any billing dispute must be registered in writing within 7 business days of receipt.'
+                : companyDetails.customTermsText || companyDetails.rentalInvoiceTerms || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this agreement.'
+              )
+                .split(/\r?\n+/)
+                .map((para: string, idx: number) => (
+                  <Text key={idx} style={[tcStyles.termText, { marginBottom: 5 }]}>
+                    {para.trim()}
+                  </Text>
+                ))}
+            </View>
+          </View>
+
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{page3FooterText}</Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      )}
     </Document>
   );
 };
