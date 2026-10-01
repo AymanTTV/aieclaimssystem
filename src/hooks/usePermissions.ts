@@ -27,6 +27,19 @@ export const usePermissions = () => {
         return true;
       }
     }
+    if (action === 'canManageProfitDistribution' || action === ('canAccessCommissionSplits' as any)) {
+      if (
+        user.canManageProfitDistribution === true ||
+        user.canAccessCommissionSplits === true ||
+        (user as any)['canManageProfitDistribution'] === true ||
+        (user as any)['canAccessCommissionSplits'] === true ||
+        user.permissions?.finance?.canManageProfitDistribution === true ||
+        (user.permissions as any)?.canManageProfitDistribution === true ||
+        ['superadmin', 'owner'].includes(user.role?.toLowerCase() || '')
+      ) {
+        return true;
+      }
+    }
 
     // Strict Universal Explicit-Allow (Deny-by-Default):
     // Access is granted ONLY if the user's specific permission switch is explicitly set to true.
@@ -138,6 +151,16 @@ export const usePermissions = () => {
       (user?.permissions?.maintenance as any)?.['manage_maintenance_finance'] === true ||
       user?.permissions?.finance?.manage_maintenance_finance === true ||
       (user?.permissions as any)?.manage_maintenance_finance === true
+    ),
+    canManageProfitDistribution: Boolean(
+      user?.canManageProfitDistribution === true ||
+      user?.canAccessCommissionSplits === true ||
+      (user as any)?.canManageProfitDistribution === true ||
+      (user as any)?.canAccessCommissionSplits === true ||
+      user?.permissions?.finance?.canManageProfitDistribution === true ||
+      user?.permissions?.finance?.canAccessCommissionSplits === true ||
+      (user?.permissions as any)?.canManageProfitDistribution === true ||
+      ['superadmin', 'owner'].includes(user?.role?.toLowerCase() || '')
     ),
     role: user?.role ?? null,
     permissions: user?.permissions ?? null,

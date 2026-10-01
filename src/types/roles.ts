@@ -66,6 +66,8 @@ export interface Permission {
   deletePayment?: boolean;
   can_delete_payments?: boolean;
   manage_maintenance_finance?: boolean;
+  canManageProfitDistribution?: boolean;
+  canAccessCommissionSplits?: boolean;
   
   // WhatsApp & Email targets
   targetFinance?: boolean;
@@ -138,6 +140,8 @@ export interface RolePermissions {
   memberRentals: Permission;
   memberTransactions: Permission;
   memberInvoices: Permission;
+  canManageProfitDistribution?: boolean;
+  canAccessCommissionSplits?: boolean;
 }
 
 // ------------------------- TEMPLATES TO ENSURE ALL KEYS RENDER -------------------------
@@ -155,7 +159,7 @@ const BASE_VD_INVOICE = { view: false, create: false, update: false, delete: fal
 const BASE_DRIVER_PAY = { view: false, create: false, update: false, delete: false, recordPayment: false, cards: false, export: false, lock: false, unlock: false, singleDoc: false, period: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
 const BASE_PETTY_CASH = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, groups: false, singleDoc: false };
 const BASE_INCOME_EXPENSE = { view: false, create: false, update: false, delete: false, cards: false, categories: false, reoccurring: false, singleDoc: false, export: false, share: false, import: false };
-const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, import: false, accounts: false, categories: false, groups: false, departments: false, reoccurring: false, assign: false, recordsPermission: false, singleDoc: false };
+const BASE_FINANCE = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, import: false, accounts: false, categories: false, groups: false, departments: false, reoccurring: false, assign: false, recordsPermission: false, singleDoc: false, canManageProfitDistribution: false, canAccessCommissionSplits: false };
 const BASE_INVOICES = { view: false, create: false, update: false, delete: false, cards: false, recordPayment: false, export: false, import: false, accounts: false, categories: false, groups: false, departments: false, assign: false, recordsPermission: false, singleDoc: false, showCompletedPaid: false, whatsapp: false, email: false, send: false, reminder: false, mondayAutoEmail: false, template: false, templateCreate: false, templateEdit: false, templateDelete: false, reminderTemplate: false, messageTemplate: false };
 const BASE_VAT_RECORD = { view: false, create: false, update: false, delete: false, cards: false, export: false, groups: false, categories: false, reoccurring: false, state: false, singleDoc: false };
 const BASE_SHARE = { view: false, create: false, update: false, delete: false, cards: false, export: false, import: false, categories: false, reoccurring: false, singleDoc: false, share: false };
@@ -191,7 +195,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true, export: true, share: true, import: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, delete: true, cards: true, categories: true, reoccurring: true, singleDoc: true, export: true, share: true, import: true },
-    finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true },
+    finance: { ...BASE_FINANCE, view: true, create: true, update: true, delete: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true, canManageProfitDistribution: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, update: true, delete: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, showCompletedPaid: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, templateDelete: true, reminderTemplate: true, messageTemplate: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, delete: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
     share: { ...BASE_SHARE, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true, share: true },
@@ -230,7 +234,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     aiePettyCash: { ...BASE_PETTY_CASH, view: true, create: true, update: true, cards: true, export: true, import: true, categories: true, groups: true, singleDoc: true },
     incomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, cards: true, categories: true, reoccurring: true, singleDoc: true, export: true, share: true, import: true },
     skylineIncomeExpense: { ...BASE_INCOME_EXPENSE, view: true, create: true, update: true, cards: true, categories: true, reoccurring: true, singleDoc: true, export: true, share: true, import: true },
-    finance: { ...BASE_FINANCE, view: true, create: true, update: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true },
+    finance: { ...BASE_FINANCE, view: true, create: true, update: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, reoccurring: true, assign: true, recordsPermission: true, singleDoc: true, canManageProfitDistribution: true },
     invoices: { ...BASE_INVOICES, view: true, create: true, update: true, cards: true, recordPayment: true, export: true, import: true, accounts: true, categories: true, groups: true, departments: true, assign: true, recordsPermission: true, singleDoc: true, showCompletedPaid: true, whatsapp: true, email: true, send: true, reminder: true, mondayAutoEmail: true, template: true, templateCreate: true, templateEdit: true, reminderTemplate: true, messageTemplate: true },
     vatRecord: { ...BASE_VAT_RECORD, view: true, create: true, update: true, cards: true, export: true, groups: true, categories: true, reoccurring: true, state: true, singleDoc: true },
     share: { ...BASE_SHARE, view: true, create: true, update: true, cards: true, export: true, import: true, categories: true, reoccurring: true, singleDoc: true, share: true },
@@ -685,7 +689,7 @@ export const MODULE_ACTION_BAR_CATALOG: Record<keyof RolePermissions, Array<keyo
   ],
   finance: [
     'view', 'create', 'update', 'delete', 'cards', 'recordPayment', 'export', 'import', 'accounts',
-    'categories', 'groups', 'departments', 'reoccurring', 'assign', 'recordsPermission', 'singleDoc'
+    'categories', 'groups', 'departments', 'reoccurring', 'assign', 'recordsPermission', 'singleDoc', 'canManageProfitDistribution'
   ],
   invoices: [
     'view', 'create', 'update', 'delete', 'cards', 'recordPayment', 'export', 'import', 'accounts', 'categories',

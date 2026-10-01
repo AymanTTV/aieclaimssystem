@@ -312,5 +312,13 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
       allow read: if isAuthenticated() && isManager();
     }
+
+    match /payout_logs/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /payout_history/{id} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

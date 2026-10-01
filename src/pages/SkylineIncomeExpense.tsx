@@ -317,8 +317,8 @@ export default function IncomeExpense() {
       {viewing && <IncomeExpenseDetails entry={viewing} collectionName="skylineIncomeExpenses" />}
     </Modal>
 
-    <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History" size="xl">
-      <SharesModal shares={shares} onClose={() => setShowShares(false)} onGeneratePDF={handleDownloadProfitSharesPDF} collectionName="skylineProfitShares" />
+    <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History Ledger" size="2xl">
+      <SharesModal shares={shares} records={records} onClose={() => setShowShares(false)} onGeneratePDF={handleDownloadProfitSharesPDF} collectionName="skylineProfitShares" />
     </Modal>
 
     <Modal isOpen={showManageCats} onClose={() => setShowManageCats(false)} title="" size="md">

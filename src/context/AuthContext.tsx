@@ -30,6 +30,15 @@ export const checkUserPermission = (user: User | null | undefined, permission: s
   if (permission === 'can_process_profit_payout') {
     return Boolean(user.can_process_profit_payout ?? isFinanceOrAdmin);
   }
+  if (permission === 'canManageProfitDistribution' || permission === 'canAccessCommissionSplits') {
+    return Boolean(
+      user.canManageProfitDistribution === true ||
+      user.canAccessCommissionSplits === true ||
+      user.permissions?.finance?.canManageProfitDistribution === true ||
+      user.permissions?.finance?.canAccessCommissionSplits === true ||
+      ['superadmin', 'owner'].includes(role)
+    );
+  }
   if (permission in (user as any)) {
     return Boolean((user as any)[permission]);
   }
@@ -42,6 +51,26 @@ const buildUserObject = (id: string, userData: any): User => {
   const canProcessProfitPayout = Boolean(
     userData?.can_process_profit_payout ?? isFinanceOrAdmin
   );
+  const canManageProfitDistribution = Boolean(
+    userData?.canManageProfitDistribution === true ||
+    userData?.canAccessCommissionSplits === true ||
+    userData?.permissions?.finance?.canManageProfitDistribution === true ||
+    userData?.permissions?.finance?.canAccessCommissionSplits === true ||
+    ['superadmin', 'owner'].includes(role)
+  );
+
+  const permissions = {
+    ...(userData?.permissions || {}),
+    canManageProfitDistribution,
+    canAccessCommissionSplits: canManageProfitDistribution,
+    ...(userData?.permissions?.finance ? {
+      finance: {
+        ...userData.permissions.finance,
+        canManageProfitDistribution,
+        canAccessCommissionSplits: canManageProfitDistribution,
+      }
+    } : {}),
+  };
 
   const userObj: User = {
     id,
@@ -49,7 +78,19 @@ const buildUserObject = (id: string, userData: any): User => {
     role,
     createdAt: userData?.createdAt?.toDate ? userData.createdAt.toDate() : (userData?.createdAt ? new Date(userData.createdAt) : new Date()),
     can_process_profit_payout: canProcessProfitPayout,
+    canManageProfitDistribution,
+    canAccessCommissionSplits: canManageProfitDistribution,
+    permissions: permissions as any,
     hasPermission: (permission: string): boolean => {
+      if (permission === 'canManageProfitDistribution' || permission === 'canAccessCommissionSplits') {
+        return Boolean(
+          userData?.canManageProfitDistribution === true ||
+          userData?.canAccessCommissionSplits === true ||
+          userData?.permissions?.finance?.canManageProfitDistribution === true ||
+          userData?.permissions?.finance?.canAccessCommissionSplits === true ||
+          ['superadmin', 'owner'].includes(role)
+        );
+      }
       if (permission === 'can_process_profit_payout') {
         return Boolean(userData?.can_process_profit_payout ?? isFinanceOrAdmin);
       }

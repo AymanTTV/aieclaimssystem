@@ -13,6 +13,7 @@ import {
   FileText,
   Building2,
   Percent,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -36,6 +37,7 @@ interface FinancialSummaryProps {
   transactions: Transaction[];
   // Display Mode: 'all' | 'top_cards_only' | 'accounts_only'
   displayMode?: 'all' | 'top_cards_only' | 'accounts_only';
+  onOpenStatementModal?: (accountId?: string) => void;
   // Dynamic summary metrics
   summaryMetrics?: {
     totalIncome?: number;
@@ -72,6 +74,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   accounts = [],
   transactions = [],
   displayMode = 'all',
+  onOpenStatementModal,
   summaryMetrics: propSummaryMetrics,
   totalRevenue,
   totalCombinedExpenses,

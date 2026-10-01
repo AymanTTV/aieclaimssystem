@@ -1,6 +1,25 @@
 // src/components/pdf/documents/PayoutReceiptDocument.tsx
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
+import defaultCompanySignature from '../../../assets/signiture.png';
+import defaultCompanyLogo from '../../../assets/logo.png';
+
+// Helper to safely check and validate image sources for @react-pdf/renderer
+const isValidPdfImageSrc = (v: any): boolean => {
+  if (!v) return false;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s || s.includes('undefined') || s.includes('null')) return false;
+    return (
+      s.startsWith('data:image/') ||
+      s.startsWith('http://') ||
+      s.startsWith('https://') ||
+      s.startsWith('/') ||
+      s.startsWith('blob:')
+    );
+  }
+  return typeof v === 'object' && v !== null;
+};
 
 export interface PayoutReceiptData {
   payoutReference: string;
@@ -34,6 +53,7 @@ interface PayoutReceiptDocumentProps {
   data: PayoutReceiptData;
   companyDetails?: {
     logoUrl?: string;
+    logo?: string;
     fullName?: string;
     tradingName?: string;
     officialAddress?: string;
@@ -42,6 +62,8 @@ interface PayoutReceiptDocumentProps {
     website?: string;
     companyNumber?: string;
     vatNumber?: string;
+    signature?: string;
+    signatureUrl?: string;
   };
 }
 
@@ -271,23 +293,48 @@ const styles = StyleSheet.create({
   footerSection: {
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    paddingTop: 14,
+    paddingTop: 12,
     marginTop: 'auto',
   },
   signOffRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    alignItems: 'flex-end',
+    marginBottom: 12,
   },
   signCol: {
-    width: '45%',
+    width: '46%',
+  },
+  signatureImageContainer: {
+    height: 42,
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+  },
+  signatureImage: {
+    width: 125,
+    height: 40,
+    objectFit: 'contain',
+  },
+  signLine: {
     borderTopWidth: 1,
     borderTopColor: '#94A3B8',
     paddingTop: 4,
   },
   signLabel: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: '#0F172A',
+  },
+  signSignerText: {
     fontSize: 7.5,
+    color: '#334155',
+    marginTop: 2,
+    fontFamily: 'Helvetica-Bold',
+  },
+  signMetaText: {
+    fontSize: 7,
     color: '#64748B',
+    marginTop: 1,
   },
   footerLegal: {
     fontSize: 7,
@@ -322,14 +369,27 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
   const companyPhone = companyDetails?.phone || '+44 20 8123 4567';
   const companyEmail = companyDetails?.email || 'info@aieskyline.co.uk';
 
+  // Automatically resolve company signature and logo with fallbacks
+  const companySignature = isValidPdfImageSrc(companyDetails?.signature)
+    ? companyDetails?.signature
+    : isValidPdfImageSrc(companyDetails?.signatureUrl)
+    ? companyDetails?.signatureUrl
+    : defaultCompanySignature;
+
+  const companyLogo = isValidPdfImageSrc(companyDetails?.logoUrl)
+    ? companyDetails?.logoUrl
+    : isValidPdfImageSrc(companyDetails?.logo)
+    ? companyDetails?.logo
+    : defaultCompanyLogo;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* HEADER ROW */}
         <View style={styles.headerRow}>
           <View style={styles.logoContainer}>
-            {companyDetails?.logoUrl ? (
-              <Image src={companyDetails.logoUrl} style={styles.companyLogo} />
+            {companyLogo ? (
+              <Image src={companyLogo} style={styles.companyLogo} />
             ) : (
               <Text style={styles.companyTitle}>{companyName}</Text>
             )}
@@ -393,45 +453,73 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
             <Text style={[styles.tableHeaderCell, { width: '14%', textAlign: 'right' }]}>Amount (£)</Text>
           </View>
 
-          {/* Row 1: Company Share */}
-          <View style={styles.tableRow}>
-            <View style={{ width: '28%' }}>
-              <Text style={styles.tableCellBold}>AIE Skyline Limited</Text>
-              <Text style={{ fontSize: 7, color: '#64748B' }}>Operating Company</Text>
-            </View>
-            <View style={{ width: '14%' }}>
-              <Text style={[styles.badgePill, styles.badgeCompany]}>{data.companySharePct}%</Text>
-            </View>
-            <View style={{ width: '24%' }}>
-              <Text style={styles.tableCell}>Internal Transfer</Text>
-            </View>
-            <View style={{ width: '20%' }}>
-              <Text style={styles.tableCell}>{data.companyAccountName || 'AIE SKYLINE ACCOUNTS'}</Text>
-            </View>
-            <View style={{ width: '14%' }}>
-              <Text style={[styles.tableCellBold, { textAlign: 'right' }]}>{fmt(data.companyShareAmount)}</Text>
-            </View>
-          </View>
+          {data.shares && data.shares.length > 0 ? (
+            data.shares.map((share, sIdx) => {
+              const isComp = share.isCompany || share.ownerName.toLowerCase().includes('skyline') || share.ownerName.toLowerCase().includes('company');
+              return (
+                <View key={`share-${sIdx}`} style={[styles.tableRow, sIdx % 2 === 1 ? styles.tableRowEven : {}]}>
+                  <View style={{ width: '28%' }}>
+                    <Text style={styles.tableCellBold}>{share.ownerName}</Text>
+                    <Text style={{ fontSize: 7, color: '#64748B' }}>{isComp ? 'Operating Company' : 'Co-Owner Partner'}</Text>
+                  </View>
+                  <View style={{ width: '14%' }}>
+                    <Text style={[styles.badgePill, isComp ? styles.badgeCompany : styles.badgePartner]}>{share.sharePercentage}%</Text>
+                  </View>
+                  <View style={{ width: '24%' }}>
+                    <Text style={styles.tableCell}>{isComp ? 'Internal Transfer' : 'Direct Profit Payout'}</Text>
+                  </View>
+                  <View style={{ width: '20%' }}>
+                    <Text style={styles.tableCell}>{isComp ? (data.companyAccountName || 'AIE SKYLINE ACCOUNTS') : 'External Bank Transfer'}</Text>
+                  </View>
+                  <View style={{ width: '14%' }}>
+                    <Text style={[styles.tableCellBold, { textAlign: 'right', color: isComp ? '#0F172A' : '#047857' }]}>{fmt(share.shareAmount)}</Text>
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <>
+              {/* Row 1: Company Share */}
+              <View style={styles.tableRow}>
+                <View style={{ width: '28%' }}>
+                  <Text style={styles.tableCellBold}>AIE Skyline Limited</Text>
+                  <Text style={{ fontSize: 7, color: '#64748B' }}>Operating Company</Text>
+                </View>
+                <View style={{ width: '14%' }}>
+                  <Text style={[styles.badgePill, styles.badgeCompany]}>{data.companySharePct}%</Text>
+                </View>
+                <View style={{ width: '24%' }}>
+                  <Text style={styles.tableCell}>Internal Transfer</Text>
+                </View>
+                <View style={{ width: '20%' }}>
+                  <Text style={styles.tableCell}>{data.companyAccountName || 'AIE SKYLINE ACCOUNTS'}</Text>
+                </View>
+                <View style={{ width: '14%' }}>
+                  <Text style={[styles.tableCellBold, { textAlign: 'right' }]}>{fmt(data.companyShareAmount)}</Text>
+                </View>
+              </View>
 
-          {/* Row 2: Partner / Co-Owner Share */}
-          <View style={[styles.tableRow, styles.tableRowEven]}>
-            <View style={{ width: '28%' }}>
-              <Text style={styles.tableCellBold}>{data.ownerName}</Text>
-              <Text style={{ fontSize: 7, color: '#64748B' }}>Co-Owner Partner</Text>
-            </View>
-            <View style={{ width: '14%' }}>
-              <Text style={[styles.badgePill, styles.badgePartner]}>{data.ownerSharePct}%</Text>
-            </View>
-            <View style={{ width: '24%' }}>
-              <Text style={styles.tableCell}>Direct Profit Payout</Text>
-            </View>
-            <View style={{ width: '20%' }}>
-              <Text style={styles.tableCell}>External Bank Transfer</Text>
-            </View>
-            <View style={{ width: '14%' }}>
-              <Text style={[styles.tableCellBold, { textAlign: 'right', color: '#047857' }]}>{fmt(data.ownerShareAmount)}</Text>
-            </View>
-          </View>
+              {/* Row 2: Partner / Co-Owner Share */}
+              <View style={[styles.tableRow, styles.tableRowEven]}>
+                <View style={{ width: '28%' }}>
+                  <Text style={styles.tableCellBold}>{data.ownerName}</Text>
+                  <Text style={{ fontSize: 7, color: '#64748B' }}>Co-Owner Partner</Text>
+                </View>
+                <View style={{ width: '14%' }}>
+                  <Text style={[styles.badgePill, styles.badgePartner]}>{data.ownerSharePct}%</Text>
+                </View>
+                <View style={{ width: '24%' }}>
+                  <Text style={styles.tableCell}>Direct Profit Payout</Text>
+                </View>
+                <View style={{ width: '20%' }}>
+                  <Text style={styles.tableCell}>External Bank Transfer</Text>
+                </View>
+                <View style={{ width: '14%' }}>
+                  <Text style={[styles.tableCellBold, { textAlign: 'right', color: '#047857' }]}>{fmt(data.ownerShareAmount)}</Text>
+                </View>
+              </View>
+            </>
+          )}
 
           {/* Total Row */}
           <View style={styles.totalRow}>
@@ -464,11 +552,32 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
         {/* FOOTER & SIGN-OFF */}
         <View style={styles.footerSection}>
           <View style={styles.signOffRow}>
+            {/* Authorised Company Signature (Finance Office) */}
             <View style={styles.signCol}>
-              <Text style={styles.signLabel}>Authorised Signature (Finance Office)</Text>
+              <View style={styles.signatureImageContainer}>
+                {companySignature ? (
+                  <Image src={companySignature} style={styles.signatureImage} />
+                ) : (
+                  <View style={{ height: 40 }} />
+                )}
+              </View>
+              <View style={styles.signLine}>
+                <Text style={styles.signLabel}>Authorised Signature (Company Office)</Text>
+                <Text style={styles.signSignerText}>{companyName}</Text>
+                <Text style={styles.signMetaText}>Signed on: {fmtDate(data.payoutDate)} • Finance Authorized</Text>
+              </View>
             </View>
+
+            {/* Partner Acknowledgement */}
             <View style={styles.signCol}>
-              <Text style={styles.signLabel}>Partner Acknowledgement / Date</Text>
+              <View style={styles.signatureImageContainer}>
+                <View style={{ height: 40 }} />
+              </View>
+              <View style={styles.signLine}>
+                <Text style={styles.signLabel}>Partner Acknowledgement / Date</Text>
+                <Text style={styles.signSignerText}>{data.ownerName}</Text>
+                <Text style={styles.signMetaText}>Co-Owner Settlement Confirmation • {fmtDate(data.payoutDate)}</Text>
+              </View>
             </View>
           </View>
           <Text style={styles.footerLegal}>

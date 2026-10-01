@@ -1,6 +1,6 @@
 // src/components/finance/FinanceHeader.tsx
 import React from 'react';
-import { Download, Plus, Search, FileText, Settings, Repeat, Upload, BarChart3 } from 'lucide-react';
+import { Download, Plus, Search, FileText, Settings, Repeat, Upload, BarChart3, FileSpreadsheet } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface FinanceHeaderProps {
@@ -10,6 +10,7 @@ interface FinanceHeaderProps {
   onAddIncome: () => void;
   onAddExpense: () => void;
   onGeneratePDF: () => void;
+  onOpenStatementModal?: () => void;
   period: 'week' | 'month' | 'year' | 'all';
   onPeriodChange: (period: 'week' | 'month' | 'year' | 'all') => void;
   type: 'all' | 'income' | 'expense';
@@ -25,6 +26,7 @@ interface FinanceHeaderProps {
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onSearch, onImport, onExport, onAddIncome, onAddExpense, onGeneratePDF,
+  onOpenStatementModal,
   onManageGroups, onManageDepartments, onManageCategories, onManageAccounts,
   onAddRecurring, onOpenBIReport,
 }) => {
@@ -75,6 +77,20 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+            {onOpenStatementModal && (
+              <button
+                type="button"
+                onClick={onOpenStatementModal}
+                className="inline-flex items-center justify-center px-3.5 py-2.5 border border-indigo-200 rounded-xl shadow-xs text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
+                title="Generate Monthly or Quarterly State-of-the-Art PDF Account Statements"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2 text-indigo-600" />
+                <span>Account Statement</span>
+                <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-indigo-200/70 text-indigo-800">
+                  M / Q
+                </span>
+              </button>
+            )}
             {can('finance', 'import') && <button onClick={onImport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><Upload className="h-4 w-4 mr-2 text-[#64748B]" /> Import</button>}
             {can('finance', 'export') && <button onClick={onExport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><Download className="h-4 w-4 mr-2 text-[#64748B]" /> Export</button>}
             {(can('finance', 'singleDoc') || can('finance', 'export')) && <button onClick={onGeneratePDF} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><FileText className="h-4 w-4 mr-2 text-[#64748B]" /> PDF</button>}

@@ -8,6 +8,7 @@ import { highRiskRouter } from './src/server/highRiskRoutes';
 import { sharedOwnershipRouter } from './src/server/sharedOwnershipRoutes';
 import { invoicePaymentRouter } from './src/server/invoicePaymentRoutes';
 import { accountsRouter } from './src/server/accountsRoutes';
+import { usersRouter } from './src/server/userRoutes';
 import { extractMatrixUser } from './src/server/matrixAuth';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,11 +23,15 @@ async function startServer() {
   // Mount Unified Accounts REST API (Single source of truth for Accounts across Invoice and Finance)
   app.use('/api/accounts', accountsRouter);
 
+  // Mount Users & Permissions REST API
+  app.use('/api/users', usersRouter);
+
   // Mount High Risk Registry REST API with explicit matrix authorization middleware
   app.use('/api/high-risk-drivers', highRiskRouter);
 
   // Mount Vehicle Shared Ownership & Profit Payout API
   app.use('/api/finance/shared-ownership', sharedOwnershipRouter);
+  app.use('/api/finance/commission-payout', sharedOwnershipRouter);
 
   // Mount Invoice Payment to Finance Ledger Sync API
   app.use('/api/invoices', invoicePaymentRouter);

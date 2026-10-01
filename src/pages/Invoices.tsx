@@ -19,6 +19,7 @@ import ManageGroupsModal from '../components/finance/ManageGroupsModal';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service'; 
 import unifiedCategoryService from '../services/unifiedCategory.service';
 import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
+import { AssignFinanceAccountModal } from '../components/finance/AssignFinanceAccountModal';
 
 import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
@@ -72,6 +73,7 @@ const Invoices: React.FC = () => {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
+  const [showAssignAccountModal, setShowAssignAccountModal] = useState(false);
 
   // Centralized communication modal states
   const [showCommModal, setShowCommModal] = useState(false);
@@ -845,6 +847,12 @@ const Invoices: React.FC = () => {
                 {can('invoices', 'assign') && (
                   <>
                     <button 
+                      onClick={() => setShowAssignAccountModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm transition-colors cursor-pointer"
+                    >
+                      Assign Account
+                    </button>
+                    <button 
                       onClick={() => setShowAssignGroupModal(true)}
                       className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
                     >
@@ -993,6 +1001,17 @@ const Invoices: React.FC = () => {
         onSuccess={() => {
           setShowAssignGroupModal(false);
           setSelectedInvoiceIds(new Set()); 
+        }}
+      />
+      <AssignFinanceAccountModal
+        isOpen={showAssignAccountModal}
+        onClose={() => setShowAssignAccountModal(false)}
+        selectedIds={selectedInvoiceIds}
+        accounts={accounts}
+        collectionName="invoices"
+        onSuccess={() => {
+          setShowAssignAccountModal(false);
+          setSelectedInvoiceIds(new Set());
         }}
       />
 

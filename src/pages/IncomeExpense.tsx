@@ -327,8 +327,8 @@ export default function IncomeExpense() {
       {viewing && <IncomeExpenseDetails entry={viewing} collectionName="incomeExpenses" />}
     </Modal>
 
-    <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History" size="xl">
-      <SharesModal shares={shares} onClose={() => setShowShares(false)} onGeneratePDF={handleDownloadProfitSharesPDF} collectionName="profitShares" />
+    <Modal isOpen={showShares} onClose={() => setShowShares(false)} title="Profit Share History Ledger" size="2xl">
+      <SharesModal shares={shares} records={records} onClose={() => setShowShares(false)} onGeneratePDF={handleDownloadProfitSharesPDF} collectionName="profitShares" />
     </Modal>
 
     <Modal isOpen={showManageCats} onClose={() => setShowManageCats(false)} title="" size="md">

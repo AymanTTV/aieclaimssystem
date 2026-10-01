@@ -24,5 +24,7 @@ export interface User {
   can_delete_payments?: boolean;
   manage_maintenance_finance?: boolean;
   can_process_profit_payout?: boolean;
+  canManageProfitDistribution?: boolean;
+  canAccessCommissionSplits?: boolean;
   hasPermission?: (permission: string) => boolean;
 }

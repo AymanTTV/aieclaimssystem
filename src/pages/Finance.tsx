@@ -22,6 +22,7 @@ import AssignGroupCategoryModal from '../components/finance/AssignGroupCategoryM
 import ManageFinanceDepartmentsModal from '../components/finance/ManageFinanceDepartmentsModal';
 import AssignFinanceDepartmentModal from '../components/finance/AssignFinanceDepartmentModal';
 import AssignFinanceGroupModal from '../components/finance/AssignFinanceGroupModal';
+import { AssignFinanceAccountModal } from '../components/finance/AssignFinanceAccountModal';
 import { FleetBIReportModal } from '../components/finance/FleetBIReportModal';
 import { ProfitPayoutActionBar } from '../components/finance/ProfitPayoutActionBar';
 import { ProfitPayoutModal } from '../components/finance/ProfitPayoutModal';
@@ -417,6 +418,17 @@ const Finance: React.FC = () => {
   const { accounts, loading: accountsLoading } = useSharedAccounts();
   const { can } = usePermissions();
   const { user } = useAuth();
+  const currentUser = user;
+
+  const canManageProfitDistribution = Boolean(
+    currentUser?.permissions?.canManageProfitDistribution === true ||
+    currentUser?.canManageProfitDistribution === true ||
+    currentUser?.canAccessCommissionSplits === true ||
+    currentUser?.permissions?.finance?.canManageProfitDistribution === true ||
+    (currentUser?.permissions as any)?.canAccessCommissionSplits === true ||
+    can('canManageProfitDistribution') ||
+    ['superadmin', 'owner'].includes(currentUser?.role?.toLowerCase() || '')
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-refresh finance ledger and recalculate summary metrics on cache invalidation
@@ -450,6 +462,7 @@ const Finance: React.FC = () => {
   const [showManageDepartments, setShowManageDepartments] = useState(false);
   const [showAssignDepartmentModal, setShowAssignDepartmentModal] = useState(false);
   const [showAssignGroupModal, setShowAssignGroupModal] = useState(false);
+  const [showAssignAccountModal, setShowAssignAccountModal] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showAddIncome, setShowAddIncome] = useState(false);
@@ -480,11 +493,22 @@ const Finance: React.FC = () => {
   });
 
   const handleTabChange = useCallback((tab: 'ledger' | 'accounts' | 'distribution') => {
+    if (tab === 'distribution' && !currentUser?.permissions?.canManageProfitDistribution) {
+      toast.error('You do not have permission to access Profit Distribution.');
+      return;
+    }
     setActiveFinanceTab(tab);
     try {
       localStorage.setItem('finance_active_tab', tab);
     } catch {}
-  }, []);
+  }, [currentUser?.permissions?.canManageProfitDistribution]);
+
+  // Route guard: if active tab is distribution but user lacks permission, fallback to ledger
+  useEffect(() => {
+    if (activeFinanceTab === 'distribution' && !currentUser?.permissions?.canManageProfitDistribution) {
+      setActiveFinanceTab('ledger');
+    }
+  }, [activeFinanceTab, currentUser?.permissions?.canManageProfitDistribution]);
   
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showBIReportModal, setShowBIReportModal] = useState(false);
@@ -1321,28 +1345,30 @@ const Finance: React.FC = () => {
               </span>
             </button>
 
-            {/* Tab 3: Profit Distribution */}
-            <button
-              type="button"
-              onClick={() => handleTabChange('distribution')}
-              className={`group inline-flex items-center py-3.5 px-1 border-b-2 font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
-                activeFinanceTab === 'distribution'
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <PieChart className={`mr-2.5 h-4 w-4 ${activeFinanceTab === 'distribution' ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-              <span>Profit Distribution</span>
-              <span
-                className={`ml-2.5 py-0.5 px-2 rounded-full text-[10px] font-extrabold uppercase ${
+            {/* Tab 3: Profit Distribution - Restricted to users with canManageProfitDistribution */}
+            {currentUser?.permissions?.canManageProfitDistribution && (
+              <button
+                type="button"
+                onClick={() => handleTabChange('distribution')}
+                className={`group inline-flex items-center py-3.5 px-1 border-b-2 font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
                   activeFinanceTab === 'distribution'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-slate-100 text-slate-600'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                Co-Owned
-              </span>
-            </button>
+                <PieChart className={`mr-2.5 h-4 w-4 ${activeFinanceTab === 'distribution' ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                <span>Profit Distribution</span>
+                <span
+                  className={`ml-2.5 py-0.5 px-2 rounded-full text-[10px] font-extrabold uppercase ${
+                    activeFinanceTab === 'distribution'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  Commission Split
+                </span>
+              </button>
+            )}
           </nav>
         </div>
       </div>
@@ -1395,6 +1421,12 @@ const Finance: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {can('finance', 'assign') && (
                   <>
+                    <button 
+                      onClick={() => setShowAssignAccountModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm transition-colors cursor-pointer"
+                    >
+                      Assign Account
+                    </button>
                     <button 
                       onClick={() => setShowAssignGroupModal(true)}
                       className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 shadow-sm transition-colors"
@@ -1491,7 +1523,7 @@ const Finance: React.FC = () => {
       )}
 
       {/* 3. WHEN 'Profit Distribution' IS ACTIVE */}
-      {activeFinanceTab === 'distribution' && (
+      {activeFinanceTab === 'distribution' && currentUser?.permissions?.canManageProfitDistribution && (
         <div className="space-y-6 animate-in fade-in duration-150">
           <ProfitPayoutActionBar
             accounts={accounts}
@@ -1543,6 +1575,19 @@ const Finance: React.FC = () => {
         onSuccess={() => {
           setShowAssignGroupModal(false);
           setSelectedTransactionIds(new Set()); 
+        }}
+      />
+
+      <AssignFinanceAccountModal
+        isOpen={showAssignAccountModal}
+        onClose={() => setShowAssignAccountModal(false)}
+        selectedIds={selectedTransactionIds}
+        accounts={accounts}
+        transactions={transactions}
+        collectionName="transactions"
+        onSuccess={() => {
+          setShowAssignAccountModal(false);
+          setSelectedTransactionIds(new Set());
         }}
       />
 
