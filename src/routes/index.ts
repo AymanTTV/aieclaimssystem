@@ -18,6 +18,7 @@ export const ROUTES = {
   PRODUCTS: '/products',
   TODO: '/todo',
   AUTOMATION: '/automation',
+  INVOICE_PAY: '/invoice-pay',
   // Protected routes
   DASHBOARD: '/',
   PROFILE: '/profile',

@@ -25,7 +25,20 @@ import {
   CreditCard,
   FileSignature,
   Upload,
+  QrCode,
+  Copy,
+  Check,
+  ExternalLink,
+  Lock,
+  Unlock,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
+import {
+  generatePaymentQrCodeDataUrl,
+  buildPaymentQrPayload,
+} from '../../utils/paymentQrCode';
 import {
   CompanyEntity,
   getAvailableCompanyEntities,
@@ -34,6 +47,7 @@ import {
   getPageLayoutOptions,
   getDefaultPageTemplateMapping,
   PageTemplateMappingConfig,
+  getManagerDefaultsForDocType,
 } from '../../utils/entityBranding';
 import {
   CompanyBankAccount,
@@ -89,6 +103,32 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   initialPageTemplateMapping,
   extraControlsTab,
 }) => {
+  // ── 0. ROLE-BASED CONTROLS & OVERRIDE PERMISSIONS ──
+  const { user } = useAuth();
+  const { can } = usePermissions();
+
+  const isManagerRole = Boolean(
+    user?.role?.toLowerCase() === 'manager' ||
+    user?.role?.toLowerCase() === 'superadmin'
+  );
+
+  const hasOverridePermission = Boolean(
+    user?.allowDocumentOverrides === true ||
+    user?.allow_document_overrides === true ||
+    user?.permissions?.allowDocumentOverrides === true ||
+    (user?.permissions as any)?.allowDocumentOverrides === true ||
+    (user?.permissions as any)?.company?.allowDocumentOverrides === true ||
+    can('company' as any, 'allowDocumentOverrides' as any)
+  );
+
+  const canOverride = isManagerRole || hasOverridePermission;
+
+  // Retrieve manager-configured default mappings for this document type
+  const managerDefaults = useMemo(
+    () => getManagerDefaultsForDocType(documentType, baseCompanyDetails),
+    [documentType, baseCompanyDetails]
+  );
+
   // ── 1. ENTITY & BRANDING OVERRIDES STATE ──
   const availableEntities = useMemo(
     () => getAvailableCompanyEntities(baseCompanyDetails),
@@ -96,15 +136,19 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   );
 
   const [selectedEntityKey, setSelectedEntityKey] = useState<string>(() => {
+    if (!canOverride && managerDefaults?.entityKey) {
+      return managerDefaults.entityKey;
+    }
     if (initialEntityKey) return initialEntityKey;
+    if (managerDefaults?.entityKey) return managerDefaults.entityKey;
     return getDefaultEntityKeyForDocument(documentType, baseCompanyDetails);
   });
 
   useEffect(() => {
-    if (initialEntityKey) {
+    if (initialEntityKey && canOverride) {
       setSelectedEntityKey(initialEntityKey);
     }
-  }, [initialEntityKey]);
+  }, [initialEntityKey, canOverride]);
 
   const selectedEntity = useMemo(
     () => availableEntities.find((e) => e.key === selectedEntityKey) || availableEntities[0],
@@ -118,9 +162,50 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   );
 
   const [pageTemplateMapping, setPageTemplateMapping] = useState<PageTemplateMappingConfig>(() => {
+    const baseDefault = getDefaultPageTemplateMapping(documentType);
+    if (!canOverride && managerDefaults) {
+      return {
+        ...baseDefault,
+        page1Template: managerDefaults.page1Template || baseDefault.page1Template,
+        page2Template: managerDefaults.page2Template || baseDefault.page2Template,
+        page3Template: managerDefaults.page3Template || baseDefault.page3Template,
+        includePage2: managerDefaults.includePage2 ?? baseDefault.includePage2,
+        includePage3: managerDefaults.includePage3 ?? baseDefault.includePage3,
+      };
+    }
     if (initialPageTemplateMapping) return initialPageTemplateMapping;
-    return getDefaultPageTemplateMapping(documentType);
+    if (managerDefaults) {
+      return {
+        ...baseDefault,
+        page1Template: managerDefaults.page1Template || baseDefault.page1Template,
+        page2Template: managerDefaults.page2Template || baseDefault.page2Template,
+        page3Template: managerDefaults.page3Template || baseDefault.page3Template,
+        includePage2: managerDefaults.includePage2 ?? baseDefault.includePage2,
+        includePage3: managerDefaults.includePage3 ?? baseDefault.includePage3,
+      };
+    }
+    return baseDefault;
   });
+
+  // Automatically enforce Manager-defined defaults when user lacks override permissions
+  useEffect(() => {
+    if (!canOverride && managerDefaults) {
+      if (managerDefaults.entityKey && managerDefaults.entityKey !== selectedEntityKey) {
+        setSelectedEntityKey(managerDefaults.entityKey);
+      }
+      if (managerDefaults.bankAccountId && managerDefaults.bankAccountId !== selectedBankId) {
+        setSelectedBankId(managerDefaults.bankAccountId);
+      }
+      setPageTemplateMapping((prev) => ({
+        ...prev,
+        page1Template: managerDefaults.page1Template || prev.page1Template,
+        page2Template: managerDefaults.page2Template || prev.page2Template,
+        page3Template: managerDefaults.page3Template || prev.page3Template,
+        includePage2: managerDefaults.includePage2 !== undefined ? managerDefaults.includePage2 : prev.includePage2,
+        includePage3: managerDefaults.includePage3 !== undefined ? managerDefaults.includePage3 : prev.includePage3,
+      }));
+    }
+  }, [canOverride, managerDefaults]);
 
   // Editable branding fields for on-the-fly customization per document
   const [customCompanyName, setCustomCompanyName] = useState<string>('');
@@ -159,7 +244,11 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   );
 
   const [selectedBankId, setSelectedBankId] = useState<string>(() => {
+    if (!canOverride && managerDefaults?.bankAccountId) {
+      return managerDefaults.bankAccountId;
+    }
     if (initialBankId) return initialBankId;
+    if (managerDefaults?.bankAccountId) return managerDefaults.bankAccountId;
     if (documentType.includes('claim')) {
       const claimsBank = availableBanks.find((b) => b.id.includes('claims') || b.id.includes('natwest'));
       if (claimsBank) return claimsBank.id;
@@ -169,15 +258,58 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   });
 
   useEffect(() => {
-    if (initialBankId) {
+    if (initialBankId && canOverride) {
       setSelectedBankId(initialBankId);
     }
-  }, [initialBankId]);
+  }, [initialBankId, canOverride]);
 
   const selectedBank = useMemo(
     () => availableBanks.find((b) => b.id === selectedBankId) || availableBanks[0],
     [availableBanks, selectedBankId]
   );
+
+  // ── 2b. PAYMENT QR CODE STATE & DYNAMIC SYNC ──
+  const [includePaymentQr, setIncludePaymentQr] = useState<boolean>(true);
+  const [qrFormat, setQrFormat] = useState<'standard' | 'url' | 'epc'>('standard');
+  const [paymentQrDataUrl, setPaymentQrDataUrl] = useState<string>('');
+  const [copiedQrPayload, setCopiedQrPayload] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!selectedBank || !includePaymentQr) {
+      setPaymentQrDataUrl('');
+      return;
+    }
+
+    generatePaymentQrCodeDataUrl(selectedBank, {
+      reference: documentReference || 'AIE-PAYMENT',
+      format: qrFormat,
+    }).then((url) => {
+      if (!isCancelled) {
+        setPaymentQrDataUrl(url);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedBank, includePaymentQr, qrFormat, documentReference]);
+
+  const handleCopyQrPayload = async () => {
+    if (!selectedBank) return;
+    const payload = buildPaymentQrPayload(selectedBank, {
+      reference: documentReference || 'AIE-PAYMENT',
+      format: qrFormat,
+    });
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopiedQrPayload(true);
+      toast.success('Payment QR payload copied to clipboard');
+      setTimeout(() => setCopiedQrPayload(false), 2000);
+    } catch {
+      toast.error('Failed to copy payload');
+    }
+  };
 
   // ── 3. DRAFT T&C AUTO-BINDING & TEMPLATES STATE ──
   const availableTemplates = useMemo(
@@ -236,6 +368,8 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
       customHeaderText: customHeaderText,
       customFooterText: customFooterText,
       selectedBank: selectedBank,
+      paymentQrCodeDataUrl: includePaymentQr ? paymentQrDataUrl : undefined,
+      includePaymentQr: includePaymentQr,
       // Terms overrides
       includeTrailingTC: isP3Active,
       customTermsTitle: customTermsTitle,
@@ -268,6 +402,8 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
     customHeaderText,
     customFooterText,
     selectedBank,
+    paymentQrDataUrl,
+    includePaymentQr,
     includeTrailingTC,
     customTermsTitle,
     draftTermsContent,
@@ -627,7 +763,7 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
                 <span>Live @react-pdf/renderer Canvas</span>
               </div>
               <div className="text-slate-400 font-mono text-[10px] truncate max-w-[60%] text-right">
-                Entity: {customTradingName || selectedEntity.tradingName} • P1: {pageTemplateMapping.page1Template} • Bank: {selectedBank?.bankName || 'LLOYDS'}
+                Entity: {customTradingName || selectedEntity.tradingName} • P1: {pageTemplateMapping.page1Template} • Bank: {selectedBank?.bankName || 'LLOYDS'} • QR: {includePaymentQr ? 'Active' : 'Off'}
               </div>
             </div>
           </div>
@@ -1404,6 +1540,164 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
                       {selectedBank.notes && (
                         <div className="text-[11px] text-slate-400 italic pt-1 border-t border-indigo-500/20">
                           {selectedBank.notes}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── PAYMENT QR CODE & MOBILE PAY CARD ── */}
+                  {selectedBank && (
+                    <div className="p-4 rounded-xl border border-indigo-500/40 bg-slate-900/90 shadow-lg space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-700/80 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                            <QrCode className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>Payment QR Code</span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Live PDF Synced
+                              </span>
+                            </h4>
+                            <p className="text-[10px] text-slate-400">
+                              Generated for {selectedBank.bankName}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Toggle Display on Document */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <span className="text-[10px] font-bold text-slate-300">
+                            {includePaymentQr ? 'Print on Doc' : 'Hidden'}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={includePaymentQr}
+                            onChange={(e) => setIncludePaymentQr(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors ${
+                              includePaymentQr ? 'bg-indigo-600' : 'bg-slate-700'
+                            }`}
+                          >
+                            <div
+                              className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                                includePaymentQr ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </div>
+                        </label>
+                      </div>
+
+                      {includePaymentQr ? (
+                        <div className="flex flex-col sm:flex-row gap-3 items-center">
+                          {/* QR Code Canvas Frame */}
+                          <div className="relative p-2 bg-white rounded-xl shadow-md border-2 border-indigo-500/30 flex-shrink-0 group">
+                            {paymentQrDataUrl ? (
+                              <img
+                                src={paymentQrDataUrl}
+                                alt="Payment QR Code"
+                                className="w-24 h-24 object-contain"
+                              />
+                            ) : (
+                              <div className="w-24 h-24 flex items-center justify-center text-slate-400 text-[10px]">
+                                <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                              </div>
+                            )}
+                            <div className="mt-1 text-center">
+                              <span className="text-[8px] font-black uppercase tracking-wider text-slate-800 block">
+                                Scan to Pay
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* QR Settings & Payload summary */}
+                          <div className="flex-1 min-w-0 space-y-2 text-xs w-full">
+                            <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700 space-y-1 text-[11px]">
+                              <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                <span>PAYEE:</span>
+                                <span className="font-semibold text-slate-200 truncate max-w-[65%]">
+                                  {selectedBank.accountName}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                <span>SORT / ACCOUNT:</span>
+                                <span className="font-mono font-semibold text-slate-200">
+                                  {selectedBank.sortCode} • {selectedBank.accountNumber}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                <span>REF:</span>
+                                <span className="font-mono text-indigo-300 font-semibold truncate max-w-[65%]">
+                                  {documentReference || 'AIE-PAYMENT'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Format Selector Pills */}
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold">Format:</span>
+                              {(
+                                [
+                                  { id: 'standard', label: 'UK Banking' },
+                                  { id: 'url', label: 'Pay URL' },
+                                  { id: 'epc', label: 'EPC SEPA' },
+                                ] as const
+                              ).map((fmt) => (
+                                <button
+                                  key={fmt.id}
+                                  type="button"
+                                  onClick={() => setQrFormat(fmt.id)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                    qrFormat === fmt.id
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                                  }`}
+                                >
+                                  {fmt.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Quick Action Buttons */}
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={handleCopyQrPayload}
+                                className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                              >
+                                {copiedQrPayload ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                    <span className="text-emerald-400">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3 text-slate-400" />
+                                    <span>Copy QR Data</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {paymentQrDataUrl && (
+                                <a
+                                  href={paymentQrDataUrl}
+                                  download={`Payment_QR_${selectedBank.accountNumber}.png`}
+                                  className="py-1.5 px-2.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 transition"
+                                  title="Download PNG image of this QR code"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  <span>PNG</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 text-[11px] text-slate-400 italic">
+                          Payment QR code is hidden for this document. Toggle above to print it alongside bank details.
                         </div>
                       )}
                     </div>

@@ -1,8 +1,9 @@
 // src/components/company/ManagerGroups.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import Badge from '../ui/Badge';
 import { DEFAULT_PERMISSIONS, RolePermissions, Role } from '../../types/roles';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Lock, Unlock, FileSignature, SlidersHorizontal } from 'lucide-react';
+import UserRoleModal from '../users/UserRoleModal';
 
 // Map the raw module keys to friendly display names
 const SECTION_TITLE_MAP: Partial<Record<keyof RolePermissions, string>> = {
@@ -52,6 +53,7 @@ const getActiveModules = (perms: RolePermissions) => {
 const ManagerGroups = () => {
   // We extract the actual roles defined in the system
   const systemRoles = Object.keys(DEFAULT_PERMISSIONS) as Role[];
+  const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<Role | null>(null);
 
   return (
     <div>
@@ -70,11 +72,17 @@ const ManagerGroups = () => {
           <table className="min-w-full border-collapse">
             <thead className="bg-[#F8FAFC] text-[#334155] border-b-2 border-[#E2E8F0]">
               <tr className="border-b-2 border-[#E2E8F0]">
-                <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap w-1/4">
+                <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap w-1/5">
                   Role Name
                 </th>
                 <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap">
                   Base Module Access
+                </th>
+                <th className="px-5 py-4 text-left text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap w-1/5">
+                  Document Overrides
+                </th>
+                <th className="px-5 py-4 text-right text-xs font-semibold text-[#334155] uppercase tracking-wider select-none whitespace-nowrap w-32">
+                  Action
                 </th>
               </tr>
             </thead>
@@ -86,6 +94,7 @@ const ManagerGroups = () => {
                 const activeModules = getActiveModules(permissions);
                 const isEven = idx % 2 === 1;
                 const rowBg = isEven ? 'bg-[#EEF5FD]' : 'bg-white';
+                const hasDocOverrideDefault = role === 'manager' || role === 'superadmin' || permissions?.allowDocumentOverrides === true;
 
                 return (
                   <tr key={role} className={`group border-b border-[#E2E8F0] ${rowBg} hover:bg-[#DCEBFA] transition-all duration-150 ease-in-out`}>
@@ -110,6 +119,30 @@ const ManagerGroups = () => {
                         )}
                       </div>
                     </td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      {hasDocOverrideDefault ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <Unlock className="w-3 h-3 text-emerald-600" />
+                          <span>Enabled</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          <Lock className="w-3 h-3 text-slate-400" />
+                          <span>Locked</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRoleForPermissions(role)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                        title="Configure permissions for this role"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span>Configure</span>
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -127,6 +160,15 @@ const ManagerGroups = () => {
           </div>
         </div>
       </div>
+
+      {/* Permissions Modal for Role Template */}
+      {selectedRoleForPermissions && (
+        <UserRoleModal
+          user={null}
+          initialRole={selectedRoleForPermissions}
+          onClose={() => setSelectedRoleForPermissions(null)}
+        />
+      )}
     </div>
   );
 };

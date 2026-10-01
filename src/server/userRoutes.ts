@@ -27,6 +27,10 @@ usersRouter.patch('/:id/permissions', (req: Request, res: Response) => {
         body.canManageProfitDistribution !== undefined
           ? Boolean(body.canManageProfitDistribution)
           : current.canManageProfitDistribution,
+      allowDocumentOverrides:
+        body.allowDocumentOverrides !== undefined
+          ? Boolean(body.allowDocumentOverrides)
+          : current.allowDocumentOverrides,
       updatedAt: new Date().toISOString(),
     };
 

@@ -40,6 +40,8 @@ import {
   Percent,
   Building2,
   X,
+  Smartphone,
+  ExternalLink,
 } from 'lucide-react';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import toast from 'react-hot-toast';
@@ -1252,17 +1254,33 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
             </span>
           </div>
 
-          {(invoice.documentUrl || onDownload) && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onDownload || (() => window.open(invoice.documentUrl || '', '_blank'))}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition-colors cursor-pointer shrink-0"
-              title="Download Invoice PDF"
+              onClick={() => {
+                const payUrl = `${window.location.origin}/invoice-pay?id=${encodeURIComponent(invoice.id)}`;
+                window.open(payUrl, '_blank');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg shadow-2xs transition-colors cursor-pointer shrink-0"
+              title="Open Client UK Pay by Bank Gateway"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">PDF</span>
+              <Smartphone className="w-4 h-4 text-indigo-600" />
+              <span className="hidden sm:inline">Pay by Bank</span>
+              <ExternalLink className="w-3 h-3 text-indigo-400" />
             </button>
-          )}
+
+            {(invoice.documentUrl || onDownload) && (
+              <button
+                type="button"
+                onClick={onDownload || (() => window.open(invoice.documentUrl || '', '_blank'))}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition-colors cursor-pointer shrink-0"
+                title="Download Invoice PDF"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">PDF</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

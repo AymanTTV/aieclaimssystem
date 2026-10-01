@@ -39,6 +39,14 @@ export const checkUserPermission = (user: User | null | undefined, permission: s
       ['superadmin', 'owner'].includes(role)
     );
   }
+  if (permission === 'allowDocumentOverrides' || permission === 'allow_document_overrides') {
+    return Boolean(
+      user.allowDocumentOverrides === true ||
+      user.allow_document_overrides === true ||
+      user.permissions?.allowDocumentOverrides === true ||
+      ['manager', 'superadmin'].includes(role)
+    );
+  }
   if (permission in (user as any)) {
     return Boolean((user as any)[permission]);
   }
@@ -58,11 +66,18 @@ const buildUserObject = (id: string, userData: any): User => {
     userData?.permissions?.finance?.canAccessCommissionSplits === true ||
     ['superadmin', 'owner'].includes(role)
   );
+  const allowDocumentOverrides = Boolean(
+    userData?.allowDocumentOverrides === true ||
+    userData?.allow_document_overrides === true ||
+    userData?.permissions?.allowDocumentOverrides === true ||
+    ['manager', 'superadmin'].includes(role)
+  );
 
   const permissions = {
     ...(userData?.permissions || {}),
     canManageProfitDistribution,
     canAccessCommissionSplits: canManageProfitDistribution,
+    allowDocumentOverrides,
     ...(userData?.permissions?.finance ? {
       finance: {
         ...userData.permissions.finance,
@@ -80,6 +95,8 @@ const buildUserObject = (id: string, userData: any): User => {
     can_process_profit_payout: canProcessProfitPayout,
     canManageProfitDistribution,
     canAccessCommissionSplits: canManageProfitDistribution,
+    allowDocumentOverrides,
+    allow_document_overrides: allowDocumentOverrides,
     permissions: permissions as any,
     hasPermission: (permission: string): boolean => {
       if (permission === 'canManageProfitDistribution' || permission === 'canAccessCommissionSplits') {
@@ -89,6 +106,14 @@ const buildUserObject = (id: string, userData: any): User => {
           userData?.permissions?.finance?.canManageProfitDistribution === true ||
           userData?.permissions?.finance?.canAccessCommissionSplits === true ||
           ['superadmin', 'owner'].includes(role)
+        );
+      }
+      if (permission === 'allowDocumentOverrides' || permission === 'allow_document_overrides') {
+        return Boolean(
+          userData?.allowDocumentOverrides === true ||
+          userData?.allow_document_overrides === true ||
+          userData?.permissions?.allowDocumentOverrides === true ||
+          ['manager', 'superadmin'].includes(role)
         );
       }
       if (permission === 'can_process_profit_payout') {

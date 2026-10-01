@@ -68,6 +68,7 @@ export interface Permission {
   manage_maintenance_finance?: boolean;
   canManageProfitDistribution?: boolean;
   canAccessCommissionSplits?: boolean;
+  allowDocumentOverrides?: boolean;
   
   // WhatsApp & Email targets
   targetFinance?: boolean;
@@ -142,6 +143,7 @@ export interface RolePermissions {
   memberInvoices: Permission;
   canManageProfitDistribution?: boolean;
   canAccessCommissionSplits?: boolean;
+  allowDocumentOverrides?: boolean;
 }
 
 // ------------------------- TEMPLATES TO ENSURE ALL KEYS RENDER -------------------------
@@ -216,6 +218,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     memberRentals: { view: true, update: true },
     memberTransactions: { view: true, update: true },
     memberInvoices: { view: true, update: true },
+    canManageProfitDistribution: true,
+    canAccessCommissionSplits: true,
+    allowDocumentOverrides: true,
   },
 
   // ---------------- ADMIN (STANDARD OPERATIONAL DEFAULTS) ----------------
@@ -450,6 +455,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     memberRentals: { ...BASE_PORTAL },
     memberTransactions: { ...BASE_PORTAL },
     memberInvoices: { ...BASE_PORTAL },
+    canManageProfitDistribution: true,
+    canAccessCommissionSplits: true,
+    allowDocumentOverrides: true,
   },
 
   // ---------------- SUPERVISOR (Requires Explicit Matrix Assignment) ----------------

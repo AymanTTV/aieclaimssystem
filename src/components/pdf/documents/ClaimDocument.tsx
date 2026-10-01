@@ -360,24 +360,54 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
         )} */}
 
         {/* ========== BANK ALLOCATION / SETTLEMENT REMITTANCE (IF ALLOCATED) ========== */}
-        {hasBankDetails && (
-          <View style={[styles.section, { marginTop: 10 }]} wrap={false}>
-            <Text style={styles.sectionTitle}>Settlement &amp; Remittance Details</Text>
-            <View style={[styles.card, { marginTop: 4, backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', borderWidth: 1 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                <Text style={{ fontSize: 8.5, color: '#475569' }}>Bank Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.bankName || 'N/A'}</Text></Text>
-                <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountName || companyName}</Text></Text>
+        {hasBankDetails && (() => {
+          const qrCodeUrl =
+            companyDetails?.paymentQrCodeDataUrl ||
+            (data as any)?.paymentQrCodeDataUrl;
+          const showQr = companyDetails?.includePaymentQr !== false && Boolean(qrCodeUrl);
+
+          return (
+            <View style={[styles.section, { marginTop: 10 }]} wrap={false}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>Settlement &amp; Remittance Details</Text>
+                {showQr && (
+                  <Text style={{ fontSize: 6.5, color: '#4338CA', fontFamily: 'Helvetica-Bold' }}>
+                    SCAN TO PAY
+                  </Text>
+                )}
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Number: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountNumber || 'N/A'}</Text></Text>
-                <Text style={{ fontSize: 8.5, color: '#475569' }}>Sort Code: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.sortCode || 'N/A'}</Text></Text>
+              <View style={[styles.card, { marginTop: 4, backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', borderWidth: 1 }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: showQr ? 8 : 0 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <Text style={{ fontSize: 8.5, color: '#475569' }}>Bank Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.bankName || 'N/A'}</Text></Text>
+                      <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Name: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountName || companyName}</Text></Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <Text style={{ fontSize: 8.5, color: '#475569' }}>Account Number: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.accountNumber || 'N/A'}</Text></Text>
+                      <Text style={{ fontSize: 8.5, color: '#475569' }}>Sort Code: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1E293B' }}>{activeBank.sortCode || 'N/A'}</Text></Text>
+                    </View>
+                    {activeBank.iban && (
+                      <Text style={{ fontSize: 8, color: '#64748B' }}>IBAN: {activeBank.iban}</Text>
+                    )}
+                  </View>
+
+                  {/* QR Code Container */}
+                  {showQr && (
+                    <View style={{ alignItems: 'center', width: 50, flexShrink: 0 }}>
+                      <View style={{ padding: 2, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#CBD5E1', borderRadius: 3 }}>
+                        <Image src={qrCodeUrl!} style={{ width: 44, height: 44 }} />
+                      </View>
+                      <Text style={{ fontSize: 5.5, color: '#64748B', marginTop: 1.5, textAlign: 'center' }}>
+                        Mobile Banking
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              {activeBank.iban && (
-                <Text style={{ fontSize: 8, color: '#64748B' }}>IBAN: {activeBank.iban}</Text>
-              )}
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* ========== FOOTER ========== */}
         <View style={styles.footer} fixed>

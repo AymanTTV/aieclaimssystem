@@ -7,6 +7,7 @@ import {
   View,
   Image,
   StyleSheet,
+  Link,
 } from '@react-pdf/renderer';
 import { Invoice, Vehicle, Customer } from '../../../types';
 import { styles as globalStyles } from '../styles';
@@ -231,43 +232,73 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                 iban: (data as any).iban || companyDetails?.iban,
               };
 
+            const qrCodeUrl =
+              companyDetails?.paymentQrCodeDataUrl ||
+              (data as any)?.paymentQrCodeDataUrl;
+            const showQr = companyDetails?.includePaymentQr !== false && Boolean(qrCodeUrl);
+
             return (
               <View style={[localStyles.cardBox, { width: '48%' }]}>
-                <Text style={localStyles.cardTitle}>Payment Details</Text>
-                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Bank:</Text>
-                  <Text style={localStyles.value}>
-                    {activeBank.bankName || 'LLOYDS BANK'}
-                  </Text>
-                </View>
-                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
-                  <Text style={localStyles.value}>
-                    {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
-                  </Text>
-                </View>
-                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Number:</Text>
-                  <Text style={localStyles.value}>
-                    {activeBank.accountNumber || '30513162'}
-                  </Text>
-                </View>
-                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                  <Text style={[localStyles.label, { textTransform: 'none' }]}>Sort Code:</Text>
-                  <Text style={localStyles.value}>
-                    {activeBank.sortCode || '30-99-50'}
-                  </Text>
-                </View>
-                {(activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban) && (
-                  <View style={[localStyles.spaceBetweenRow, { marginBottom: 4 }]}>
-                    <Text style={[localStyles.label, { textTransform: 'none' }]}>IBAN:</Text>
-                    <Text style={localStyles.value}>
-                      {activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban}
+                <View style={[localStyles.spaceBetweenRow, { marginBottom: 4, alignItems: 'center' }]}>
+                  <Text style={localStyles.cardTitle}>Payment Details</Text>
+                  {showQr && (
+                    <Text style={{ fontSize: 6.5, color: '#4338CA', fontFamily: 'Helvetica-Bold' }}>
+                      SCAN TO PAY
                     </Text>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: showQr ? 6 : 0 }}>
+                    <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
+                      <Text style={[localStyles.label, { textTransform: 'none' }]}>Bank:</Text>
+                      <Text style={localStyles.value}>
+                        {activeBank.bankName || 'LLOYDS BANK'}
+                      </Text>
+                    </View>
+                    <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
+                      <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
+                      <Text style={localStyles.value}>
+                        {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                      </Text>
+                    </View>
+                    <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
+                      <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Number:</Text>
+                      <Text style={localStyles.value}>
+                        {activeBank.accountNumber || '30513162'}
+                      </Text>
+                    </View>
+                    <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
+                      <Text style={[localStyles.label, { textTransform: 'none' }]}>Sort Code:</Text>
+                      <Text style={localStyles.value}>
+                        {activeBank.sortCode || '30-99-50'}
+                      </Text>
+                    </View>
+                    {(activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban) && (
+                      <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
+                        <Text style={[localStyles.label, { textTransform: 'none' }]}>IBAN:</Text>
+                        <Text style={localStyles.value}>
+                          {activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                )}
-                <View style={{ marginTop: 10 }}>
-                  <Text style={[localStyles.label, { fontSize: 8, textTransform: 'none', fontStyle: 'italic' }]}>
+
+                  {/* QR Code Container */}
+                  {showQr && (
+                    <View style={{ alignItems: 'center', width: 56, flexShrink: 0, marginTop: 1 }}>
+                      <View style={{ padding: 2, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#CBD5E1', borderRadius: 3 }}>
+                        <Image src={qrCodeUrl!} style={{ width: 48, height: 48 }} />
+                      </View>
+                      <Text style={{ fontSize: 5.5, color: '#64748B', marginTop: 2, textAlign: 'center' }}>
+                        Mobile Banking
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ marginTop: 6, borderTopWidth: 0.5, borderTopColor: '#E2E8F0', paddingTop: 3 }}>
+                  <Text style={[localStyles.label, { fontSize: 7.5, textTransform: 'none', fontStyle: 'italic' }]}>
                     Please use Invoice {displayInvoiceNumber} as reference.
                   </Text>
                 </View>

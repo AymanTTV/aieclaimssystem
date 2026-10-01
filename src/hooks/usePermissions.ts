@@ -40,6 +40,19 @@ export const usePermissions = () => {
         return true;
       }
     }
+    if (action === 'allowDocumentOverrides' || action === ('allow_document_overrides' as any)) {
+      if (
+        user.allowDocumentOverrides === true ||
+        user.allow_document_overrides === true ||
+        (user as any)['allowDocumentOverrides'] === true ||
+        (user as any)['allow_document_overrides'] === true ||
+        user.permissions?.allowDocumentOverrides === true ||
+        (user.permissions as any)?.allowDocumentOverrides === true ||
+        ['manager', 'superadmin'].includes(user.role?.toLowerCase() || '')
+      ) {
+        return true;
+      }
+    }
 
     // Strict Universal Explicit-Allow (Deny-by-Default):
     // Access is granted ONLY if the user's specific permission switch is explicitly set to true.
@@ -161,6 +174,15 @@ export const usePermissions = () => {
       user?.permissions?.finance?.canAccessCommissionSplits === true ||
       (user?.permissions as any)?.canManageProfitDistribution === true ||
       ['superadmin', 'owner'].includes(user?.role?.toLowerCase() || '')
+    ),
+    allowDocumentOverrides: Boolean(
+      user?.allowDocumentOverrides === true ||
+      user?.allow_document_overrides === true ||
+      (user as any)?.allowDocumentOverrides === true ||
+      (user as any)?.allow_document_overrides === true ||
+      user?.permissions?.allowDocumentOverrides === true ||
+      (user?.permissions as any)?.allowDocumentOverrides === true ||
+      ['manager', 'superadmin'].includes(user?.role?.toLowerCase() || '')
     ),
     role: user?.role ?? null,
     permissions: user?.permissions ?? null,

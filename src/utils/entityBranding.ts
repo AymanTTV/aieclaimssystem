@@ -164,6 +164,7 @@ export const buildEffectiveDocumentCompanyDetails = (
   selectedEntity: CompanyEntity | null,
   overrides?: Partial<CompanyEntity> & {
     selectedBank?: any;
+    paymentQrCodeDataUrl?: string;
     customFooterText?: string;
     customHeaderText?: string;
     includeTrailingTC?: boolean;
@@ -204,6 +205,7 @@ export const buildEffectiveDocumentCompanyDetails = (
     signatureUrl: overrides?.signatureUrl || entity.signatureUrl || baseCompanyDetails?.signatureUrl,
     customHeaderText: overrides?.customHeaderText || entity.headerDisclaimer || '',
     customFooterText: overrides?.customFooterText || entity.footerDisclaimer || '',
+    paymentQrCodeDataUrl: overrides?.paymentQrCodeDataUrl || baseCompanyDetails?.paymentQrCodeDataUrl,
     // Page Template Mapping and Page-Level Entities
     pageTemplateMapping: pageMapping,
     page1Entity,
@@ -381,6 +383,105 @@ export const getDefaultPageTemplateMapping = (
     page1EntityKey: '',
     page2EntityKey: '',
     page3EntityKey: '',
+  };
+};
+
+/**
+ * Manager-defined default settings per document type.
+ */
+export interface DocumentTypeDefaultSettings {
+  entityKey: string;
+  bankAccountId: string;
+  page1Template: string;
+  page2Template: string;
+  page3Template: string;
+  includePage2: boolean;
+  includePage3: boolean;
+  isLocked: boolean;
+}
+
+export interface ManagerDocumentDefaults {
+  rental: DocumentTypeDefaultSettings;
+  claim: DocumentTypeDefaultSettings;
+  invoice: DocumentTypeDefaultSettings;
+  vehicle: DocumentTypeDefaultSettings;
+}
+
+export const DEFAULT_MANAGER_DOCUMENT_DEFAULTS: ManagerDocumentDefaults = {
+  rental: {
+    entityKey: 'aie_skyline',
+    bankAccountId: 'bank_primary_gbp',
+    page1Template: 'standard_rental_agreement',
+    page2Template: 'checkout_inspection_condition',
+    page3Template: 'statutory_hire_terms',
+    includePage2: true,
+    includePage3: true,
+    isLocked: true,
+  },
+  claim: {
+    entityKey: 'aie_claims',
+    bankAccountId: 'bank_claims_settlement',
+    page1Template: 'standard_claim_record',
+    page2Template: 'third_party_evidence_schedule',
+    page3Template: 'claim_management_terms',
+    includePage2: true,
+    includePage3: true,
+    isLocked: true,
+  },
+  invoice: {
+    entityKey: 'aie_skyline',
+    bankAccountId: 'bank_primary_gbp',
+    page1Template: 'standard_commercial_invoice',
+    page2Template: 'itemized_line_breakdown',
+    page3Template: 'commercial_invoice_terms',
+    includePage2: true,
+    includePage3: true,
+    isLocked: true,
+  },
+  vehicle: {
+    entityKey: 'aie_skyline',
+    bankAccountId: 'bank_primary_gbp',
+    page1Template: 'standard_rental_agreement',
+    page2Template: 'checkout_inspection_condition',
+    page3Template: 'statutory_hire_terms',
+    includePage2: true,
+    includePage3: true,
+    isLocked: true,
+  },
+};
+
+/**
+ * Returns the effective manager default configuration for a given document type.
+ */
+export const getManagerDefaultsForDocType = (
+  documentType: string,
+  companyDetails?: any
+): DocumentTypeDefaultSettings => {
+  const doc = (documentType || '').toLowerCase();
+  const defaults = companyDetails?.managerDocumentDefaults;
+
+  if (doc.includes('claim') || doc.includes('condition')) {
+    return {
+      ...DEFAULT_MANAGER_DOCUMENT_DEFAULTS.claim,
+      ...(defaults?.claim || {}),
+    };
+  }
+  if (doc.includes('invoice')) {
+    return {
+      ...DEFAULT_MANAGER_DOCUMENT_DEFAULTS.invoice,
+      ...(defaults?.invoice || {}),
+    };
+  }
+  if (doc.includes('vehicle')) {
+    return {
+      ...DEFAULT_MANAGER_DOCUMENT_DEFAULTS.vehicle,
+      ...(defaults?.vehicle || {}),
+    };
+  }
+  // Default: rental
+  return {
+    ...DEFAULT_MANAGER_DOCUMENT_DEFAULTS.rental,
+    ...(defaults?.rental || {}),
   };
 };
 

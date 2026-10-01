@@ -61,7 +61,9 @@ import {
   Tv,
   ExternalLink,
   PieChart,
-  Percent
+  Percent,
+  Lock,
+  FileSignature
 } from 'lucide-react';
 
 export interface UserRoleModalProps { 
@@ -153,6 +155,7 @@ export const FRIENDLY_LABELS: Record<string, string> = {
   manage_maintenance_finance: 'Manage Maintenance Finance',
   canManageProfitDistribution: 'Manage Profit Distribution & Commissions',
   canAccessCommissionSplits: 'Access Commission Splits',
+  allowDocumentOverrides: 'Allow Document Template & Entity Overrides',
   accounts: 'Accounts Ledger',
   period: 'Pay Period',
   reoccurring: 'Recurring Rules',
@@ -234,6 +237,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   manage_maintenance_finance: 'Grants full access to maintenance payment schedules, subcontractor costs, dealer rates, and financial adjustments.',
   canManageProfitDistribution: 'Allows this user to calculate commission splits and process shareholder payouts.',
   canAccessCommissionSplits: 'Allows this user to calculate commission splits and process shareholder payouts.',
+  allowDocumentOverrides: 'Authorizes editing entity branding profiles, logo uploads, bank account allocation, and page templates in the split document generator modal. Non-managers without this permission are locked to manager defaults.',
   accounts: 'Enables managing the chart of accounts, bank transfers, and ledgers.',
   period: 'Allows filtering and generating settlements by specific pay periods.',
   reoccurring: 'Allows creating and managing automated recurring billing schedules.',
@@ -345,6 +349,16 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
   }, [user?.permissions, user?.role, initialRole]);
 
   const [customPermissions, setCustomPermissions] = useState<RolePermissions>(safeInitial);
+
+  const [allowDocumentOverrides, setAllowDocumentOverrides] = useState<boolean>(() => {
+    if (user?.role === 'manager' || user?.role === 'superadmin' || initialRole === 'manager' || initialRole === 'superadmin') return true;
+    return Boolean(
+      user?.allowDocumentOverrides === true ||
+      user?.allow_document_overrides === true ||
+      user?.permissions?.allowDocumentOverrides === true ||
+      (user?.permissions as any)?.allowDocumentOverrides === true
+    );
+  });
 
   // Overall statistics
   const stats = useMemo(() => {
@@ -459,6 +473,11 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
   // Reset to default role template
   const handleRoleTemplateChange = (newRole: User['role']) => {
     setRole(newRole);
+    if (newRole === 'manager' || newRole === 'superadmin') {
+      setAllowDocumentOverrides(true);
+    } else {
+      setAllowDocumentOverrides(false);
+    }
     if (newRole === 'manager') {
       const allTrue = {} as RolePermissions;
       (Object.keys(BASE_PERMISSIONS_BY_MODULE) as Array<keyof RolePermissions>).forEach((modKey) => {
@@ -485,12 +504,17 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
     try {
       const batch = writeBatch(db);
       let updatedUserCount = 0;
+      const allowDocOverridesVal = Boolean(allowDocumentOverrides);
 
       // 1. Save role template document in Firestore
       const roleDocRef = doc(db, 'roleTemplates', role);
       batch.set(roleDocRef, {
         role,
-        permissions: customPermissions,
+        permissions: {
+          ...customPermissions,
+          allowDocumentOverrides: allowDocOverridesVal,
+        },
+        allowDocumentOverrides: allowDocOverridesVal,
         updatedAt: new Date(),
         updatedBy: currentUser?.email || 'admin',
       }, { merge: true });
@@ -500,7 +524,12 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
       const usersSnap = await getDocs(usersQuery);
       usersSnap.docs.forEach((uDoc) => {
         batch.update(uDoc.ref, {
-          permissions: customPermissions,
+          permissions: {
+            ...customPermissions,
+            allowDocumentOverrides: allowDocOverridesVal,
+          },
+          allowDocumentOverrides: allowDocOverridesVal,
+          allow_document_overrides: allowDocOverridesVal,
           updatedAt: new Date(),
         });
         updatedUserCount++;
@@ -511,7 +540,12 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
         const userRef = doc(db, 'users', user.id);
         batch.update(userRef, {
           role,
-          permissions: customPermissions,
+          permissions: {
+            ...customPermissions,
+            allowDocumentOverrides: allowDocOverridesVal,
+          },
+          allowDocumentOverrides: allowDocOverridesVal,
+          allow_document_overrides: allowDocOverridesVal,
           updatedAt: new Date(),
         });
         if (updatedUserCount === 0) updatedUserCount = 1;
@@ -562,6 +596,7 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
         (customPermissions.finance as any)?.canAccessCommissionSplits ||
         (customPermissions as any)?.canManageProfitDistribution
       );
+      const allowDocOverridesVal = Boolean(allowDocumentOverrides);
 
       // Fire PATCH /api/users/:id/permissions
       try {
@@ -572,8 +607,12 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
             canManageProfitDistribution: canManageProfitDistributionVal,
             can_delete_payments: canDeletePaymentsVal,
             manage_maintenance_finance: manageMaintenanceFinanceVal,
+            allowDocumentOverrides: allowDocOverridesVal,
             role,
-            permissions: customPermissions,
+            permissions: {
+              ...customPermissions,
+              allowDocumentOverrides: allowDocOverridesVal,
+            },
           }),
         });
       } catch (patchErr) {
@@ -582,11 +621,16 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
 
       await updateDoc(doc(db, 'users', user.id), {
         role,
-        permissions: customPermissions,
+        permissions: {
+          ...customPermissions,
+          allowDocumentOverrides: allowDocOverridesVal,
+        },
         can_delete_payments: canDeletePaymentsVal,
         manage_maintenance_finance: manageMaintenanceFinanceVal,
         canManageProfitDistribution: canManageProfitDistributionVal,
         canAccessCommissionSplits: canManageProfitDistributionVal,
+        allowDocumentOverrides: allowDocOverridesVal,
+        allow_document_overrides: allowDocOverridesVal,
         updatedAt: new Date(),
       });
       toast.success('User permissions matrix updated successfully');
@@ -896,6 +940,61 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
                 </button>
               </div>
             )}
+          </div>
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SYSTEM ROLE GUARD: ALLOW DOCUMENT TEMPLATE & ENTITY OVERRIDES
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 shadow-md text-white space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 shrink-0">
+                  <FileSignature className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-black uppercase tracking-wider text-indigo-200">
+                      Allow Document Template &amp; Entity Overrides
+                    </h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      allowDocumentOverrides 
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    }`}>
+                      {allowDocumentOverrides ? 'Overrides Enabled' : 'Locked to Manager Defaults'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Grants permission to edit and customize corporate entity profiles, logos, bank account allocations, and page template mappings inside document previews (<span className="font-mono text-indigo-300">SplitDocumentPreviewModal</span>). Only users with this toggle switched ON can edit fields.
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <div className="flex items-center gap-3 sm:self-center shrink-0">
+                <button
+                  type="button"
+                  disabled={!isManager}
+                  onClick={() => setAllowDocumentOverrides((prev) => !prev)}
+                  className={`w-12 h-6 rounded-full transition-colors relative p-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    allowDocumentOverrides ? 'bg-indigo-600' : 'bg-slate-700'
+                  }`}
+                  title={isManager ? 'Toggle Allow Document Template & Entity Overrides' : 'Only managers can change this'}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white transition-transform flex items-center justify-center ${
+                      allowDocumentOverrides ? 'translate-x-6 shadow-sm' : 'translate-x-0'
+                    }`}
+                  >
+                    {allowDocumentOverrides ? (
+                      <Check className="w-3 h-3 text-indigo-600 stroke-[3]" />
+                    ) : (
+                      <Lock className="w-2.5 h-2.5 text-slate-400" />
+                    )}
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* ════════════════════════════════════════════════════════════════════════════════

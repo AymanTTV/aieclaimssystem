@@ -75,6 +75,7 @@ const AiePettyCash         = lazyLoad('AiePettyCash');
 const SkylineIncomeExpense = lazyLoad('SkylineIncomeExpense');
 const AutomationSettings = lazyLoad('AutomationSettings');
 const PublicDocumentViewer = lazyLoad('PublicDocumentViewer');
+const ClientInvoicePay = lazyLoad('ClientInvoicePay');
 
 export default function AppRoutes() {
   return (
@@ -84,7 +85,40 @@ export default function AppRoutes() {
       <Route path="/admin-setup" element={<AdminSetup />} />
       {/* Public Signature Route - accessible without login */}
       <Route path="/sign/:id"    element={<SignCustomer />} />  {/* <--- Add this line */}
+      {/* UK Open Banking Pay by Bank Public Gateway */}
+      <Route
+        path="/invoice-pay"
+        element={
+          <Suspense fallback={spinner}>
+            <ClientInvoicePay />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/invoice-pay/:id"
+        element={
+          <Suspense fallback={spinner}>
+            <ClientInvoicePay />
+          </Suspense>
+        }
+      />
       {/* Public Document Viewer Routes - accessible without login */}
+      <Route
+        path="/view-doc"
+        element={
+          <Suspense fallback={spinner}>
+            <PublicDocumentViewer />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/view-doc/:id"
+        element={
+          <Suspense fallback={spinner}>
+            <PublicDocumentViewer />
+          </Suspense>
+        }
+      />
       <Route
         path="/view-document"
         element={

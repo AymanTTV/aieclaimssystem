@@ -103,14 +103,40 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, vehicle, compan
               accountName: companyDetails.accountName,
             };
 
+          const qrCodeUrl =
+            (companyDetails as any)?.paymentQrCodeDataUrl ||
+            (invoice as any)?.paymentQrCodeDataUrl;
+          const showQr = (companyDetails as any)?.includePaymentQr !== false && Boolean(qrCodeUrl);
+
           return (
             <View style={[styles.card, styles.sectionBreak, { width: '48%' }]} wrap={false}>
-              <Text style={styles.infoCardTitle}>Payment Details</Text>
-              <Text>Bank: {activeBank.bankName || 'LLOYDS BANK'}</Text>
-              {activeBank.accountName && <Text>Account Name: {activeBank.accountName}</Text>}
-              <Text>Sort Code: {activeBank.sortCode || '30-99-50'}</Text>
-              <Text>Account Number: {activeBank.accountNumber || '30513162'}</Text>
-              <Text>Reference: AIE-INV-{invoice.id.slice(-8).toUpperCase()}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={styles.infoCardTitle}>Payment Details</Text>
+                {showQr && (
+                  <Text style={{ fontSize: 6.5, color: '#4338CA', fontFamily: 'Helvetica-Bold' }}>
+                    SCAN TO PAY
+                  </Text>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, marginRight: showQr ? 6 : 0 }}>
+                  <Text>Bank: {activeBank.bankName || 'LLOYDS BANK'}</Text>
+                  {activeBank.accountName && <Text>Account Name: {activeBank.accountName}</Text>}
+                  <Text>Sort Code: {activeBank.sortCode || '30-99-50'}</Text>
+                  <Text>Account Number: {activeBank.accountNumber || '30513162'}</Text>
+                  <Text>Reference: AIE-INV-{invoice.id.slice(-8).toUpperCase()}</Text>
+                </View>
+                {showQr && (
+                  <View style={{ alignItems: 'center', width: 48, flexShrink: 0 }}>
+                    <View style={{ padding: 2, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#CBD5E1', borderRadius: 3 }}>
+                      <Image src={qrCodeUrl!} style={{ width: 42, height: 42 }} />
+                    </View>
+                    <Text style={{ fontSize: 5, color: '#64748B', marginTop: 1, textAlign: 'center' }}>
+                      Mobile Banking
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           );
         })()}

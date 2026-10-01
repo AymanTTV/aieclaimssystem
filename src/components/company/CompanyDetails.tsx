@@ -24,6 +24,10 @@ import {
   Layers,
   Loader2,
   X,
+  Lock,
+  Unlock,
+  FileCheck,
+  FileSignature,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SignaturePad from "../ui/SignaturePad";
@@ -34,6 +38,10 @@ import {
   PRESET_COMPANY_ENTITIES,
   DocumentModuleEntityMapping,
   DEFAULT_MODULE_ENTITY_MAPPING,
+  DocumentTypeDefaultSettings,
+  ManagerDocumentDefaults,
+  DEFAULT_MANAGER_DOCUMENT_DEFAULTS,
+  getPageLayoutOptions,
 } from '../../utils/entityBranding';
 import { fileToBase64, validateImage, uploadImage } from '../../utils/imageUpload';
 
@@ -63,6 +71,9 @@ interface CompanySettings {
 
   // Module entity routing
   moduleEntityMapping?: DocumentModuleEntityMapping;
+
+  // Manager Document Defaults & Role Locking
+  managerDocumentDefaults?: ManagerDocumentDefaults;
 
   // Document terms
   termsAndConditions: string;
@@ -115,6 +126,7 @@ const defaultState: CompanySettings = {
   bankAccounts: DEFAULT_COMPANY_BANK_ACCOUNTS,
   entities: PRESET_COMPANY_ENTITIES,
   moduleEntityMapping: DEFAULT_MODULE_ENTITY_MAPPING,
+  managerDocumentDefaults: DEFAULT_MANAGER_DOCUMENT_DEFAULTS,
   termsAndConditions: '',
   signature: '',
   conditionOfHireText: '',
@@ -395,6 +407,47 @@ const CompanyDetails = () => {
       },
     });
     toast.success(`Default entity for ${module.replace('EntityKey', '')} updated.`);
+  };
+
+  const [activeDefaultDocType, setActiveDefaultDocType] = useState<'rental' | 'claim' | 'invoice' | 'vehicle'>('rental');
+
+  const handleManagerDocDefaultChange = (
+    docType: 'rental' | 'claim' | 'invoice' | 'vehicle',
+    field: keyof DocumentTypeDefaultSettings,
+    value: any
+  ) => {
+    if (!editing) return;
+    const currentDefaults = formData.managerDocumentDefaults || DEFAULT_MANAGER_DOCUMENT_DEFAULTS;
+    const currentDocDefaults = currentDefaults[docType] || DEFAULT_MANAGER_DOCUMENT_DEFAULTS[docType];
+
+    const updatedDocDefaults = {
+      ...currentDocDefaults,
+      [field]: value,
+    };
+
+    const updatedDefaults = {
+      ...currentDefaults,
+      [docType]: updatedDocDefaults,
+    };
+
+    // Also sync moduleEntityMapping if entityKey changed
+    let updatedModuleMapping = formData.moduleEntityMapping || DEFAULT_MODULE_ENTITY_MAPPING;
+    if (field === 'entityKey') {
+      const mappingKey =
+        docType === 'rental' ? 'rentalsEntityKey' :
+        docType === 'claim' ? 'claimsEntityKey' :
+        docType === 'invoice' ? 'invoicesEntityKey' : 'vehiclesEntityKey';
+      updatedModuleMapping = {
+        ...updatedModuleMapping,
+        [mappingKey]: value,
+      };
+    }
+
+    setFormData({
+      ...formData,
+      managerDocumentDefaults: updatedDefaults,
+      moduleEntityMapping: updatedModuleMapping,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -792,91 +845,255 @@ const CompanyDetails = () => {
             )}
           </div>
 
-          {/* Document & Module Routing Engine Card */}
-          <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-3">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
-                Document &amp; Module Default Entity Routing Engine
-              </h4>
-            </div>
-            <p className="text-xs text-slate-600">
-              Link default entity profiles and logos directly to specific document modules. When opening preview or generating docs, the system automatically applies the mapped entity branding.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+          {/* Manager Document Defaults & Role Locking Engine Card */}
+          <div className="p-5 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  🚗 Rentals &amp; Hire Agreements
-                </label>
-                <select
-                  disabled={!editing}
-                  value={formData.moduleEntityMapping?.rentalsEntityKey || 'aie_skyline'}
-                  onChange={(e) => handleModuleMappingChange('rentalsEntityKey', e.target.value)}
-                  className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                >
-                  {(formData.entities || PRESET_COMPANY_ENTITIES).map((ent) => (
-                    <option key={ent.key} value={ent.key}>
-                      {ent.tradingName} ({ent.fullName.slice(0, 20)}...)
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-xs">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <h4 className="text-sm font-extrabold text-slate-900 tracking-tight">
+                    Manager Document Defaults &amp; Role-Locking Capability
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Configure and lock the system default Entity Profile, Bank Account, and Page Template mappings per document type. When locked, users without override permissions are restricted from modifying these parameters during document preview and generation.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  ⚖️ Claims &amp; Legal Docs
-                </label>
-                <select
-                  disabled={!editing}
-                  value={formData.moduleEntityMapping?.claimsEntityKey || 'aie_claims'}
-                  onChange={(e) => handleModuleMappingChange('claimsEntityKey', e.target.value)}
-                  className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                >
-                  {(formData.entities || PRESET_COMPANY_ENTITIES).map((ent) => (
-                    <option key={ent.key} value={ent.key}>
-                      {ent.tradingName} ({ent.fullName.slice(0, 20)}...)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  🧾 Commercial Invoices
-                </label>
-                <select
-                  disabled={!editing}
-                  value={formData.moduleEntityMapping?.invoicesEntityKey || 'aie_skyline'}
-                  onChange={(e) => handleModuleMappingChange('invoicesEntityKey', e.target.value)}
-                  className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                >
-                  {(formData.entities || PRESET_COMPANY_ENTITIES).map((ent) => (
-                    <option key={ent.key} value={ent.key}>
-                      {ent.tradingName} ({ent.fullName.slice(0, 20)}...)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  📋 Fleet &amp; Vehicle Records
-                </label>
-                <select
-                  disabled={!editing}
-                  value={formData.moduleEntityMapping?.vehiclesEntityKey || 'aie_skyline'}
-                  onChange={(e) => handleModuleMappingChange('vehiclesEntityKey', e.target.value)}
-                  className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                >
-                  {(formData.entities || PRESET_COMPANY_ENTITIES).map((ent) => (
-                    <option key={ent.key} value={ent.key}>
-                      {ent.tradingName} ({ent.fullName.slice(0, 20)}...)
-                    </option>
-                  ))}
-                </select>
+              <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Manager Controls</span>
+                </span>
               </div>
             </div>
+
+            {/* Document Type Selector Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {[
+                { key: 'rental', label: '🚗 Rentals & Hire Agreements' },
+                { key: 'claim', label: '⚖️ Claims & Incident Records' },
+                { key: 'invoice', label: '🧾 Commercial Invoices' },
+                { key: 'vehicle', label: '📋 Fleet & Vehicle Records' },
+              ].map((tab) => {
+                const isSelected = activeDefaultDocType === tab.key;
+                const docDefaults = (formData.managerDocumentDefaults || DEFAULT_MANAGER_DOCUMENT_DEFAULTS)[tab.key as 'rental' | 'claim' | 'invoice' | 'vehicle'] || DEFAULT_MANAGER_DOCUMENT_DEFAULTS[tab.key as 'rental' | 'claim' | 'invoice' | 'vehicle'];
+                const isLocked = docDefaults?.isLocked ?? true;
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveDefaultDocType(tab.key as any)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 ${
+                      isSelected
+                        ? isLocked ? 'bg-indigo-700 text-indigo-100' : 'bg-emerald-700 text-emerald-100'
+                        : isLocked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {isLocked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                      <span>{isLocked ? 'Locked' : 'Unlocked'}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active Document Type Defaults Form */}
+            {(() => {
+              const docType = activeDefaultDocType;
+              const defaults = (formData.managerDocumentDefaults || DEFAULT_MANAGER_DOCUMENT_DEFAULTS)[docType] || DEFAULT_MANAGER_DOCUMENT_DEFAULTS[docType];
+              const layoutOpts = getPageLayoutOptions(
+                docType === 'rental' ? 'rental_agreement' :
+                docType === 'claim' ? 'condition_of_hire' :
+                docType === 'invoice' ? 'invoice' : 'rental_agreement'
+              );
+              const isLocked = defaults.isLocked ?? true;
+
+              return (
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+                  {/* Lock Switch Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-2 rounded-lg ${isLocked ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>Lock Overrides for Non-Managers:</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            isLocked ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isLocked ? 'STRICTLY ENFORCED' : 'ALLOW USER OVERRIDES'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {isLocked
+                            ? 'Admins & non-managers will see inputs disabled and locked to these exact defaults in document preview.'
+                            : 'Users with override permissions can adjust entity, bank, and page layouts during preview.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!editing}
+                        onClick={() => handleManagerDocDefaultChange(docType, 'isLocked', !isLocked)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isLocked
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                      >
+                        {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                        <span>{isLocked ? 'Locked (Click to Unlock)' : 'Unlocked (Click to Lock)'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3 Main Configuration Columns */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* 1. Entity Profile */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wider">
+                        <Building2 className="w-4 h-4" />
+                        <span>Default Corporate Entity</span>
+                      </div>
+                      <select
+                        disabled={!editing}
+                        value={defaults.entityKey || 'aie_skyline'}
+                        onChange={(e) => handleManagerDocDefaultChange(docType, 'entityKey', e.target.value)}
+                        className="w-full text-xs rounded-lg border border-slate-300 bg-white py-2 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {(formData.entities || PRESET_COMPANY_ENTITIES).map((ent) => (
+                          <option key={ent.key} value={ent.key}>
+                            {ent.tradingName} ({ent.fullName.slice(0, 24)}...)
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Applies company registration, VAT number, official registered address, and corporate logo.
+                      </p>
+                    </div>
+
+                    {/* 2. Bank Account Allocation */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
+                        <Landmark className="w-4 h-4" />
+                        <span>Default Bank Account</span>
+                      </div>
+                      <select
+                        disabled={!editing}
+                        value={defaults.bankAccountId || (formData.bankAccounts?.[0]?.id || '')}
+                        onChange={(e) => handleManagerDocDefaultChange(docType, 'bankAccountId', e.target.value)}
+                        className="w-full text-xs rounded-lg border border-slate-300 bg-white py-2 px-2.5 font-medium text-slate-800 disabled:bg-slate-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {(formData.bankAccounts || DEFAULT_COMPANY_BANK_ACCOUNTS).map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.accountName} - {b.bankName} (•••{b.accountNumber.slice(-4)})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Directs settlement wires, payment instructions, and dynamic payment QR codes to this account.
+                      </p>
+                    </div>
+
+                    {/* 3. Page Template Mappings */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                      <div className="flex items-center gap-2 text-blue-700 font-bold text-xs uppercase tracking-wider">
+                        <FileSignature className="w-4 h-4" />
+                        <span>Page Template Mappings</span>
+                      </div>
+
+                      {/* Page 1 */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Page 1 Layout:</label>
+                        <select
+                          disabled={!editing}
+                          value={defaults.page1Template || layoutOpts.page1Options[0]?.id}
+                          onChange={(e) => handleManagerDocDefaultChange(docType, 'page1Template', e.target.value)}
+                          className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2 font-medium text-slate-800 disabled:bg-slate-100"
+                        >
+                          {layoutOpts.page1Options.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Page 2 */}
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="text-[10px] font-bold text-slate-600">Page 2 Schedule:</label>
+                          <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!editing}
+                              checked={defaults.includePage2 ?? true}
+                              onChange={(e) => handleManagerDocDefaultChange(docType, 'includePage2', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600"
+                            />
+                            <span>Include Page 2</span>
+                          </label>
+                        </div>
+                        <select
+                          disabled={!editing || !(defaults.includePage2 ?? true)}
+                          value={defaults.page2Template || layoutOpts.page2Options[0]?.id}
+                          onChange={(e) => handleManagerDocDefaultChange(docType, 'page2Template', e.target.value)}
+                          className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2 font-medium text-slate-800 disabled:bg-slate-100"
+                        >
+                          {layoutOpts.page2Options.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Page 3 */}
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="text-[10px] font-bold text-slate-600">Page 3 T&amp;C Binding:</label>
+                          <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!editing}
+                              checked={defaults.includePage3 ?? true}
+                              onChange={(e) => handleManagerDocDefaultChange(docType, 'includePage3', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600"
+                            />
+                            <span>Include Page 3</span>
+                          </label>
+                        </div>
+                        <select
+                          disabled={!editing || !(defaults.includePage3 ?? true)}
+                          value={defaults.page3Template || layoutOpts.page3Options[0]?.id}
+                          onChange={(e) => handleManagerDocDefaultChange(docType, 'page3Template', e.target.value)}
+                          className="w-full text-xs rounded-lg border border-slate-300 bg-white py-1.5 px-2 font-medium text-slate-800 disabled:bg-slate-100"
+                        >
+                          {layoutOpts.page3Options.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Grid of Entity Profiles */}

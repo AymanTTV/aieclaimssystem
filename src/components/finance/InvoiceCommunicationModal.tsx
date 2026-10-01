@@ -500,6 +500,7 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
             ? `${origin}/doc/${encodeURIComponent(invoice.rentalId)}/invoice`
             : `${origin}/view-document?rentalId=${encodeURIComponent(invoice.id)}&docType=invoice`);
       lines.push(`• Invoice #${invoice.invoiceNumber || invoice.id}:\n  ${invUrl}`);
+      lines.push(`• UK Pay by Bank (Open Banking Instant Transfer):\n  ${origin}/invoice-pay?id=${encodeURIComponent(invoice.id)}`);
     }
 
     if (includeHireAgreement && (invoice?.rentalId || (invoice as any)?.rentalAgreementNumber)) {

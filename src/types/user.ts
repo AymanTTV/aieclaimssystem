@@ -26,5 +26,7 @@ export interface User {
   can_process_profit_payout?: boolean;
   canManageProfitDistribution?: boolean;
   canAccessCommissionSplits?: boolean;
+  allowDocumentOverrides?: boolean;
+  allow_document_overrides?: boolean;
   hasPermission?: (permission: string) => boolean;
 }

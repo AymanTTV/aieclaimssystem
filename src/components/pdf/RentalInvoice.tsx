@@ -411,43 +411,73 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
                 iban: (rental as any)?.iban || companyDetails?.iban,
               };
 
+            const qrCodeUrl =
+              (companyDetails as any)?.paymentQrCodeDataUrl ||
+              (rental as any)?.paymentQrCodeDataUrl;
+            const showQr = (companyDetails as any)?.includePaymentQr !== false && Boolean(qrCodeUrl);
+
             return (
               <View style={[compactCardStyles.card, { width: '48%' }]}>
-                <Text style={compactCardStyles.title}>Payment Details</Text>
-                <View style={compactCardStyles.row}>
-                  <Text style={compactCardStyles.label}>Bank:</Text>
-                  <Text style={compactCardStyles.value}>
-                    {activeBank.bankName || 'LLOYDS BANK'}
-                  </Text>
-                </View>
-                <View style={compactCardStyles.row}>
-                  <Text style={compactCardStyles.label}>Account Name:</Text>
-                  <Text style={compactCardStyles.value}>
-                    {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
-                  </Text>
-                </View>
-                <View style={compactCardStyles.row}>
-                  <Text style={compactCardStyles.label}>Account Number:</Text>
-                  <Text style={compactCardStyles.value}>
-                    {activeBank.accountNumber || '30513162'}
-                  </Text>
-                </View>
-                <View style={compactCardStyles.row}>
-                  <Text style={compactCardStyles.label}>Sort Code:</Text>
-                  <Text style={compactCardStyles.value}>
-                    {activeBank.sortCode || '30-99-50'}
-                  </Text>
-                </View>
-                {(activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban) && (
-                  <View style={compactCardStyles.row}>
-                    <Text style={compactCardStyles.label}>IBAN:</Text>
-                    <Text style={compactCardStyles.value}>
-                      {activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <Text style={compactCardStyles.title}>Payment Details</Text>
+                  {showQr && (
+                    <Text style={{ fontSize: 6.5, color: '#4338CA', fontFamily: 'Helvetica-Bold' }}>
+                      SCAN TO PAY
                     </Text>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: showQr ? 6 : 0 }}>
+                    <View style={compactCardStyles.row}>
+                      <Text style={compactCardStyles.label}>Bank:</Text>
+                      <Text style={compactCardStyles.value}>
+                        {activeBank.bankName || 'LLOYDS BANK'}
+                      </Text>
+                    </View>
+                    <View style={compactCardStyles.row}>
+                      <Text style={compactCardStyles.label}>Account Name:</Text>
+                      <Text style={compactCardStyles.value}>
+                        {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                      </Text>
+                    </View>
+                    <View style={compactCardStyles.row}>
+                      <Text style={compactCardStyles.label}>Account Number:</Text>
+                      <Text style={compactCardStyles.value}>
+                        {activeBank.accountNumber || '30513162'}
+                      </Text>
+                    </View>
+                    <View style={compactCardStyles.row}>
+                      <Text style={compactCardStyles.label}>Sort Code:</Text>
+                      <Text style={compactCardStyles.value}>
+                        {activeBank.sortCode || '30-99-50'}
+                      </Text>
+                    </View>
+                    {(activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban) && (
+                      <View style={compactCardStyles.row}>
+                        <Text style={compactCardStyles.label}>IBAN:</Text>
+                        <Text style={compactCardStyles.value}>
+                          {activeBank.iban || (rental as any)?.bankAllocation?.iban || companyDetails?.iban}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                )}
-                <View style={{ marginTop: 8 }}>
-                  <Text style={[compactCardStyles.label, { fontSize: 7.5, width: '100%', fontStyle: 'italic' }]}>
+
+                  {/* QR Code Container */}
+                  {showQr && (
+                    <View style={{ alignItems: 'center', width: 54, flexShrink: 0, marginTop: 1 }}>
+                      <View style={{ padding: 2, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#CBD5E1', borderRadius: 3 }}>
+                        <Image src={qrCodeUrl!} style={{ width: 48, height: 48 }} />
+                      </View>
+                      <Text style={{ fontSize: 5.5, color: '#64748B', marginTop: 2, textAlign: 'center' }}>
+                        Mobile Banking
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ marginTop: 6, borderTopWidth: 0.5, borderTopColor: '#E2E8F0', paddingTop: 2 }}>
+                  <Text style={[compactCardStyles.label, { fontSize: 7, width: '100%', fontStyle: 'italic' }]}>
                     Please use Invoice {displayInvoiceNumber} as reference.
                   </Text>
                 </View>
