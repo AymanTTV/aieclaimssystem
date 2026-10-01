@@ -53,7 +53,11 @@ import {
   isStatusUrgentScheduled,
   getStatusBadgeStyles,
   getMaintenanceRowTheme,
+  getJobRowTheme,
 } from '../../utils/maintenanceStatusConfig';
+import { sortWorkshopJobs } from '../../utils/workshopSorting';
+import { TimeTrackingBadge } from '../../utils/timeTrackingBadge';
+import MaintenanceStatusBadge from '../maintenance/MaintenanceStatusBadge';
 
 export type TVDisplayScale = 'standard' | 'large' | 'compact';
 
@@ -203,64 +207,39 @@ const getRelativeBadge = (d: Date, item: any, isOverdue?: boolean) => {
   const isAccident = item?.isAccident || normalizeMaintenanceStatus(item?.status) === 'accident';
   const isOffRoad = isStatusOffRoad(item?.status, { isAccident, isOffRoad: item?.isOffRoad });
   const isUrgent = item?.isUrgent || isOverdue || isStatusUrgentScheduled(item?.status, d, { isAccident, isOffRoad });
-  const statusLabel =
-    item?.statusLabel ||
-    getMaintenanceStatusLabel(item?.status, {
-      isAccident,
-      isOffRoad,
-    });
-
-  const badgeClass = getStatusBadgeStyles(item?.status, {
-    isScheduledUrgent: isUrgent,
-    isDarkTheme: true,
-    isAccident,
-    isOffRoad,
-  });
 
   return (
-    <span
-      className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${badgeClass}`}
-    >
-      {isOffRoad ? (
-        <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
-      ) : isUrgent ? (
-        <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-slow-fade-blink-dot shrink-0" />
-      ) : null}
-      <span className="truncate">{statusLabel}</span>
-    </span>
+    <MaintenanceStatusBadge
+      status={item?.status}
+      date={d}
+      isAccident={isAccident}
+      isOffRoad={isOffRoad}
+      isScheduledUrgent={isUrgent}
+      isDarkTheme={true}
+      size="xs"
+      className="public-mirror-badge cursor-default"
+    />
   );
 };
 
-const getLiveStatusBadge = (item: any, isUrgent: boolean, isWorkshop: boolean) => {
+const getLiveStatusBadge = (item: any, isUrgent: boolean, _isWorkshop?: boolean) => {
   const isAccident = item?.isAccident || normalizeMaintenanceStatus(item?.status) === 'accident';
   const isOffRoad = isStatusOffRoad(item?.status, { isAccident, isOffRoad: item?.isOffRoad });
-  const statusLabel =
-    item?.statusLabel ||
-    getMaintenanceStatusLabel(item?.status, {
-      isAccident,
-      isOffRoad,
-    });
-
-  const badgeClass = getStatusBadgeStyles(item?.status, {
-    isScheduledUrgent: isUrgent,
-    isDarkTheme: true,
-    isAccident,
-    isOffRoad,
-  });
 
   return (
-    <span
-      className={`public-mirror-badge select-none inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider truncate cursor-default ${badgeClass}`}
-    >
-      {isOffRoad ? (
-        <span className="h-2 w-2 rounded-full bg-rose-400 animate-slow-fade-blink-dot shrink-0" />
-      ) : isUrgent ? (
-        <span className="h-2 w-2 rounded-full bg-red-400 animate-slow-fade-blink-dot shrink-0" />
-      ) : null}
-      <span className="truncate">{statusLabel}</span>
-    </span>
+    <MaintenanceStatusBadge
+      status={item?.status}
+      date={item?.scheduledDate}
+      isAccident={isAccident}
+      isOffRoad={isOffRoad}
+      isScheduledUrgent={isUrgent}
+      isDarkTheme={true}
+      size="sm"
+      className="public-mirror-badge cursor-default"
+    />
   );
 };
+
 
 export interface WorkshopTVBoardProps {
   jobs?: any[];
@@ -295,7 +274,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
     if (liveItems.length > 0) return liveItems;
     if (initialJobs && initialJobs.length > 0) {
       const todayStart = startOfDay(new Date());
-      return initialJobs.map((j) => {
+      const mapped = initialJobs.map((j) => {
         const jDate = j.scheduledDate ? new Date(j.scheduledDate) : new Date();
         const daysRemaining = differenceInCalendarDays(jDate, todayStart);
         const isAccident = (j as any).isAccident || j.status === 'accident' || j.status === 'off-road-accident';
@@ -331,6 +310,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
           orderNumber: j.orderNumber,
         };
       });
+      return sortWorkshopJobs(mapped);
     }
     return [];
   }, [liveItems, initialJobs]);
@@ -360,7 +340,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
         (i.type && i.type.toLowerCase().includes(q))
       );
     }
-    return list;
+    return sortWorkshopJobs(list);
   }, [allBoardItems, activeFilter, searchQuery]);
 
   const categoryCounts = useMemo(() => {
@@ -983,7 +963,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                     const jobDate = item.scheduledDate;
                     const isUrgent = isOffRoad || isStatusUrgentScheduled(item.status, jobDate, { isAccident, isOffRoad });
 
-                    const rowTheme = getMaintenanceRowTheme(item.status, {
+                    const rowTheme = getJobRowTheme(item.status, {
                       date: jobDate,
                       isScheduledUrgent: isUrgent,
                       isDarkTheme: true,
@@ -1093,7 +1073,7 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                         <td
                           className={`py-3.5 px-3 align-middle border-y transition-colors duration-150 ${rowTheme.middleCellClass}`}
                         >
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex flex-col gap-1">
                             <span
                               className={`text-xs sm:text-sm block truncate select-none ${
                                 isOffRoad
@@ -1107,7 +1087,16 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
                             >
                               {isValid(jobDate) ? format(jobDate, 'dd/MM/yyyy HH:mm') : 'TBD'}
                             </span>
-                            <div className="mt-1 truncate select-none">
+                            <div className="flex items-center gap-1.5 flex-wrap truncate select-none">
+                              {isValid(jobDate) && (
+                                <TimeTrackingBadge
+                                  scheduledDate={jobDate}
+                                  status={item.status}
+                                  isOffRoad={isOffRoad}
+                                  isAccident={isAccident}
+                                  isDarkTheme={true}
+                                />
+                              )}
                               {getRelativeBadge(jobDate, item, daysRemaining < 0)}
                             </div>
                           </div>
@@ -1336,4 +1325,6 @@ export const WorkshopTVBoard: React.FC<WorkshopTVBoardProps> = ({
   );
 };
 
+export const TvDisplayBoard = WorkshopTVBoard;
 export default WorkshopTVBoard;
+

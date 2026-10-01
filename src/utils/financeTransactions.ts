@@ -16,6 +16,7 @@ import { db } from '../lib/firebase';
 import { MaintenanceLog, Vehicle } from '../types';
 import toast from 'react-hot-toast';
 import { getOrderCandidateVariants } from './maintenanceFinanceLink';
+import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
 
 interface FinanceTransactionParams {
   type: 'income' | 'expense' | 'EXPENSE' | 'INCOME';
@@ -95,48 +96,168 @@ function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<str
 export async function reverseFinanceTransaction(params: {
   referenceId: string;
   paymentId: string;
+  invoiceId?: string;
+  amount?: number;
 }) {
-  const { referenceId, paymentId } = params;
+  const { referenceId, paymentId, invoiceId, amount } = params;
   try {
     const txRef = collection(db, 'transactions');
-    
-    // ✅ Primary check: Look for explicit paymentId mapping
-    let q = query(
-      txRef,
-      where('referenceId', '==', referenceId),
-      where('paymentId', '==', paymentId)
-    );
-    let snap = await getDocs(q);
-    
-    // ✅ Backwards compatibility fallback for older records
-    if (snap.empty) {
-        q = query(
-          txRef,
-          where('referenceId', '==', referenceId),
-          where('paymentReference', '==', paymentId)
-        );
-        snap = await getDocs(q);
+    const matchedDocIds = new Set<string>();
+
+    // 1. Direct check if doc ID is paymentId
+    if (paymentId) {
+      try {
+        const directDoc = await getDoc(doc(db, 'transactions', paymentId));
+        if (directDoc.exists()) {
+          matchedDocIds.add(paymentId);
+        }
+      } catch {}
+
+      // 2. Query by paymentId field (string)
+      const qPay = query(txRef, where('paymentId', '==', String(paymentId)));
+      const snapPay = await getDocs(qPay);
+      snapPay.docs.forEach((d) => matchedDocIds.add(d.id));
+
+      // As number if applicable
+      const numPayId = Number(paymentId);
+      if (!isNaN(numPayId) && String(numPayId) === String(paymentId)) {
+        const qPayNum = query(txRef, where('paymentId', '==', numPayId));
+        const snapPayNum = await getDocs(qPayNum);
+        snapPayNum.docs.forEach((d) => matchedDocIds.add(d.id));
+      }
+
+      // Query by paymentReference
+      const qPayRef = query(txRef, where('paymentReference', '==', String(paymentId)));
+      const snapPayRef = await getDocs(qPayRef);
+      snapPayRef.docs.forEach((d) => matchedDocIds.add(d.id));
     }
 
-    if (snap.empty) {
-      console.warn('No matching finance transaction to reverse');
-      return;
-    }
-    await Promise.all(
-      snap.docs.map(async (d) => {
-        await deleteDoc(doc(db, 'transactions', d.id));
-        try {
-          await deleteDoc(doc(db, 'finance_ledger', d.id));
-        } catch {
-          // ignore
+    // 3. Fallback queries by invoice reference identifiers
+    const targetInvoiceId = invoiceId || referenceId;
+    if (targetInvoiceId) {
+      const candidateQueries = [
+        query(txRef, where('invoiceId', '==', targetInvoiceId)),
+        query(txRef, where('linkedInvoiceRef', '==', targetInvoiceId)),
+        query(txRef, where('sourceReferenceId', '==', targetInvoiceId)),
+        query(txRef, where('entityId', '==', targetInvoiceId)),
+        query(txRef, where('referenceId', '==', targetInvoiceId)),
+      ];
+
+      for (const qCand of candidateQueries) {
+        const snap = await getDocs(qCand);
+        for (const d of snap.docs) {
+          const data = d.data();
+          const pId = data.paymentId ? String(data.paymentId) : '';
+          const pRef = data.paymentReference ? String(data.paymentReference) : '';
+          const desc = data.description ? String(data.description) : '';
+
+          if (
+            (paymentId && (pId === String(paymentId) || pRef === String(paymentId) || d.id === String(paymentId) || desc.includes(String(paymentId)))) ||
+            (amount !== undefined && amount > 0 && String(data.type || '').toLowerCase() === 'income' && Math.abs(Number(data.amount || data.paid || 0) - amount) < 0.01)
+          ) {
+            matchedDocIds.add(d.id);
+          }
         }
-      })
-    );
-    toast.success('Finance transaction reversed');
+      }
+    }
+
+    // Purge matched transactions from Firestore collections
+    for (const id of matchedDocIds) {
+      await deleteDoc(doc(db, 'transactions', id)).catch(() => {});
+      await deleteDoc(doc(db, 'finance_ledger', id)).catch(() => {});
+    }
+
+    // Purge from backend server payment ledger
+    try {
+      if (targetInvoiceId && paymentId) {
+        await fetch(`/api/invoices/${targetInvoiceId}/payments/${paymentId}`, {
+          method: 'DELETE',
+        }).catch(() => {});
+      }
+      if (paymentId) {
+        await fetch(`/api/finance/invoice-payments/${paymentId}`, {
+          method: 'DELETE',
+        }).catch(() => {});
+      }
+    } catch {}
+
+    // Invalidate finance ledger global cache atom & trigger re-fetch
+    invalidateFinanceLedgerCache(paymentId);
+    await manuallyRefetchFinanceLedger().catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: targetInvoiceId,
+            deletedPaymentId: paymentId,
+            paymentId,
+            action: 'DELETE_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+
+    toast.success('Finance transaction removed');
   } catch (err) {
     console.error('Failed to reverse finance transaction', err);
     toast.error('Could not reverse finance transaction');
     throw err;
+  }
+}
+
+/**
+ * purgeFinanceTransactionsForInvoice
+ * Deletes all transactions and ledger entries linked to an invoice when the invoice is deleted.
+ */
+export async function purgeFinanceTransactionsForInvoice(invoiceId: string) {
+  if (!invoiceId) return;
+  try {
+    const txRef = collection(db, 'transactions');
+    const matchedDocIds = new Set<string>();
+
+    const queries = [
+      query(txRef, where('invoiceId', '==', invoiceId)),
+      query(txRef, where('linkedInvoiceRef', '==', invoiceId)),
+      query(txRef, where('sourceReferenceId', '==', invoiceId)),
+      query(txRef, where('entityId', '==', invoiceId)),
+      query(txRef, where('referenceId', '==', invoiceId)),
+    ];
+
+    for (const q of queries) {
+      const snap = await getDocs(q);
+      snap.docs.forEach((d) => matchedDocIds.add(d.id));
+    }
+
+    try {
+      const directDoc = await getDoc(doc(db, 'transactions', invoiceId));
+      if (directDoc.exists()) {
+        matchedDocIds.add(invoiceId);
+      }
+    } catch {}
+
+    for (const id of matchedDocIds) {
+      await deleteDoc(doc(db, 'transactions', id)).catch(() => {});
+      await deleteDoc(doc(db, 'finance_ledger', id)).catch(() => {});
+    }
+
+    invalidateFinanceLedgerCache(invoiceId);
+    await manuallyRefetchFinanceLedger().catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: invoiceId,
+            action: 'DELETE_INVOICE',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+  } catch (err) {
+    console.error('Failed to purge finance transactions for invoice:', err);
   }
 }
 

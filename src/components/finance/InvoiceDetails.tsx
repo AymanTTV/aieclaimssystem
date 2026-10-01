@@ -68,6 +68,7 @@ interface InvoiceDetailsProps {
   groups?: { id: string; name: string }[];
   departments?: { id: string; name: string }[];
   onDownload?: () => void;
+  onDeletePayment?: (invoice: Invoice, paymentId: string) => void;
 }
 
 const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
@@ -78,6 +79,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
   groups = [],
   departments = [],
   onDownload,
+  onDeletePayment,
 }) => {
   const { formatCurrency } = useFormattedDisplay();
   const [activeTab, setActiveTab] = useState<InvoiceDetailTab>('overview');
@@ -1103,6 +1105,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({
           <InvoicePaymentHistory
             payments={invoice.payments}
             onDownloadDocument={(url) => window.open(url, '_blank')}
+            onDeletePayment={onDeletePayment ? (pId) => onDeletePayment(invoice, pId) : undefined}
           />
         ) : (
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500">

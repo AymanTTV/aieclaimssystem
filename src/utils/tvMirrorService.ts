@@ -21,6 +21,7 @@ import {
   isStatusOffRoad,
   isStatusUrgentScheduled,
 } from './maintenanceStatusConfig';
+import { sortWorkshopJobs } from './workshopSorting';
 
 export type TVFilterCategory = 'all' | 'maintenance' | 'rent-schedule' | 'available-vehicles';
 
@@ -217,18 +218,8 @@ export function buildTVBoardItems(
     }
   });
 
-  // Sort: Off-Road (VOR) first, then In-Progress Workshop jobs, then Urgent (< 7 days), then by scheduled date
-  items.sort((a, b) => {
-    if (a.isOffRoad && !b.isOffRoad) return -1;
-    if (!a.isOffRoad && b.isOffRoad) return 1;
-    if (a.isWorkshop && !b.isWorkshop) return -1;
-    if (!a.isWorkshop && b.isWorkshop) return 1;
-    if (a.isUrgent && !b.isUrgent) return -1;
-    if (!a.isUrgent && b.isUrgent) return 1;
-    return a.daysRemaining - b.daysRemaining;
-  });
-
-  return items;
+  // Multi-tier sort: Priority 1-5 (In Progress -> In Workshop -> Scheduled -> Back Order/Awaiting Parts -> Off Road/Accident) then Date
+  return sortWorkshopJobs(items);
 }
 
 /**

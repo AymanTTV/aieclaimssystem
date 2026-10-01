@@ -151,9 +151,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     () => [
       { id: 'all', label: 'All Accounts' },
       { id: 'no_account_assigned', label: 'No Account Assigned' },
-      ...accounts
-        .filter((acc) => acc.name && acc.name.toLowerCase().startsWith('aie'))
-        .map((acc) => ({ id: acc.id, label: acc.name })),
+      ...accounts.map((acc) => ({ id: acc.id, label: acc.name })),
     ],
     [accounts]
   );

@@ -44,9 +44,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   const accountOptions = useMemo(() => [
     { id: 'all', label: 'All Accounts' }, 
     { id: 'no_account_assigned', label: 'No Account Assigned' },
-    ...accounts
-      .filter(a => !(a.name && a.name.toLowerCase().startsWith('aie')))
-      .map(a => ({ id: a.id, label: a.name }))
+    ...accounts.map(a => ({ id: a.id, label: a.name }))
   ], [accounts]);
   
   const groupOptions = useMemo(() => [{ id: 'all', label: 'All Groups' }, { id: 'no_group_assigned', label: 'No Group Assigned' }, ...groups.map(g => ({ id: g.id, label: g.name }))], [groups]);

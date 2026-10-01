@@ -1,7 +1,8 @@
 import { doc, updateDoc, collection, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Invoice, InvoicePayment } from '../types';
-import { createFinanceTransaction } from './financeTransactions';
+import { createFinanceTransaction, reverseFinanceTransaction } from './financeTransactions';
+import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
 import toast from 'react-hot-toast';
 
 /**
@@ -71,16 +72,54 @@ export const deleteInvoicePayment = async (invoice: Invoice, paymentId: string):
       updatedAt: new Date()
     });
 
-    // Create reversal transaction
-    await createFinanceTransaction({
-      type: 'expense',
-      category: 'payment_reversal',
-      amount: payment.amount,
-      description: `Payment reversal for invoice #${invoice.id.slice(-8).toUpperCase()}`,
+    // Purge linked income transaction from finance ledger
+    await reverseFinanceTransaction({
       referenceId: invoice.id,
-      vehicleId: invoice.vehicleId,
-      paymentStatus: newPaymentStatus
+      invoiceId: invoice.id,
+      paymentId: paymentId,
+      amount: payment.amount,
     });
+
+    // Call backend API to delete payment from server ledger
+    try {
+      const apiRes = await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
+        method: 'DELETE',
+      });
+      if (!apiRes.ok) {
+        console.warn(`Backend delete payment API returned status ${apiRes.status}`);
+      }
+    } catch (apiErr) {
+      console.warn('Backend payment delete notice:', apiErr);
+    }
+
+    // Cache invalidation pattern:
+    // Immediately update global state atom and manually re-fetch finance ledger
+    invalidateFinanceLedgerCache(paymentId);
+    await manuallyRefetchFinanceLedger().catch((fetchErr) => {
+      console.warn('Manual ledger re-fetch notice:', fetchErr);
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: invoice.id,
+            deletedPaymentId: paymentId,
+          },
+        })
+      );
+      window.dispatchEvent(
+        new CustomEvent('invoiceRecordUpdated', {
+          detail: {
+            id: invoice.id,
+            paidAmount: newPaidAmount,
+            remainingAmount: newRemainingAmount,
+            paymentStatus: newPaymentStatus,
+            payments: invoice.payments.filter(p => p.id !== paymentId),
+          },
+        })
+      );
+    }
 
     toast.success('Payment deleted successfully');
     return true;

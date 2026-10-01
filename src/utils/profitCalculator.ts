@@ -530,7 +530,8 @@ export function calculateFinanceSummaryCards(
 export interface PnLSummaryMetrics {
   totalIncome: number;
   totalExpenses: number;
-  totalOutstanding: number;
+  totalOutstanding?: number;
+  subcontractorCost: number;
   dealerCost: number;
   netProfit: number;
   grossBilling?: number;
@@ -540,13 +541,12 @@ export interface PnLSummaryMetrics {
 export type DeduplicatedSummaryMetrics = PnLSummaryMetrics;
 
 /**
- * STANDARD PROFIT & LOSS (P&L) SUMMARY METRICS
+ * STANDARD PROFIT & LOSS (P&L) SUMMARY METRICS (4-Card Model)
  * Maps over filtered transactions and aggregates into standard P&L buckets:
  * 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit).
  * 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit).
- * 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows.
- * 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost (treats missing/null/legacy values as £0.00).
- * 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost).
+ * 3. DEALER / SUBCONTRACTOR COST: Sum of dealerCost (treats missing/null/legacy values as £0.00).
+ * 4. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost).
  */
 export function calculatePnLSummaryMetrics(
   transactions: any[] = []
@@ -575,34 +575,12 @@ export function calculatePnLSummaryMetrics(
         ? Number(item.amount)
         : item.customerBilled !== undefined && item.customerBilled !== null
         ? Number(item.customerBilled)
+        : item.billed !== undefined && item.billed !== null
+        ? Number(item.billed)
         : item.grossBilling !== undefined && item.grossBilling !== null
         ? Number(item.grossBilling)
         : 0;
     return isNaN(val) ? 0 : Math.abs(val);
-  };
-
-  const getRowOutstanding = (item: any): number => {
-    if (item.owing !== undefined && item.owing !== null && !isNaN(Number(item.owing))) {
-      return Math.max(0, Number(item.owing));
-    }
-    if (item.remainingAmount !== undefined && item.remainingAmount !== null && !isNaN(Number(item.remainingAmount))) {
-      return Math.max(0, Number(item.remainingAmount));
-    }
-    const amt = getRowAmount(item);
-    const paid =
-      item.paid !== undefined && item.paid !== null
-        ? Number(item.paid)
-        : item.paidAmount !== undefined && item.paidAmount !== null
-        ? Number(item.paidAmount)
-        : undefined;
-    if (paid !== undefined && !isNaN(paid)) {
-      return Math.max(0, amt - paid);
-    }
-    const status = String(item.paymentStatus || '').toLowerCase();
-    if (status === 'unpaid' || status === 'pending') {
-      return amt;
-    }
-    return 0;
   };
 
   const getRowDealerCost = (item: any): number => {
@@ -617,64 +595,82 @@ export function calculatePnLSummaryMetrics(
 
   let totalIncome = 0;
   let totalExpenses = 0;
-  let totalOutstanding = 0;
+  let totalDealerCost = 0;
+  let netProfit = 0;
 
-  // Deduplicate dealer cost by referenceId/orderId to prevent double-counting split linked rows
-  const dealerCostByJob = new Map<string, number>();
-  let standaloneDealerCost = 0;
+  // Gather all job/order reference keys for Income rows to isolate linked maintenance expense duplicates
+  const incomeJobKeys = new Set<string>();
+  transactions.forEach((t: any) => {
+    if (isIncome(t)) {
+      if (t.referenceId) incomeJobKeys.add(String(t.referenceId).trim().toUpperCase());
+      if (t.orderId) incomeJobKeys.add(String(t.orderId).trim().toUpperCase());
+      if (t.orderNumber) incomeJobKeys.add(String(t.orderNumber).trim().toUpperCase());
+      if (t.linkedInvoiceRef) incomeJobKeys.add(String(t.linkedInvoiceRef).trim().toUpperCase());
+      if (t.maintenanceOrderId) incomeJobKeys.add(String(t.maintenanceOrderId).trim().toUpperCase());
+      if (t.maintenanceJobId) incomeJobKeys.add(String(t.maintenanceJobId).trim().toUpperCase());
+    }
+  });
+
+  const talliedDealerCostOrders = new Set<string>();
+
+  const isExpenseFilterActive = transactions.length > 0 && transactions.every(isExpense);
 
   transactions.forEach((item) => {
     const amt = getRowAmount(item);
+    const cost = getRowDealerCost(item);
+    const orderKey = (item.referenceId || item.orderId || item.orderNumber || item.linkedInvoiceRef || item.maintenanceOrderId || item.maintenanceJobId || '')
+      .toString().trim().toUpperCase();
 
-    // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
+    // 1. TOTAL INCOME:
     if (isIncome(item)) {
       totalIncome += amt;
-    }
-    // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit)
-    else if (isExpense(item)) {
-      totalExpenses += amt;
-    }
-
-    // 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows
-    totalOutstanding += getRowOutstanding(item);
-
-    // 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost (legacy rule: missing/null treated as £0.00)
-    const cost = getRowDealerCost(item);
-    if (cost > 0) {
-      const ref = item.referenceId || item.orderId || item.orderNumber || item.linkedInvoiceRef || item.invoiceId;
-      if (ref && typeof ref === 'string' && ref.trim() !== '') {
-        const key = ref.trim().replace(/^#/, '').toUpperCase();
-        const cur = dealerCostByJob.get(key) || 0;
-        if (cost > cur) {
-          dealerCostByJob.set(key, cost);
+      // Subcontractor costs tied to income are treated as expenses in 3-Card P&L model
+      if (cost > 0) {
+        if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
+          totalExpenses += cost;
+          totalDealerCost += cost;
+          if (orderKey) talliedDealerCostOrders.add(orderKey);
         }
-      } else {
-        standaloneDealerCost += cost;
+      }
+    }
+    // 2. TOTAL EXPENSES:
+    else if (isExpense(item)) {
+      const isLinkedDuplicate = Boolean(
+        item.isLinkedExpense ||
+        item.isSplitLinked ||
+        item.isSplit ||
+        item.linkedExpense ||
+        item.description?.includes('Maintenance Expense') ||
+        (orderKey && incomeJobKeys.has(orderKey))
+      );
+
+      // If strictly viewing expenses OR regular standalone expense, count it
+      if (isExpenseFilterActive || !isLinkedDuplicate) {
+        totalExpenses += amt;
+        if (!isLinkedDuplicate && cost > 0) {
+          if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
+            totalExpenses += cost;
+            totalDealerCost += cost;
+            if (orderKey) talliedDealerCostOrders.add(orderKey);
+          }
+        }
       }
     }
   });
 
-  let totalDealerCost = standaloneDealerCost;
-  dealerCostByJob.forEach((c) => {
-    totalDealerCost += c;
-  });
-
   totalIncome = Number(totalIncome.toFixed(2));
   totalExpenses = Number(totalExpenses.toFixed(2));
-  totalOutstanding = Number(totalOutstanding.toFixed(2));
   totalDealerCost = Number(totalDealerCost.toFixed(2));
-
-  // 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost)
-  const netProfit = Number((totalIncome - totalExpenses - totalDealerCost).toFixed(2));
+  netProfit = Number((totalIncome - totalExpenses).toFixed(2));
 
   return {
     totalIncome,
     totalExpenses,
-    totalOutstanding,
+    subcontractorCost: totalDealerCost,
     dealerCost: totalDealerCost,
     netProfit,
     grossBilling: totalIncome,
-    totalReceived: Math.max(0, Number((totalIncome - totalOutstanding).toFixed(2))),
+    totalReceived: totalIncome,
   };
 }
 

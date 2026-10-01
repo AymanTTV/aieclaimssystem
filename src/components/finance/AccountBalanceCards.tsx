@@ -22,7 +22,7 @@ const AccountBalanceCards: React.FC<AccountBalanceCardsProps> = ({ accounts }) =
         return acc.name.toLowerCase().includes(searchLower);
       }
       
-      return acc.name.trim().toLowerCase().startsWith('aie');
+      return true;
     });
     
     // Sort: Negative balances first, then highest positive balances, then zeros

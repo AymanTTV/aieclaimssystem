@@ -1,16 +1,18 @@
 import React from 'react';
 import { InvoicePayment } from '../../types';
 import { format } from 'date-fns';
-import { Download } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 
 interface InvoicePaymentHistoryProps {
   payments: InvoicePayment[];
   onDownloadDocument?: (url: string) => void;
+  onDeletePayment?: (paymentId: string) => void;
 }
 
 const InvoicePaymentHistory: React.FC<InvoicePaymentHistoryProps> = ({
   payments,
-  onDownloadDocument
+  onDownloadDocument,
+  onDeletePayment
 }) => {
   const formatDate = (date: any): string => {
     // Handle Firestore Timestamp
@@ -53,14 +55,26 @@ const InvoicePaymentHistory: React.FC<InvoicePaymentHistoryProps> = ({
                 <div className="text-sm text-gray-500">
                   {formatDate(payment.date)}
                 </div>
-                {payment.document && onDownloadDocument && (
-                  <button
-                    onClick={() => onDownloadDocument(payment.document!)}
-                    className="text-primary hover:text-primary-600 mt-1"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                )}
+                <div className="flex items-center justify-end gap-2 mt-1">
+                  {payment.document && onDownloadDocument && (
+                    <button
+                      onClick={() => onDownloadDocument(payment.document!)}
+                      className="text-primary hover:text-primary-600 transition-colors"
+                      title="Download receipt"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  )}
+                  {onDeletePayment && (
+                    <button
+                      onClick={() => onDeletePayment(payment.id)}
+                      className="text-rose-500 hover:text-rose-700 p-1 rounded-md hover:bg-rose-50 transition-colors"
+                      title="Delete payment"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore'; // Replace deleteDoc with getD
 import { useAuth } from '../../context/AuthContext';
 import { moveToTrash } from '../../utils/trashService';
 import { db } from '../../lib/firebase';
+import { purgeFinanceTransactionsForInvoice } from '../../utils/financeTransactions';
 import { AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -36,14 +37,17 @@ const handleDelete = async () => {
 
     // 2. Move to trash
     await moveToTrash(
-      'invoices', 
-      invoiceId, 
-      invData, 
-      user?.id || 'system', 
-      displayName
-    );
+       'invoices', 
+       invoiceId, 
+       invData, 
+       user?.id || 'system', 
+       displayName
+     );
 
-    toast.success('Invoice moved to trash');
+    // 3. Purge associated finance ledger transactions
+    await purgeFinanceTransactionsForInvoice(invoiceId);
+
+    toast.success('Invoice moved to trash and removed from Finance');
     onClose();
   } catch (error) {
     console.error('Error deleting invoice:', error);

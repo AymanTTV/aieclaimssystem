@@ -136,6 +136,8 @@ export interface ProfitPayoutRecord {
 export interface Account {
   id: string;
   name: string;
+  accountName?: string;
+  accountType?: 'bank' | 'cash' | 'card' | 'savings' | 'escrow' | 'general' | string;
   balance: number;
   vehicleId?: string | null;
   vehicleName?: string | null;

@@ -124,6 +124,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
+
+  useEffect(() => {
+    if (propAccounts && propAccounts.length > 0) {
+      setFinanceAccounts(propAccounts);
+    }
+  }, [propAccounts]);
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
     { id: uuidv4(), description: '', quantity: 1, unitPrice: 0, discount: 0, includeVAT: false, vehicleId: '', vehicleName: '' }
   ]);
@@ -621,13 +627,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                         customerBilled: total,
                         netProfit: profitMetrics.netProfit,
                         profitMarginPercent: profitMetrics.profitMarginPercent,
-                        orderId: payload.orderNumber || payload.orderId,
-                        orderNumber: payload.orderNumber || payload.orderId,
-                        accountTo: finalAccountId || undefined,
-                        groupId: rawGroupId || undefined, 
-                        groupName: resolvedGroupName || undefined, 
-                        departmentId: targetDeptId || undefined, 
-                        departmentName: targetDeptName || undefined 
+                        orderId: payload.orderNumber || payload.orderId || null,
+                        orderNumber: payload.orderNumber || payload.orderId || null,
+                        accountTo: finalAccountId || null,
+                        groupId: rawGroupId || null, 
+                        groupName: resolvedGroupName || null, 
+                        departmentId: targetDeptId || null, 
+                        departmentName: targetDeptName || null 
                     });
                 }
             }

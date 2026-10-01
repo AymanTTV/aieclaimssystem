@@ -72,6 +72,12 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
   const [categories, setCategories] = useState<string[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<Account[]>(propAccounts);
 
+  useEffect(() => {
+    if (propAccounts && propAccounts.length > 0) {
+      setFinanceAccounts(propAccounts);
+    }
+  }, [propAccounts]);
+
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(() =>
     (invoice.lineItems || []).map((li, idx) => ({
       ...li,
@@ -599,14 +605,14 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                       customerBilled: total,
                       netProfit: profitMetrics.netProfit,
                       profitMarginPercent: profitMetrics.profitMarginPercent,
-                      orderId: (invoice as any).orderNumber || (invoice as any).orderId,
-                      orderNumber: (invoice as any).orderNumber || (invoice as any).orderId,
-                      invoiceNumber: invoiceNumberToSave,
-                      accountTo: finalAccountId || undefined,
-                      groupId: rawGroupId || undefined, 
-                      groupName: resolvedGroupName || undefined, 
-                      departmentId: targetDeptId || undefined, 
-                      departmentName: targetDeptName || undefined 
+                      orderId: (invoice as any).orderNumber || (invoice as any).orderId || null,
+                      orderNumber: (invoice as any).orderNumber || (invoice as any).orderId || null,
+                      invoiceNumber: invoiceNumberToSave || null,
+                      accountTo: finalAccountId || null,
+                      groupId: rawGroupId || null, 
+                      groupName: resolvedGroupName || null, 
+                      departmentId: targetDeptId || null, 
+                      departmentName: targetDeptName || null 
                   });
               }
           }

@@ -21,6 +21,7 @@ import {
   normalizePaymentStatus,
   normalizeCompletionStatus,
 } from '../utils/centralFinanceSync';
+import { invalidateFinanceLedgerCache } from '../state/financeLedgerAtom';
 
 /**
  * Recursively strips undefined values, functions, and symbols to ensure strict Firestore compatibility.
@@ -988,10 +989,36 @@ export async function syncInvoiceRecord(
           txPayload.departmentName = updates.departmentName || existingInv.departmentName;
         }
 
+        if (updates.payments && isPaymentTx && txData.paymentId) {
+          const currentPayments = Array.isArray(updates.payments) ? updates.payments : [];
+          const existsInUpdated = currentPayments.some((p: any) => String(p.id) === String(txData.paymentId));
+          if (!existsInUpdated) {
+            // Payment was deleted from invoice! Delete from transactions and finance_ledger
+            await deleteDoc(doc(db, 'transactions', txId)).catch(() => {});
+            await deleteDoc(doc(db, 'finance_ledger', txId)).catch(() => {});
+            continue;
+          }
+        }
+
         if (isPaymentTx) {
           // Preserve payment integrity: payments are incoming credits, keep payment description
           txPayload.type = 'income';
           txPayload.transactionType = 'INCOME';
+          if (updates.payments && txData.paymentId) {
+            const currentPayments = Array.isArray(updates.payments) ? updates.payments : [];
+            const matchingPay = currentPayments.find((p: any) => String(p.id) === String(txData.paymentId));
+            if (matchingPay) {
+              const payAmt = Number(matchingPay.amount || 0);
+              txPayload.amount = payAmt;
+              txPayload.grossBilling = payAmt;
+              txPayload.paid = payAmt;
+              txPayload.paidAmount = payAmt;
+              txPayload.customerBilled = payAmt;
+              if (matchingPay.method) txPayload.paymentMethod = matchingPay.method;
+              if (matchingPay.date) txPayload.date = matchingPay.date instanceof Date ? matchingPay.date : new Date(matchingPay.date);
+              if (matchingPay.reference) txPayload.paymentReference = matchingPay.reference;
+            }
+          }
           if (txData.description) {
             txPayload.description = txData.description;
           } else {
@@ -1001,7 +1028,28 @@ export async function syncInvoiceRecord(
             txPayload.category = txData.category;
           }
         } else {
-          // Primary invoice transaction
+          // Primary invoice transaction: sync full billed amount, paid, remaining, dates, accounts
+          txPayload.amount = billedAmount;
+          txPayload.grossBilling = billedAmount;
+          txPayload.customerBilled = billedAmount;
+          if (updates.paidAmount !== undefined) {
+            txPayload.paidAmount = Number(updates.paidAmount);
+            txPayload.paid = Number(updates.paidAmount);
+          }
+          if (updates.remainingAmount !== undefined) {
+            txPayload.remainingAmount = Number(updates.remainingAmount);
+            txPayload.owing = Number(updates.remainingAmount);
+          }
+          if (updates.date) {
+            txPayload.date = updates.date instanceof Date ? updates.date : new Date(updates.date);
+          }
+          if (updates.accountTo || updates.accountId) {
+            txPayload.accountsTo = updates.accountTo ? [updates.accountTo] : (updates.accountId ? [updates.accountId] : txData.accountsTo);
+          }
+          if (updates.accountFrom) {
+            txPayload.accountsFrom = [updates.accountFrom];
+          }
+
           const isExistingExpense =
             txData.type === 'expense' ||
             txData.transactionType === 'EXPENSE' ||
@@ -1045,6 +1093,19 @@ export async function syncInvoiceRecord(
         } catch {
           // ignore
         }
+      }
+
+      invalidateFinanceLedgerCache();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              entityId: invoiceId,
+              action: 'UPDATE_INVOICE',
+              timestamp: Date.now(),
+            },
+          })
+        );
       }
     } else {
       if (isMaintenanceLinked) {

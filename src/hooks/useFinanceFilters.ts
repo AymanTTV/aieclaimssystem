@@ -152,33 +152,27 @@ export const useFinanceFilters = (
 
       const hasAccountAssigned = assignedAccountIds.size > 0 || !!(transaction as any).relatedAccountName;
 
-      if (cleanAccFilter.length === 0) {
-        matchesAccount = !hasAccountAssigned;
+      if (cleanAccFilter.length === 0 || cleanAccFilter.includes('all')) {
+        matchesAccount = true;
       } else {
-        const showAll = cleanAccFilter.includes('all');
         const showUnassignedExplicitly = cleanAccFilter.includes('no_account_assigned');
+        const selectedIds = cleanAccFilter.filter(
+          (x) => x !== 'no_account_assigned' && x !== 'all'
+        );
 
-        if (showAll) {
-          matchesAccount = true;
-        } else {
-          const selectedIds = cleanAccFilter.filter(
-            (x) => x !== 'no_account_assigned' && x !== 'all'
-          );
+        let anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
 
-          let anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
-
-          if (!anyMatch && (transaction as any).relatedAccountName) {
-            const relatedStr = (transaction as any).relatedAccountName;
-            anyMatch = selectedIds.some((id) => {
-              const acc = accounts.find((a) => a.id === id);
-              return acc && acc.name && relatedStr.includes(acc.name);
-            });
-          }
-
-          matchesAccount = anyMatch;
-          
-          if (showUnassignedExplicitly && !hasAccountAssigned) matchesAccount = true;
+        if (!anyMatch && (transaction as any).relatedAccountName) {
+          const relatedStr = (transaction as any).relatedAccountName;
+          anyMatch = selectedIds.some((id) => {
+            const acc = accounts.find((a) => a.id === id);
+            return acc && acc.name && relatedStr.includes(acc.name);
+          });
         }
+
+        matchesAccount = anyMatch;
+        
+        if (showUnassignedExplicitly && !hasAccountAssigned) matchesAccount = true;
       }
 
       const matchesOwner =

@@ -182,3 +182,4 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
 };
 
 export default StatusBadge;
+export { MaintenanceStatusBadge } from '../maintenance/MaintenanceStatusBadge';

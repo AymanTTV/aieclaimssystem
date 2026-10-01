@@ -34,10 +34,12 @@ import { Invoice, Account } from '../types/finance';
 import toast from 'react-hot-toast';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+import { useSharedAccounts } from '../hooks/useSharedAccounts';
 import { generateBulkDocuments, generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { InvoiceBulkDocument, InvoiceDocument } from '../components/pdf/documents';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
-import { reverseFinanceTransaction } from '../utils/financeTransactions';
+import { reverseFinanceTransaction, purgeFinanceTransactionsForInvoice } from '../utils/financeTransactions';
+import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
 import { syncInvoiceRecord } from '../services/unifiedSync.service';
 import { useFinancialSync } from '../hooks/useFinancialSync';
 import * as XLSX from 'xlsx';
@@ -47,7 +49,8 @@ const Invoices: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { customers, loading: customersLoading } = useCustomers();
   const { invoices, loading: invoicesLoading } = useInvoices();
-  const { transactions } = useFinances();
+  const { transactions, refetchTransactions } = useFinances();
+  const { accounts, loading: accountsLoading } = useSharedAccounts();
   const { can } = usePermissions();
   const { user } = useAuth();
   const { saveAndSync: saveAndSyncFinancialRecord } = useFinancialSync();
@@ -56,7 +59,6 @@ const Invoices: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'invoices' | 'accounts'>('invoices');
   const [categories, setCategories] = useState<string[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [groups, setGroups] = useState<FinanceGroup[]>([]);
   const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
 
@@ -88,11 +90,6 @@ const Invoices: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const accSnap = await getDocs(collection(db, 'accounts'));
-        const accs: Account[] = [];
-        accSnap.forEach((docSnap) => accs.push({ id: docSnap.id, ...docSnap.data() } as Account));
-        setAccounts(accs);
-
         const allGroups = await financeGroupService.getAll();
         setGroups(allGroups);
       } catch (err) {
@@ -100,7 +97,7 @@ const Invoices: React.FC = () => {
       }
     };
     fetchData();
-  }, [showManageAccounts, showManageGroups]);
+  }, [showManageGroups]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'financeDepartments'), snap => {
@@ -145,18 +142,46 @@ const Invoices: React.FC = () => {
     setSelectedInvoiceIds(new Set());
   }, [searchQuery, statusFilter, categoryFilter, accountFilter, groupFilter, departmentFilter, dateRange, showCompleted]);
 
-  const totalInvoicesAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-  const totalPaidAmount = finalFilteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
-  const totalLookingAmount = finalFilteredInvoices.reduce((sum, inv) => sum + ((inv.remainingAmount || 0) > 0 ? inv.remainingAmount : 0), 0);
-  const totalSubCost = finalFilteredInvoices.reduce((sum, inv) => {
-    let sc = Number(inv.subcontractorCost || 0);
-    if (sc <= 0 && Array.isArray(inv.lineItems)) {
-      sc = inv.lineItems.reduce((acc, li) => acc + (Number(li.subcontractorCost) || 0), 0);
-    }
-    return sum + sc;
-  }, 0);
-  const totalNetProfit = Number((totalInvoicesAmount - totalSubCost).toFixed(2));
-  const totalProfitMargin = totalInvoicesAmount > 0 ? Number(((totalNetProfit / totalInvoicesAmount) * 100).toFixed(1)) : 0;
+  const summaryMetrics = useMemo(() => {
+    return finalFilteredInvoices.reduce((acc, item: any) => {
+      // 1. Extract values safely
+      const paymentsSum = Array.isArray(item.payments)
+        ? item.payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
+        : 0;
+      const paidAmount = Math.max(Number(item.paid ?? item.paidAmount ?? 0), paymentsSum); 
+      const billedAmount = Number(item.amount ?? item.billed ?? item.total ?? 0);
+      const rawDealerCost = item.dealerCost != null 
+        ? Number(item.dealerCost) 
+        : (item.subcontractorCost != null 
+            ? Number(item.subcontractorCost) 
+            : (Array.isArray(item.lineItems) ? item.lineItems.reduce((s: number, li: any) => s + (Number(li.subcontractorCost) || 0), 0) : 0));
+      const dealerCost = isNaN(rawDealerCost) ? 0 : rawDealerCost;
+      
+      // 2. CRITICAL FIX: ALWAYS count collected cash as Income, regardless of invoice type
+      acc.totalIncome += paidAmount;
+
+      // 3. Bucket the expenses
+      const isExpense = item.type === 'EXPENSE' || item.type === 'LOAN' || item.isLoan === true || item.type?.includes?.('Expense') || String(item.type || '').toUpperCase() === 'EXPENSE' || String(item.type || '').toUpperCase() === 'LOAN';
+
+      if (isExpense) {
+        // For expense/loan invoices, the billed amount and dealer cost are expenses
+        acc.totalExpenses += billedAmount; 
+        acc.totalExpenses += dealerCost;
+      } else {
+        // For standard income invoices, only the dealer cost counts as an expense
+        acc.totalExpenses += dealerCost; 
+      }
+
+      return acc;
+    }, { totalIncome: 0, totalExpenses: 0 });
+  }, [finalFilteredInvoices]);
+
+  // Calculate Balance
+  const balance = summaryMetrics.totalIncome - summaryMetrics.totalExpenses;
+  const netProfit = balance;
+  const dynamicProfitMargin = summaryMetrics.totalIncome > 0
+    ? Number(((balance / summaryMetrics.totalIncome) * 100).toFixed(1))
+    : 0;
 
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -190,6 +215,11 @@ const Invoices: React.FC = () => {
         batch.delete(doc(db, 'invoices', id));
       });
       await batch.commit();
+
+      // Purge finance transactions for all deleted invoices
+      for (const id of selectedInvoiceIds) {
+        await purgeFinanceTransactionsForInvoice(id);
+      }
       
       toast.success('Invoices deleted successfully', { id: toastId });
       setSelectedInvoiceIds(new Set()); 
@@ -398,14 +428,63 @@ const Invoices: React.FC = () => {
 
       await reverseFinanceTransaction({
         referenceId: invoice.id,
-        paymentId: paymentId
+        invoiceId: invoice.id,
+        paymentId: paymentId,
+        amount: paymentToDelete.amount
       });
 
+      // Synchronize updated invoice payment status and amounts to Finance
+      await syncInvoiceRecord(invoice.id, {
+        payments: updatedPayments,
+        paidAmount: newPaidAmount,
+        remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+        paymentStatus: newStatus,
+      }).catch((syncErr) => console.warn('Sync invoice on payment delete notice:', syncErr));
+
+      // Purge from backend server payment ledger
+      try {
+        const apiRes = await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
+          method: 'DELETE',
+        });
+        if (!apiRes.ok) {
+          console.warn(`Backend delete payment API returned status ${apiRes.status}`);
+        }
+      } catch (apiErr) {
+        console.warn('Backend server payment delete notice:', apiErr);
+      }
+
+      // Immediately invalidate finance ledger global cache atom and trigger manual re-fetch
+      invalidateFinanceLedgerCache(paymentId);
+      await manuallyRefetchFinanceLedger().catch((fetchErr) => {
+        console.warn('Manual ledger re-fetch notice:', fetchErr);
+      });
+      if (refetchTransactions) {
+        await refetchTransactions().catch(() => {});
+      }
+
+      // Cache invalidation across Finance Ledger & Summary Cards
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('financeRecordUpdated', {
             detail: {
               entityId: invoice.id,
+              deletedPaymentId: paymentId,
+              paymentId: paymentId,
+              referenceId: invoice.id,
+              invoiceId: invoice.id,
+              action: 'DELETE_PAYMENT',
+              timestamp: Date.now(),
+            },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('invoiceRecordUpdated', {
+            detail: {
+              id: invoice.id,
+              paidAmount: newPaidAmount,
+              remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+              paymentStatus: newStatus,
+              payments: updatedPayments,
               deletedPaymentId: paymentId,
             },
           })
@@ -538,97 +617,99 @@ const Invoices: React.FC = () => {
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} hidden accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileImport} />
 
-      {/* ── Summary Cards on Top ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        {/* 1. Gross Billing (Total - Amber) */}
-        <div
-          className="bg-amber-50/80 border-amber-200 hover:border-amber-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
-        >
+      {/* ── 3-Card Profit & Loss (P&L) Summary on Top ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* CARD 1: INCOME (Soft Green) */}
+        <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-emerald-300 transition-all flex flex-col justify-between">
           <div>
-            <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider">Gross Billing (Total)</h4>
-            <p className="text-xl sm:text-2xl font-black font-mono text-amber-950 mt-1">{formatCurrency(totalInvoicesAmount)}</p>
-          </div>
-          <div className="rounded-xl p-2.5 border border-amber-200 bg-white text-amber-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
-          </div>
-        </div>
-
-        {/* 2. Total Received (Paid - Green) */}
-        <div
-          className="bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
-        >
-          <div>
-            <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Total Received (Paid)</h4>
-            <p className="text-xl sm:text-2xl font-black font-mono text-emerald-950 mt-1">{formatCurrency(totalPaidAmount)}</p>
-          </div>
-          <div className="rounded-xl p-2.5 border border-emerald-200 bg-white text-emerald-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
-          </div>
-        </div>
-
-        {/* 3. Total Outstanding (Owing - Red) */}
-        <div
-          className="bg-rose-50/80 border-rose-200 hover:border-rose-400 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
-        >
-          <div>
-            <h4 className="text-xs font-extrabold text-rose-800 uppercase tracking-wider">Total Outstanding (Owing)</h4>
-            <p className="text-xl sm:text-2xl font-black font-mono text-rose-950 mt-1">{formatCurrency(totalLookingAmount)}</p>
-          </div>
-          <div className="rounded-xl p-2.5 border border-rose-200 bg-white text-rose-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <PoundSterling className="h-5 w-5 sm:h-6 sm:w-6" />
-          </div>
-        </div>
-
-        {/* 4. Subcontractor Cost (Dealer / Cost - Muted Slate Neutral) */}
-        <div
-          className="bg-slate-50/90 border-slate-200 hover:border-slate-300 p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md"
-        >
-          <div>
-            <h4 className="text-xs font-extrabold text-slate-600 uppercase tracking-wider">Dealer / Subcontractor Cost</h4>
-            <p className="text-xl sm:text-2xl font-black font-mono text-slate-800 mt-1">{formatCurrency(totalSubCost)}</p>
-          </div>
-          <div className="rounded-xl p-2.5 border border-slate-200 bg-white text-slate-600 shadow-xs group-hover:scale-110 transition-transform shrink-0">
-            <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />
-          </div>
-        </div>
-
-        {/* 5. Net Profit (Green for positive, Red for loss) */}
-        <div
-          className={`${
-            totalNetProfit >= 0
-              ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400'
-              : 'bg-rose-50/80 border-rose-200 hover:border-rose-400'
-          } p-4 sm:p-5 rounded-2xl shadow-xs border transition-all duration-200 flex items-center justify-between group hover:shadow-md`}
-        >
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h4 className={`text-xs font-extrabold uppercase tracking-wider ${
-                totalNetProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-              }`}>
-                Net Profit
-              </h4>
-              <span className={`text-[11px] font-bold px-1.5 py-0.2 rounded border ${
-                totalProfitMargin >= 0
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  : 'bg-rose-100 text-rose-800 border-rose-300'
-              }`}>
-                {totalProfitMargin.toFixed(1)}%
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                INCOME
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-100/90 border border-emerald-300/80 text-emerald-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+                £
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 block tracking-tight">
+                {formatCurrency(summaryMetrics.totalIncome)}
+              </span>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                Collected Cash
               </span>
             </div>
-            <p className={`text-xl sm:text-2xl font-black font-mono mt-1 ${
-              totalNetProfit >= 0 ? 'text-emerald-950' : 'text-rose-950'
-            }`}>
-              {totalNetProfit >= 0 ? '+' : ''}{formatCurrency(totalNetProfit)}
-            </p>
           </div>
-          <div className={`rounded-xl p-2.5 border bg-white shadow-xs group-hover:scale-110 transition-transform shrink-0 ${
-            totalNetProfit >= 0 ? 'border-emerald-200 text-emerald-600' : 'border-rose-200 text-rose-600'
-          }`}>
-            {totalNetProfit >= 0 ? (
-              <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" />
-            ) : (
-              <TrendingDown className="h-5 w-5 sm:h-6 sm:w-6 text-rose-600" />
-            )}
+        </div>
+
+        {/* CARD 2: EXPENSES (Soft Red) */}
+        <div className="bg-rose-50/50 border border-rose-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-rose-300 transition-all flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+                EXPENSES
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-rose-100/90 border border-rose-300/80 text-rose-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+                £
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className="text-2xl sm:text-3xl font-black font-mono text-rose-700 block tracking-tight">
+                -{formatCurrency(summaryMetrics.totalExpenses)}
+              </span>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                Expenses, Loans &amp; Costs
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 3: BALANCE (Emerald Green / Red) */}
+        <div className={`border rounded-2xl shadow-xs p-4 sm:p-5 transition-all flex flex-col justify-between ${
+          balance >= 0
+            ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'
+            : 'bg-rose-50 border-rose-300 hover:border-rose-400'
+        }`}>
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                balance >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              }`}>
+                BALANCE
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  balance >= 0
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-200'
+                }`}>
+                  {balance >= 0 ? (
+                    <TrendingUp className="w-3 h-3 mr-0.5" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 mr-0.5" />
+                  )}
+                  {dynamicProfitMargin}%
+                </span>
+                <div className={`w-8 h-8 rounded-xl border shadow-2xs flex items-center justify-center font-bold text-sm ${
+                  balance >= 0
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-rose-100 text-rose-800 border-rose-300'
+                }`}>
+                  £
+                </div>
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className={`text-2xl sm:text-3xl font-black font-mono block tracking-tight ${
+                balance >= 0 ? 'text-emerald-950' : 'text-rose-950'
+              }`}>
+                {balance >= 0 ? '+' : ''}{formatCurrency(balance)}
+              </span>
+              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                balance >= 0 ? 'bg-emerald-100/80 text-emerald-800' : 'bg-rose-100/80 text-rose-800'
+              }`}>
+                Income - Expenses
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -846,6 +927,7 @@ const Invoices: React.FC = () => {
             groups={groups}
             departments={departments}
             onDownload={() => handleOpenLatestInvoicePDF(selectedInvoice)} 
+            onDeletePayment={handleDeletePayment}
           />
         )}
       </Modal>

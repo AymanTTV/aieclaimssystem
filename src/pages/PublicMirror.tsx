@@ -62,6 +62,8 @@ import {
   getStatusBadgeStyles,
   getMaintenanceRowTheme,
 } from '../utils/maintenanceStatusConfig';
+import { sortWorkshopJobs } from '../utils/workshopSorting';
+import { TimeTrackingBadge } from '../utils/timeTrackingBadge';
 
 interface PublicJobItem {
   id: string;
@@ -566,14 +568,8 @@ const PublicMirror: React.FC = () => {
       }
     });
 
-    // Sort: VOR Off-Road first, then In-Progress items, followed by chronologically upcoming
-    return result.sort((a, b) => {
-      if (a.isOffRoad && !b.isOffRoad) return -1;
-      if (!a.isOffRoad && b.isOffRoad) return 1;
-      if (a.status === 'in-progress' && b.status !== 'in-progress') return -1;
-      if (a.status !== 'in-progress' && b.status === 'in-progress') return 1;
-      return a.scheduledDate.getTime() - b.scheduledDate.getTime();
-    });
+    // Multi-tier sort: Priority 1-5 (In Progress -> In Workshop -> Scheduled -> Back Order/Awaiting Parts -> Off Road/Accident) then Date
+    return sortWorkshopJobs(result);
   }, [maintenanceDocs, rentalDocs, vehicleDocs, vehiclesMap, scheduleFilter]);
 
   // Secondary Filter by Tab and Search Query
@@ -607,7 +603,7 @@ const PublicMirror: React.FC = () => {
       );
     }
 
-    return list;
+    return sortWorkshopJobs(list);
   }, [unifiedJobs, activeTab, searchQuery]);
 
   // Split into In-Progress and Scheduled for the Dual-View Job Scheduler
@@ -1649,7 +1645,7 @@ const PublicMirror: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Footer: Date & Time + Relative Badge */}
+                    {/* Footer: Date & Time + Relative Badge + Time Tracking */}
                     <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-[#2B314E]/40 gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 min-w-0 truncate">
                         <Clock className={`w-3.5 h-3.5 shrink-0 ${isUrgent ? 'text-red-400' : 'text-blue-400'}`} />
@@ -1657,7 +1653,14 @@ const PublicMirror: React.FC = () => {
                           {format(item.scheduledDate, 'dd/MM/yyyy HH:mm')}
                         </span>
                       </div>
-                      <div className="shrink-0">
+                      <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+                        <TimeTrackingBadge
+                          scheduledDate={item.scheduledDate}
+                          status={item.status}
+                          isOffRoad={item.isOffRoad}
+                          isAccident={item.isAccident}
+                          isDarkTheme={true}
+                        />
                         {getRelativeBadge(item.scheduledDate, item.status, item.isOverdue)}
                       </div>
                     </div>

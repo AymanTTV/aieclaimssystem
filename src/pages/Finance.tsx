@@ -39,6 +39,7 @@ import { db } from '../lib/firebase';
 import * as XLSX from 'xlsx'; 
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext';
+import { useSharedAccounts } from '../hooks/useSharedAccounts';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
 import { Edit2, Trash2, AlertTriangle, FileUp, Layers, Receipt, Wallet, PieChart, ArrowLeftRight } from 'lucide-react';
@@ -55,7 +56,7 @@ import {
   enrichTransactionWithMaintenance,
   isMaintenanceOrderMatch,
 } from '../utils/maintenanceFinanceLink';
-import { purgeOrphanedMaintenanceIncomeEntries } from '../services/unifiedSync.service';
+import { purgeOrphanedMaintenanceIncomeEntries, sanitizeForFirestore } from '../services/unifiedSync.service';
 
 const normalizeOrderRef = (val?: string | null): string => {
   if (!val) return '';
@@ -408,15 +409,28 @@ const TransferToInvoiceModalContent = ({ selectedTxns, customers, vehicles, acco
 
 
 const Finance: React.FC = () => {
-  const { transactions, loading, error } = useFinances();
+  const { transactions, loading, error, refetchTransactions } = useFinances();
   const { vehicles } = useVehicles();
   const { customers } = useCustomers();
   const { logs: maintenanceLogs } = useMaintenanceLogs();
   const { invoices } = useInvoices();
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { accounts, loading: accountsLoading } = useSharedAccounts();
   const { can } = usePermissions();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-refresh finance ledger and recalculate summary metrics on cache invalidation
+  useEffect(() => {
+    const handleFinanceUpdate = (e: any) => {
+      if (e?.detail?.deletedPaymentId || e?.detail?.action === 'DELETE_PAYMENT') {
+        refetchTransactions?.();
+      }
+    };
+    window.addEventListener('financeRecordUpdated', handleFinanceUpdate);
+    return () => {
+      window.removeEventListener('financeRecordUpdated', handleFinanceUpdate);
+    };
+  }, [refetchTransactions]);
 
   const hasRunRecurringCheck = useRef(false);
   const isProcessingRecurring = useRef(false);
@@ -492,22 +506,6 @@ const Finance: React.FC = () => {
   const [loadingCats, setLoadingCats] = useState(false);
 
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
-
-  useEffect(() => {
-    const q = query(collection(db, 'accounts'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const accountData = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<Account, 'id'>)
-        }));
-        accountData.forEach(acc => {
-            if ((acc as any).createdAt?.toDate) acc.createdAt = (acc as any).createdAt.toDate();
-            if ((acc as any).updatedAt?.toDate) acc.updatedAt = (acc as any).updatedAt.toDate();
-        });
-        setAccounts(accountData as Account[]);
-      }, (err) => { toast.error('Failed to load accounts'); });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     setLoadingCats(true);
@@ -784,15 +782,144 @@ const Finance: React.FC = () => {
 
   const handleAssignTransaction = useCallback((txn: Transaction) => { setSelectedTransaction(txn); setShowAssignModal(true); }, []);
 
-  // Standard 5-Card Profit & Loss (P&L) Summary Metrics calculation:
-  // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
-  // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit)
-  // 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows
-  // 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost field (gracefully treats missing/null as £0.00)
-  // 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost)
+  // Standard 3-Card Profit & Loss (P&L) Summary Metrics:
+  // 1. CARD 1: "TOTAL INCOME" (Soft Green) - Sum of all credit/income
+  // 2. CARD 2: "TOTAL EXPENSES" (Soft Red) - Sum of all debit/expenses + ALL subcontractor/dealer costs
+  // 3. CARD 3: "NET PROFIT" (Emerald Green / Red, Formula: Total Income - Total Expenses)
   const summaryMetrics = useMemo(() => {
-    return calculatePnLSummaryMetrics(finalFilteredTransactions);
-  }, [finalFilteredTransactions]);
+    // Check if the current filter is strictly showing only expenses
+    const isExpenseFilterActive =
+      String(type || '').toUpperCase() === 'EXPENSE' ||
+      (finalFilteredTransactions.length > 0 &&
+        finalFilteredTransactions.every((t: any) => {
+          const isExp =
+            t.type === 'EXPENSE' ||
+            String(t.type || '').toUpperCase() === 'EXPENSE' ||
+            String(t.entryType || '').toUpperCase() === 'DEBIT' ||
+            String(t.transactionType || '').toUpperCase() === 'EXPENSE';
+          return isExp;
+        }));
+
+    // 1. Identify all order/job reference keys for Income rows
+    const incomeJobKeys = new Set<string>();
+    finalFilteredTransactions.forEach((t: any) => {
+      const isInc =
+        t.type === 'INCOME' ||
+        String(t.type || '').toUpperCase() === 'INCOME' ||
+        String(t.entryType || '').toUpperCase() === 'CREDIT' ||
+        String(t.transactionType || '').toUpperCase() === 'INCOME';
+      if (isInc) {
+        const ref = (t.referenceId || t.orderId || t.orderNumber || t.linkedInvoiceRef || t.maintenanceOrderId || t.maintenanceJobId || '')
+          .toString().trim().toUpperCase();
+        if (ref) incomeJobKeys.add(ref);
+      }
+    });
+
+    const talliedDealerCostOrders = new Set<string>();
+
+    const metrics = finalFilteredTransactions.reduce((acc, item: any) => {
+      const amount = Number(item.amount || item.customerBilled || item.billed || 0);
+      const dealerCost = item.dealerCost != null ? Number(item.dealerCost) : (item.subcontractorCost != null ? Number(item.subcontractorCost) : 0); 
+      
+      const isIncome =
+        item.type === 'INCOME' ||
+        String(item.type || '').toUpperCase() === 'INCOME' ||
+        String(item.entryType || '').toUpperCase() === 'CREDIT' ||
+        String(item.transactionType || '').toUpperCase() === 'INCOME';
+
+      const isExpense =
+        item.type === 'EXPENSE' ||
+        String(item.type || '').toUpperCase() === 'EXPENSE' ||
+        String(item.entryType || '').toUpperCase() === 'DEBIT' ||
+        String(item.transactionType || '').toUpperCase() === 'EXPENSE';
+
+      const orderKey = (item.referenceId || item.orderId || item.orderNumber || item.linkedInvoiceRef || item.maintenanceOrderId || item.maintenanceJobId || '')
+        .toString().trim().toUpperCase();
+
+      if (isIncome) {
+        acc.totalIncome += Math.abs(amount);
+        // Subcontractor costs tied to income are just expenses
+        if (dealerCost > 0) {
+          if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
+            acc.totalExpenses += dealerCost;
+            acc.subcontractorCost += dealerCost;
+            if (orderKey) talliedDealerCostOrders.add(orderKey);
+          }
+        }
+      } else if (isExpense) {
+        const isLinkedDuplicate = Boolean(
+          item.isLinkedExpense ||
+          item.isSplitLinked ||
+          item.isSplit ||
+          item.linkedExpense ||
+          item.description?.includes('Maintenance Expense') ||
+          (orderKey && incomeJobKeys.has(orderKey))
+        );
+
+        // If we are strictly viewing expenses OR it's a regular standalone expense, count it.
+        // We only ignore linked duplicates if we are looking at the combined ledger (to protect Net Profit).
+        if (isExpenseFilterActive || !isLinkedDuplicate) {
+          acc.totalExpenses += Math.abs(amount);
+
+          // Only add dealer cost if it wasn't already added by a paired income row
+          if (!isLinkedDuplicate) {
+            if (dealerCost > 0) {
+              if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
+                acc.totalExpenses += dealerCost;
+                acc.subcontractorCost += dealerCost;
+                if (orderKey) talliedDealerCostOrders.add(orderKey);
+              }
+            }
+          }
+        }
+      } else if (amount >= 0) {
+        acc.totalIncome += amount;
+        if (dealerCost > 0) {
+          if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
+            acc.totalExpenses += dealerCost;
+            acc.subcontractorCost += dealerCost;
+            if (orderKey) talliedDealerCostOrders.add(orderKey);
+          }
+        }
+      } else {
+        const isLinkedDuplicate = Boolean(
+          item.isLinkedExpense ||
+          item.isSplitLinked ||
+          item.isSplit ||
+          item.linkedExpense ||
+          item.description?.includes('Maintenance Expense') ||
+          (orderKey && incomeJobKeys.has(orderKey))
+        );
+        if (isExpenseFilterActive || !isLinkedDuplicate) {
+          acc.totalExpenses += Math.abs(amount);
+          if (!isLinkedDuplicate && dealerCost > 0) {
+            if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
+              acc.totalExpenses += dealerCost;
+              acc.subcontractorCost += dealerCost;
+              if (orderKey) talliedDealerCostOrders.add(orderKey);
+            }
+          }
+        }
+      }
+
+      return acc;
+    }, { totalIncome: 0, totalExpenses: 0, subcontractorCost: 0 });
+
+    const totalIncome = Number(metrics.totalIncome.toFixed(2));
+    const totalExpenses = Number(metrics.totalExpenses.toFixed(2));
+    const netProfit = Number((totalIncome - totalExpenses).toFixed(2));
+
+    return {
+      totalIncome,
+      totalExpenses,
+      subcontractorCost: Number(metrics.subcontractorCost.toFixed(2)),
+      dealerCost: Number(metrics.subcontractorCost.toFixed(2)),
+      netProfit,
+    };
+  }, [finalFilteredTransactions, type]);
+
+  // Simplified overall profit formula: Total Income - Total Expenses
+  const netProfit = summaryMetrics.totalIncome - summaryMetrics.totalExpenses;
 
   const profitMargin = summaryMetrics.totalIncome > 0 
     ? ((summaryMetrics.netProfit / summaryMetrics.totalIncome) * 100).toFixed(1) 
@@ -871,10 +998,17 @@ const Finance: React.FC = () => {
                 isRecurring: true,
                 recurringFrequency: txn.recurringFrequency,
                 nextRecurringDate: isLast ? nextDate : null, 
+                orderId: txn.orderId || txn.orderNumber || null,
+                orderNumber: txn.orderNumber || txn.orderId || null,
+                invoiceNumber: txn.invoiceNumber || txn.paymentReference || null,
+                subcontractorCost: txn.subcontractorCost ?? null,
+                dealerCost: txn.dealerCost ?? null,
+                netProfit: txn.netProfit ?? null,
+                profitMarginPercent: txn.profitMarginPercent ?? null,
             };
             delete newTxnData.documentUrl; 
             delete newTxnData.receiptUrl;
-            batch.set(newTxnRef, newTxnData);
+            batch.set(newTxnRef, sanitizeForFirestore(newTxnData));
             currentDate = nextDate;
         }
         
@@ -1087,7 +1221,7 @@ const Finance: React.FC = () => {
                            newTxn.createdBy = user?.name || 'Import System';
                        }
 
-                       batch.set(ref, newTxn, { merge: true });
+                       batch.set(ref, sanitizeForFirestore(newTxn), { merge: true });
                   });
                   
                   await batch.commit();

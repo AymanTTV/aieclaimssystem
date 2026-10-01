@@ -1,9 +1,10 @@
 // src/hooks/useFinances.ts
-import { useState, useEffect, useRef } from 'react';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { collection, query, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Transaction } from '../types';
 import { enrichTransactionWithMaintenance } from '../utils/maintenanceFinanceLink';
+import { subscribeFinanceLedger, getFinanceLedgerState } from '../state/financeLedgerAtom';
 
 const safeDate = (dateVal: any) => {
   if (!dateVal) return new Date();
@@ -58,8 +59,8 @@ export const useFinances = () => {
             linkedInvoiceRef: matchingInvoice.id,
             entityId: enrichedTxn.entityId || matchingInvoice.id,
             entityType: 'INVOICE',
-            orderId: enrichedTxn.orderId || matchingInvoice.orderNumber || matchingInvoice.orderId,
-            orderNumber: enrichedTxn.orderNumber || matchingInvoice.orderNumber || matchingInvoice.orderId,
+            orderId: enrichedTxn.orderId || matchingInvoice.orderNumber || matchingInvoice.orderId || null,
+            orderNumber: enrichedTxn.orderNumber || matchingInvoice.orderNumber || matchingInvoice.orderId || null,
             customerBilled:
               enrichedTxn.customerBilled !== undefined
                 ? enrichedTxn.customerBilled
@@ -115,21 +116,31 @@ export const useFinances = () => {
             ...data,
             isProfitEdited,
             isEdited: isProfitEdited,
-            orderId: data.orderId || data.orderNumber,
-            orderNumber: data.orderNumber || data.orderId,
-            invoiceNumber: data.invoiceNumber || data.paymentReference,
+            orderId: data.orderId || data.orderNumber || null,
+            orderNumber: data.orderNumber || data.orderId || null,
+            invoiceNumber: data.invoiceNumber || data.paymentReference || null,
             customerBilled: customerBilledNum,
-            subcontractorCost: subCostNum,
-            dealerCost: subCostNum,
-            netProfit,
-            profitMarginPercent,
-            linkedInvoiceRef: data.linkedInvoiceRef || data.referenceId,
+            subcontractorCost: subCostNum ?? null,
+            dealerCost: subCostNum ?? null,
+            netProfit: netProfit ?? null,
+            profitMarginPercent: profitMarginPercent ?? null,
+            linkedInvoiceRef: data.linkedInvoiceRef || data.referenceId || null,
             date: safeDate(data.date),
             createdAt: safeDate(data.createdAt),
           } as Transaction;
         });
 
-        rawTransactionsRef.current = transactionData;
+        const atomState = getFinanceLedgerState();
+        const filtered = atomState.deletedPaymentIds && atomState.deletedPaymentIds.size > 0
+          ? transactionData.filter((t) => {
+              if (t.paymentId && atomState.deletedPaymentIds.has(String(t.paymentId))) return false;
+              if (t.id && atomState.deletedPaymentIds.has(String(t.id))) return false;
+              if (t.paymentReference && atomState.deletedPaymentIds.has(String(t.paymentReference))) return false;
+              return true;
+            })
+          : transactionData;
+
+        rawTransactionsRef.current = filtered;
         rebuildAndSet();
       },
       (err) => {
@@ -173,9 +184,13 @@ export const useFinances = () => {
 
       // 1. If a payment was deleted, remove it immediately from transactions cache
       if (detail.deletedPaymentId && rawTransactionsRef.current) {
-        rawTransactionsRef.current = rawTransactionsRef.current.filter(
-          (t) => t.paymentId !== detail.deletedPaymentId && t.id !== detail.deletedPaymentId
-        );
+        const delId = String(detail.deletedPaymentId);
+        rawTransactionsRef.current = rawTransactionsRef.current.filter((t) => {
+          if (t.paymentId && String(t.paymentId) === delId) return false;
+          if (t.id && String(t.id) === delId) return false;
+          if (t.paymentReference && String(t.paymentReference) === delId) return false;
+          return true;
+        });
         rebuildAndSet();
         return;
       }
@@ -277,6 +292,31 @@ export const useFinances = () => {
       rebuildAndSet();
     };
 
+    // Subscribe to global finance ledger atom for cache invalidation events
+    const unsubAtom = subscribeFinanceLedger((state) => {
+      if (state.deletedPaymentIds && state.deletedPaymentIds.size > 0 && rawTransactionsRef.current) {
+        let changed = false;
+        rawTransactionsRef.current = rawTransactionsRef.current.filter((t) => {
+          if (t.paymentId && state.deletedPaymentIds.has(String(t.paymentId))) {
+            changed = true;
+            return false;
+          }
+          if (t.id && state.deletedPaymentIds.has(String(t.id))) {
+            changed = true;
+            return false;
+          }
+          if (t.paymentReference && state.deletedPaymentIds.has(String(t.paymentReference))) {
+            changed = true;
+            return false;
+          }
+          return true;
+        });
+        if (changed) {
+          rebuildAndSet();
+        }
+      }
+    });
+
     if (typeof window !== 'undefined') {
       window.addEventListener('maintenanceRecordUpdated', handleEventUpdate);
       window.addEventListener('maintenanceCostUpdated', handleEventUpdate);
@@ -286,6 +326,7 @@ export const useFinances = () => {
     }
 
     return () => {
+      unsubAtom();
       unsubTx();
       unsubLogs();
       unsubInvoices();
@@ -299,5 +340,79 @@ export const useFinances = () => {
     };
   }, []);
 
-  return { transactions, loading, error };
+  const refetchTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const qTx = query(collection(db, 'transactions'), orderBy('date', 'desc'));
+      const snapshot = await getDocs(qTx);
+      const transactionData: Transaction[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const amt = Number(data.amount || 0);
+        const customerBilledNum =
+          data.customerBilled !== undefined ? Number(data.customerBilled) : amt;
+
+        const rawSubCost =
+          data.dealerCost !== undefined && data.dealerCost !== null && data.dealerCost !== ''
+            ? Number(data.dealerCost)
+            : data.subcontractorCost !== undefined && data.subcontractorCost !== null && data.subcontractorCost !== ''
+            ? Number(data.subcontractorCost)
+            : undefined;
+
+        const hasExplicitDealer = rawSubCost !== undefined && !isNaN(rawSubCost);
+        const isProfitEdited = (data.isProfitEdited === true || data.isEdited === true) && hasExplicitDealer;
+        const subCostNum = hasExplicitDealer ? rawSubCost : undefined;
+
+        const netProfit = hasExplicitDealer
+          ? data.netProfit !== undefined
+            ? Number(data.netProfit)
+            : Number((customerBilledNum - (subCostNum ?? 0)).toFixed(2))
+          : undefined;
+
+        const profitMarginPercent = hasExplicitDealer
+          ? data.profitMarginPercent !== undefined
+            ? Number(data.profitMarginPercent)
+            : customerBilledNum > 0 && netProfit !== undefined
+            ? Number(((netProfit / customerBilledNum) * 100).toFixed(2))
+            : 0
+          : undefined;
+
+        return {
+          id: docSnap.id,
+          ...data,
+          isProfitEdited,
+          isEdited: isProfitEdited,
+          orderId: data.orderId || data.orderNumber || null,
+          orderNumber: data.orderNumber || data.orderId || null,
+          invoiceNumber: data.invoiceNumber || data.paymentReference || null,
+          customerBilled: customerBilledNum,
+          subcontractorCost: subCostNum ?? null,
+          dealerCost: subCostNum ?? null,
+          netProfit: netProfit ?? null,
+          profitMarginPercent: profitMarginPercent ?? null,
+          linkedInvoiceRef: data.linkedInvoiceRef || data.referenceId || null,
+          date: safeDate(data.date),
+          createdAt: safeDate(data.createdAt),
+        } as Transaction;
+      });
+
+      const atomState = getFinanceLedgerState();
+      const filtered = atomState.deletedPaymentIds && atomState.deletedPaymentIds.size > 0
+        ? transactionData.filter((t) => {
+            if (t.paymentId && atomState.deletedPaymentIds.has(String(t.paymentId))) return false;
+            if (t.id && atomState.deletedPaymentIds.has(String(t.id))) return false;
+            if (t.paymentReference && atomState.deletedPaymentIds.has(String(t.paymentReference))) return false;
+            return true;
+          })
+        : transactionData;
+
+      rawTransactionsRef.current = filtered;
+      setTransactions(filtered);
+    } catch (err: any) {
+      console.error('Failed to refetch transactions in useFinances:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { transactions, loading, error, refetchTransactions };
 };

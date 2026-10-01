@@ -18,6 +18,9 @@ import { useAuth } from '../context/AuthContext';
 import { calculateProfitMetrics } from '../utils/profitCalculator';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
+import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
+import { reverseFinanceTransaction } from '../utils/financeTransactions';
+import { syncInvoiceRecord } from '../services/unifiedSync.service';
 
 export interface RecordPaymentParams {
   invoice: Invoice | any;
@@ -595,21 +598,42 @@ export function useRecordInvoicePayment() {
         });
 
         // 2. Remove matching Income transaction from Finance Ledger
-        const txCol = collection(db, 'transactions');
-        const qPay = query(txCol, where('paymentId', '==', paymentId));
-        const snapPay = await getDocs(qPay);
-        for (const docSnap of snapPay.docs) {
-          await deleteDoc(doc(db, 'transactions', docSnap.id));
-        }
+        await reverseFinanceTransaction({
+          referenceId: invoice.id,
+          invoiceId: invoice.id,
+          paymentId: paymentId,
+          amount: amountToDeduct,
+        });
 
-        // 3. Delete from backend ledger
+        // 3. Synchronize updated invoice state to Finance
+        await syncInvoiceRecord(invoice.id, {
+          payments: updatedPayments,
+          paidAmount: newPaidAmount,
+          remainingAmount: newRemaining,
+          paymentStatus: newStatus,
+        }).catch(() => {});
+
+        // 4. Delete from backend ledger API endpoint
         try {
-          await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
+          const apiRes = await fetch(`/api/invoices/${invoice.id}/payments/${paymentId}`, {
             method: 'DELETE',
           });
-        } catch {}
+          if (!apiRes.ok) {
+            console.warn(`Backend delete payment API returned status ${apiRes.status}`);
+          }
+        } catch (apiErr) {
+          console.warn('Backend payment delete notice:', apiErr);
+        }
 
-        // 4. Dispatch re-render event
+        // Cache Invalidation Pattern:
+        // Immediately update global state atom and manually re-fetch finance ledger
+        // so that Finance Page summary cards reflect the removal without manual refresh.
+        invalidateFinanceLedgerCache(paymentId);
+        await manuallyRefetchFinanceLedger().catch((fetchErr) => {
+          console.warn('Manual ledger re-fetch notice:', fetchErr);
+        });
+
+        // 4. Dispatch re-render events for any external listeners
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('invoiceRecordUpdated', {
@@ -627,6 +651,11 @@ export function useRecordInvoicePayment() {
               detail: {
                 entityId: invoice.id,
                 deletedPaymentId: paymentId,
+                paymentId: paymentId,
+                referenceId: invoice.id,
+                invoiceId: invoice.id,
+                action: 'DELETE_PAYMENT',
+                timestamp: Date.now(),
               },
             })
           );

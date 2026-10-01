@@ -37,7 +37,11 @@ import {
   isStatusOffRoad,
   getStatusBadgeStyles,
   getMaintenanceRowTheme,
+  getJobRowTheme,
 } from '../../utils/maintenanceStatusConfig';
+import MaintenanceStatusBadge from './MaintenanceStatusBadge';
+import { TimeTrackingBadge } from '../../utils/timeTrackingBadge';
+
 import MaintenanceRecipientSelectorModal from './MaintenanceRecipientSelectorModal';
 import MaintenanceCommunicationModal from './MaintenanceCommunicationModal';
 import MaintenanceBulkCommunicationModal from './MaintenanceBulkCommunicationModal';
@@ -535,12 +539,22 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         }
 
         return (
-          <div className="flex flex-col w-32">
+          <div className="flex flex-col w-36 gap-1">
             {/* Color-coded date text reflecting its schedule state */}
             <span className={`text-sm ${dateTextColor}`}>
               {isValid ? format(validDate, 'dd/MM/yyyy HH:mm') : '-'}
             </span>
-            <div className="h-4">{badge}</div>
+            {isValid && !isCompleted && !isCancelled && (
+              <div>
+                <TimeTrackingBadge
+                  scheduledDate={validDate}
+                  status={status}
+                  isOffRoad={isOffRoad}
+                  isDarkTheme={false}
+                />
+              </div>
+            )}
+            {badge && <div className="h-4">{badge}</div>}
           </div>
         );
       }
@@ -616,11 +630,13 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                 )}
               </select>
             ) : (
-              <StatusBadge
-                status={getMaintenanceStatusLabel(currentSelectVal, {
-                  isAccident: isAccidentOffRoad,
-                  isOffRoad,
-                })}
+              <MaintenanceStatusBadge
+                status={currentSelectVal}
+                date={log.date || log.nextServiceDate}
+                isAccident={isAccidentOffRoad}
+                isOffRoad={isOffRoad}
+                isScheduledUrgent={isScheduledUrgent}
+                isDarkTheme={false}
               />
             )}
 
@@ -891,7 +907,7 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
     const isAccident = isOffRoadAccidentLog(row.original) || normalizeMaintenanceStatus(status) === 'accident';
     const isOffRoad = isStatusOffRoad(status, { isAccident, isOffRoad: (row.original as any).isOffRoad });
 
-    const theme = getMaintenanceRowTheme(status, {
+    const theme = getJobRowTheme(status, {
       date,
       isDarkTheme: false,
       isAccident,

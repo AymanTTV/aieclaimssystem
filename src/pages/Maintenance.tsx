@@ -1,6 +1,6 @@
 // src/pages/Maintenance.tsx
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useVehicles } from '../hooks/useVehicles';
 import { useMaintenanceLogs } from '../hooks/useMaintenanceLogs';
 import { useMaintenanceFilters } from '../hooks/useMaintenanceFilters';
@@ -37,6 +37,7 @@ import { checkVehicleStatus, updateVehicleStatus } from '../utils/vehicleStatusM
 import { WorkshopMirrorGuard } from '../components/maintenance/WorkshopMirrorGuard';
 import { syncMaintenanceRecord } from '../services/unifiedSync.service';
 import { useFinancialSync } from '../hooks/useFinancialSync';
+import { sortWorkshopJobs } from '../utils/workshopSorting';
 
 const Maintenance: React.FC = () => {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
@@ -134,91 +135,10 @@ const Maintenance: React.FC = () => {
     [can]
   );
 
-  const orderedLogs = React.useMemo(() => {
-    const now = startOfDay(new Date());
-
-    const isLogOrVehicleOffRoad = (log: MaintenanceLog): boolean => {
-      const s = String(log.status || '').toLowerCase().trim();
-      if (s === 'completed' || s === 'cancelled') return false;
-      if (s === 'off-road' || s === 'off road (vor)' || s === 'off-road (vor)' || s === 'off road' || s === 'vor') {
-        return true;
-      }
-      if (log.roadCondition === 'OFF ROAD (VOR)' || log.statusDisplay === 'OFF ROAD (VOR)') {
-        return true;
-      }
-      if (isOffRoadAccidentLog(log) && (s === 'off-road' || !s || s === 'vor')) {
-        return true;
-      }
-      const vehicle = log.vehicleId ? vehiclesMap[log.vehicleId] : undefined;
-      if (vehicle) {
-        const vs = String(vehicle.status || '').toLowerCase().trim();
-        const vr = String((vehicle as any).statusReason || '').toLowerCase();
-        if (vs === 'off-road' || vs === 'vor' || vs === 'off road (vor)') return true;
-        if (vr.includes('off-road') || vr.includes('off road') || vr.includes('vor')) return true;
-      }
-      return false;
-    };
-
-    const isLogOrVehicleAwaitingParts = (log: MaintenanceLog): boolean => {
-      const s = String(log.status || '').toLowerCase().trim();
-      if (s === 'completed' || s === 'cancelled') return false;
-      if (s === 'parts-backorder' || s === 'awaiting-parts' || s === 'awaiting parts' || s === 'parts backorder') {
-        return true;
-      }
-      const vehicle = log.vehicleId ? vehiclesMap[log.vehicleId] : undefined;
-      if (vehicle) {
-        const vs = String(vehicle.status || '').toLowerCase().trim();
-        const vr = String((vehicle as any).statusReason || '').toLowerCase();
-        if (vs === 'parts-backorder' || vs === 'awaiting-parts') return true;
-        if (vr.includes('awaiting parts') || vr.includes('parts backorder') || vr.includes('backorder')) return true;
-      }
-      return false;
-    };
-
-    const priority = (log: MaintenanceLog) => {
-      const s = (log.status || '').toLowerCase().trim();
-      
-      // If completed or cancelled, they are at the terminal status section
-      if (s === 'completed') return 80;
-      if (s === 'cancelled') return 81;
-
-      // When vehicle status is marked awaiting parts or off road (vor),
-      // it should be at the bottom of the list until the status is changed!
-      if (isLogOrVehicleAwaitingParts(log)) return 50;
-      if (isLogOrVehicleOffRoad(log)) return 51;
-
-      // Active working jobs at the top
-      if (s === 'scheduled') return 0;
-      if (s === 'in-progress') return 1;
-      if (s === 'workshop') return 2;
-      if (s === 'bodywork') return 3;
-      if (s === 'pending' || s === 'awaiting-approval' || s === 'inspection') return 4;
-      return 5;
-    };
-
-    return [...filteredLogs].sort((a, b) => {
-      const pa = priority(a);
-      const pb = priority(b);
-      if (pa !== pb) return pa - pb;
-
-      // For scheduled logs: closest to today / overdue first
-      if (pa === 0) {
-        const da = a.date ? differenceInCalendarDays(new Date(a.date), now) : 99999;
-        const db = b.date ? differenceInCalendarDays(new Date(b.date), now) : 99999;
-        if (da !== db) return da - db;
-      }
-
-      // For same-priority logs: newest date/update first
-      const getTime = (l: MaintenanceLog) => {
-        const d = l.date || (l as any).updatedAt || (l as any).createdAt;
-        if (!d) return 0;
-        if (d instanceof Date) return d.getTime();
-        if (typeof (d as any).toDate === 'function') return (d as any).toDate().getTime();
-        return new Date(d).getTime() || 0;
-      };
-      return getTime(b) - getTime(a);
-    });
-  }, [filteredLogs, vehiclesMap]);
+  // Strict multi-tier sorting: 1. In Progress -> 2. In Workshop -> 3. Scheduled -> 4. Back Order / Awaiting Parts -> 5. Off Road (VOR) / Accident, then earliest date
+  const orderedLogs = useMemo(() => {
+    return sortWorkshopJobs(filteredLogs);
+  }, [filteredLogs]);
 
   const handleExport = useCallback(() => {
     try {

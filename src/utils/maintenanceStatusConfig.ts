@@ -564,3 +564,22 @@ export function getMaintenanceRowTheme(
     lastCellClass: 'border-[#2B314E]/70 bg-[#121524] group-hover:bg-[#1A1F36] group-hover:border-[#3E4770]',
   };
 }
+
+/**
+ * Shared utility function getJobRowTheme(status, options)
+ * Alias to getMaintenanceRowTheme for strict parity across views.
+ */
+export function getJobRowTheme(
+  rawStatus?: string,
+  options?: {
+    date?: Date | string | null;
+    isScheduledUrgent?: boolean;
+    isDarkTheme?: boolean;
+    isAccident?: boolean;
+    isOffRoad?: boolean;
+    isPaid?: boolean;
+  }
+): MaintenanceRowTheme {
+  return getMaintenanceRowTheme(rawStatus, options);
+}
+

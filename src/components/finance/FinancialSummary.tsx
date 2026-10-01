@@ -40,8 +40,9 @@ interface FinancialSummaryProps {
   summaryMetrics?: {
     totalIncome?: number;
     totalExpenses?: number;
-    totalOutstanding: number;
-    dealerCost: number;
+    totalOutstanding?: number;
+    dealerCost?: number;
+    subcontractorCost?: number;
     netProfit: number;
     grossBilling?: number;
     totalReceived?: number;
@@ -83,12 +84,10 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   const { formatCurrency } = useFormattedDisplay();
   const { can } = usePermissions();
 
-  // Standard 5-Card Profit & Loss (P&L) Summary Metrics calculation:
+  // Standard 3-Card Profit & Loss (P&L) Summary Metrics calculation:
   // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
-  // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit)
-  // 3. TOTAL OUTSTANDING: Sum of all unpaid/owing balances across both income and expense rows
-  // 4. DEALER / SUBCONTRACTOR COST: Sum of dealerCost field (gracefully treats missing/null as £0.00)
-  // 5. NET PROFIT: (Total Income) - (Total Expenses) - (Dealer/Subcontractor Cost)
+  // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit) + all subcontractor/dealer costs
+  // 3. NET PROFIT: (Total Income) - (Total Expenses)
   const computedSummaryMetrics = useMemo(() => {
     return calculateDeduplicatedSummaryMetrics(transactions);
   }, [transactions]);
@@ -97,15 +96,14 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     const metrics = propSummaryMetrics || computedSummaryMetrics;
     const inc = metrics.totalIncome ?? (metrics as any).grossBilling ?? 0;
     const exp = metrics.totalExpenses ?? 0;
-    const out = metrics.totalOutstanding ?? 0;
-    const dealer = metrics.dealerCost ?? 0;
-    const profit = metrics.netProfit !== undefined ? metrics.netProfit : Number((inc - exp - dealer).toFixed(2));
+    const dealer = (metrics as any).subcontractorCost ?? (metrics as any).dealerCost ?? 0;
+    const profit = metrics.netProfit !== undefined ? metrics.netProfit : Number((inc - exp).toFixed(2));
 
     return {
       totalIncome: inc,
       totalExpenses: exp,
-      totalOutstanding: out,
       dealerCost: dealer,
+      subcontractorCost: dealer,
       netProfit: profit,
       grossBilling: inc,
       totalReceived: (metrics as any).totalReceived ?? inc,
@@ -307,9 +305,9 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     ? otherAccountCards
     : otherAccountCards.slice(0, VISIBLE_LIMIT);
 
-  // TOP 5-CARD PERFORMANCE SUMMARY DASHBOARD (P&L Tracking Model)
-  const topFiveCards = (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+  // TOP 3-CARD PERFORMANCE SUMMARY DASHBOARD (P&L Tracking Model)
+  const topThreeCards = (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* CARD 1: TOTAL INCOME */}
       <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-emerald-300 transition-all flex flex-col justify-between">
         <div>
@@ -348,57 +346,13 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
               -{formatCurrency(activeSummaryMetrics.totalExpenses)}
             </span>
             <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-              Cash Out (Debit)
+              Debit &amp; Subcontractor Costs
             </span>
           </div>
         </div>
       </div>
 
-      {/* CARD 3: TOTAL OUTSTANDING */}
-      <div className="bg-amber-50/50 border border-amber-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-amber-300 transition-all flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-              TOTAL OUTSTANDING
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-100/90 border border-amber-300/80 text-amber-800 shadow-2xs flex items-center justify-center font-bold text-sm">
-              £
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-amber-900 block tracking-tight">
-              {formatCurrency(activeSummaryMetrics.totalOutstanding)}
-            </span>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-              Unpaid / Owing Balance
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 4: DEALER / SUBCONTRACTOR COST */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-slate-300 transition-all flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              DEALER / SUBCONTRACTOR COST
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-slate-200/90 border border-slate-300 text-slate-700 shadow-2xs flex items-center justify-center font-bold text-sm">
-              $
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-slate-800 block tracking-tight">
-              {formatCurrency(activeSummaryMetrics.dealerCost)}
-            </span>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
-              Verified Subcontractor
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 5: NET PROFIT */}
+      {/* CARD 3: NET PROFIT */}
       <div className={`border rounded-2xl shadow-xs p-4 sm:p-5 transition-all flex flex-col justify-between ${
         activeSummaryMetrics.netProfit >= 0
           ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'
@@ -448,7 +402,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
                 ? 'bg-emerald-200/70 text-emerald-900'
                 : 'bg-rose-200/70 text-rose-900'
             }`}>
-              Income - Expenses - Dealer Cost
+              Total Income - Total Expenses
             </span>
           </div>
         </div>
@@ -608,7 +562,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   if (displayMode === 'top_cards_only') {
     return (
       <div className="space-y-4 mb-2">
-        {topFiveCards}
+        {topThreeCards}
       </div>
     );
   }
@@ -623,7 +577,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 
   return (
     <div className="space-y-6 mb-6">
-      {topFiveCards}
+      {topThreeCards}
       {debtsAndAccountsSection}
     </div>
   );
