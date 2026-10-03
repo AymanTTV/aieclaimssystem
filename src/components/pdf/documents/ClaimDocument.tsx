@@ -5,7 +5,10 @@ import { Claim } from '../../../types';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
-import { formatInlineCompanyFooter, isValidPdfImageSrc } from '../../../utils/legalDocumentUtils';
+import SafePdfLogo from '../SafePdfLogo';
+import { formatInlineCompanyFooter, isValidPdfImageSrc, extractActiveCorporateEntityProfile } from '../../../utils/legalDocumentUtils';
+import { getResolvedTermsContent } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from '../claims/PdfTermsWarningNotice';
 
 interface ClaimDocumentProps {
   data: Claim;
@@ -13,6 +16,13 @@ interface ClaimDocumentProps {
 }
 
 const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) => {
+  const activeProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...data?.rental,
+    corporateEntityKey: data?.rental?.corporateEntityKey || (data as any)?.corporateEntityKey,
+    corporateEntityName: data?.rental?.corporateEntityName || (data as any)?.corporateEntityName,
+  });
+
   const page1Entity = companyDetails?.page1Entity || companyDetails;
   const page2Entity = companyDetails?.page2Entity || companyDetails;
   const page3Entity = companyDetails?.page3Entity || companyDetails;
@@ -33,11 +43,12 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
     ? companyDetails.logoUrl
     : aieClaimsLogo;
 
-  const p1Name = page1Entity?.fullName || page1Entity?.tradingName || 'AIE Claims LTD';
+  const p1Name = page1Entity?.fullName || page1Entity?.tradingName || activeProfile.companyName || 'AIE Claims LTD';
   const p1CustomHeader = page1Entity?.headerDisclaimer || companyDetails?.customHeaderText;
-  const p1Address = page1Entity?.officialAddress || 'United House, 39-41 North Road, London, N7 9DP';
-  const p1Phone = page1Entity?.phone || '+442080505337';
-  const p1Email = page1Entity?.email || 'claims@aieclaims.co.uk';
+  const p1Address = page1Entity?.officialAddress || activeProfile.companyAddress || 'United House, 39-41 North Road, London, N7 9DP';
+  const p1Phone = page1Entity?.phone || activeProfile.phone || '+442080505337';
+  const p1Email = page1Entity?.email || activeProfile.email || 'claims@aieclaims.co.uk';
+  const p1Website = page1Entity?.website || activeProfile.website || '';
 
   const p3Logo = isValidPdfImageSrc(page3Entity?.logoUrl)
     ? page3Entity.logoUrl
@@ -47,6 +58,7 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
   const p3Address = page3Entity?.officialAddress || p1Address;
   const p3Phone = page3Entity?.phone || p1Phone;
   const p3Email = page3Entity?.email || p1Email;
+  const p3Website = page3Entity?.website || p1Website;
 
   // Bank allocation details
   const activeBank = companyDetails?.selectedBank || {
@@ -60,10 +72,10 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
 
   // Dynamic footer text
   const p1FooterText = formatInlineCompanyFooter(
-    page1Entity || { isClaim: true, fullName: p1Name, officialAddress: p1Address, phone: p1Phone, email: p1Email }
+    page1Entity || { isClaim: true, fullName: p1Name, officialAddress: p1Address, phone: p1Phone, email: p1Email, website: p1Website }
   );
   const p3FooterText = formatInlineCompanyFooter(
-    page3Entity || { isClaim: true, fullName: p3Name, officialAddress: p3Address, phone: p3Phone, email: p3Email }
+    page3Entity || { isClaim: true, fullName: p3Name, officialAddress: p3Address, phone: p3Phone, email: p3Email, website: p3Website }
   );
 
   const licenseNo = data.clientInfo.driverLicenseNumber || 'N/A';
@@ -71,25 +83,24 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
     ? formatDate(data.clientInfo.licenseExpiry)
     : 'N/A';
 
-  const getPage3Content = () => {
-    if (page3Template === 'credit_hire_mitigation_terms') {
-      return [
-        '1. CREDIT HIRE & STORAGE MITIGATION: The Client hereby confirms that following the road traffic incident, a genuine and immediate business/personal need for a replacement mobility vehicle arose.',
-        '2. FINANCIAL INABILITY TO REPAIR IMMEDIATELY: The Client did not have access to alternative commercial or private vehicles and was unable to fund upfront repair or replacement without prejudice.',
-        '3. STORAGE & RECOVERY CHARGES: The Client assigns recovery rights for all incurred recovery, secure storage, and credit hire tariffs to the designated claims representative.',
-        '4. COOPERATION COVENANT: The Client agrees to assist the nominated solicitors in recovering costs from the fault insurer, including attending hearings if required.',
-      ];
+  const resolvedTermsData = getResolvedTermsContent(
+    {
+      documentScope: 'claims',
+      specificDocType: 'vd_claim_record',
+      hireType: 'claim',
+      isClaim: true,
+      targetPagePosition: 'page_3_terms',
+    },
+    {
+      ...companyDetails,
+      ...activeProfile,
+      fullName: p3Name,
+      officialAddress: p3Address,
+      phone: p3Phone,
+      email: p3Email,
+      website: p3Website,
     }
-    return (
-      companyDetails?.customTermsText ||
-      companyDetails?.customerTerms ||
-      companyDetails?.termsAndConditions ||
-      `1. Authority to Act: The Client irrevocably authorizes the Company to liaise, negotiate, and process all claims arising from the reported incident.\n2. Duty of Disclosure: The Client confirms that all statements, facts, and circumstances provided herein are true, complete, and accurate to the best of their knowledge.\n3. Third-Party Recovery: The Company reserves the right to instruct solicitors, engineers, and credit hire specialists to pursue indemnity from the fault insurer.\n4. Confidentiality & GDPR: All client and incident data will be processed strictly in compliance with prevailing UK Data Protection and GDPR laws.`
-    )
-      .split(/\r?\n+/)
-      .map((p: string) => p.trim())
-      .filter(Boolean);
-  };
+  );
 
   return (
     <Document>
@@ -97,9 +108,7 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
         {/* ========== HEADER ========== */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {isValidPdfImageSrc(p1Logo) && (
-              <Image src={p1Logo} style={styles.logo} />
-            )}
+            <SafePdfLogo src={p1Logo} companyName={p1Name} style={styles.logo} />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{p1Name}</Text>
@@ -111,6 +120,9 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
             <Text style={styles.companyDetail}>{p1Address}</Text>
             <Text style={styles.companyDetail}>Tel: {p1Phone}</Text>
             <Text style={styles.companyDetail}>Email: {p1Email}</Text>
+            {Boolean(p1Website) && (
+              <Text style={styles.companyDetail}>Web: {p1Website}</Text>
+            )}
           </View>
         </View>
 
@@ -424,9 +436,7 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
         <Page size="A4" style={[styles.page, { paddingBottom: 60 }]}>
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(p3Logo) && (
-                <Image src={p3Logo} style={styles.logo} />
-              )}
+              <SafePdfLogo src={p3Logo} companyName={p3Name} style={styles.logo} />
             </View>
             <View style={styles.headerRight}>
               <Text style={styles.companyName}>{p3Name}</Text>
@@ -438,20 +448,27 @@ const ClaimDocument: React.FC<ClaimDocumentProps> = ({ data, companyDetails }) =
               <Text style={styles.companyDetail}>{p3Address}</Text>
               <Text style={styles.companyDetail}>Tel: {p3Phone}</Text>
               <Text style={styles.companyDetail}>Email: {p3Email}</Text>
+              {Boolean(p3Website) && (
+                <Text style={styles.companyDetail}>Web: {p3Website}</Text>
+              )}
             </View>
           </View>
 
-          <View style={{ marginTop: 15, marginBottom: 15 }}>
-            <Text style={[styles.sectionTitle, { fontSize: 13, textDecoration: 'underline', marginBottom: 12 }]}>
-              {page3Template === 'credit_hire_mitigation_terms'
-                ? 'CREDIT HIRE MITIGATION & STORAGE DECLARATION'
-                : companyDetails?.customTermsTitle || 'TERMS AND CONDITIONS OF CLAIM MANAGEMENT'}
+          <View style={{ marginTop: 10, marginBottom: 10 }} wrap={true}>
+            <Text style={[styles.sectionTitle, { fontSize: 11, marginBottom: 8, paddingVertical: 4, paddingHorizontal: 8 }]}>
+              {resolvedTermsData.isConfigured
+                ? resolvedTermsData.title
+                : 'CLAIM MANAGEMENT TERMS & CONDITIONS'}
             </Text>
-            {getPage3Content().map((para: string, idx: number) => (
-              <Text key={idx} style={[styles.text, { fontSize: 8.5, lineHeight: 1.45, marginBottom: 6, textAlign: 'justify', color: '#374151' }]}>
-                {para}
-              </Text>
-            ))}
+            {resolvedTermsData.isConfigured && resolvedTermsData.paragraphs.length > 0 ? (
+              resolvedTermsData.paragraphs.map((para: string, idx: number) => (
+                <Text key={idx} wrap={true} style={[styles.text, { fontSize: 8.5, lineHeight: 1.35, marginBottom: 4.5, textAlign: 'justify', color: '#374151' }]}>
+                  {para}
+                </Text>
+              ))
+            ) : (
+              <PdfTermsWarningNotice message={resolvedTermsData.warningMessage} />
+            )}
           </View>
 
           <View style={styles.footer} fixed>

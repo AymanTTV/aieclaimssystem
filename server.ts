@@ -61,6 +61,33 @@ async function startServer() {
     });
   });
 
+  // Direct Stream Fallback Endpoint: streams inline PDF blob response (application/pdf)
+  app.get('/api/doc-stream', async (req: Request, res: Response) => {
+    try {
+      const url = req.query.url ? String(req.query.url) : '';
+      const filename = req.query.filename ? String(req.query.filename) : 'document.pdf';
+      if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        return res.status(400).json({ error: 'Valid HTTP/HTTPS document URL is required' });
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Failed to retrieve document from storage' });
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error('[doc-stream] Error streaming document:', err);
+      return res.status(500).json({ error: 'Internal error streaming document' });
+    }
+  });
+
   // Maintenance Financial Summary aggregation endpoint with server-side query filtering support
   app.get('/api/maintenance/summary', (req: Request, res: Response) => {
     try {

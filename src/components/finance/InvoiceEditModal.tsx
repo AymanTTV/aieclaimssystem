@@ -1,5 +1,5 @@
 // src/components/finance/InvoiceEditModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { doc, updateDoc, getDocs, collection, query, orderBy, where, writeBatch } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { InvoiceLineItem, Invoice, Account } from '../../types/finance'; 
@@ -17,12 +17,14 @@ import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal'; 
-import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, TrendingUp, TrendingDown, Percent, DollarSign } from 'lucide-react'; 
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, TrendingUp, TrendingDown, Percent, DollarSign, Building2 } from 'lucide-react'; 
 import Modal from '../ui/Modal';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 import { generateInvoicePDF } from '../../utils/invoicePdfGenerator';
 import { calculateProfitMetrics } from '../../utils/profitCalculator';
 import { fetchUnifiedProfitAndCosts, syncInvoiceRecord } from '../../services/unifiedSync.service';
+import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import { getAvailableCompanyEntities, buildEffectiveDocumentCompanyDetails } from '../../utils/entityBranding';
 
 interface InvoiceEditModalProps {
   invoice: Invoice;
@@ -67,6 +69,11 @@ const getNextInvoiceNumber = async (): Promise<string> => {
 const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, customers, accounts: propAccounts = [], groups = [], departments = [], onClose }) => {
   const { user } = useAuth();
   const { formatCurrency } = useFormattedDisplay();
+  const { companyDetails } = useCompanyDetails();
+  const availableEntities = useMemo(
+    () => getAvailableCompanyEntities(companyDetails),
+    [companyDetails]
+  );
   const [loading, setLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
@@ -172,8 +179,46 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
     isLoan: invoice.isLoan ?? false,
     transactionType: (invoice.isLoan ? 'EXPENSE' : 'INCOME') as 'EXPENSE' | 'INCOME',
     loanTransactionType: (invoice.loanTransactionType || 'expense') as 'expense' | 'income',
+    companyId: invoice.companyId || (invoice as any).issuingEntity || invoice.corporateEntityKey || 'entity_aie_skyline',
+    issuingEntity: invoice.issuingEntity || invoice.corporateEntityKey || (invoice.companyId?.startsWith('entity_') ? invoice.companyId.replace('entity_', '') : 'aie_skyline'),
+    corporateEntityKey: invoice.corporateEntityKey || invoice.issuingEntity || 'aie_skyline',
+    corporateEntityName: invoice.corporateEntityName || 'AIE Skyline Limited',
     uploadedDocument: null as File | null
   });
+
+  useEffect(() => {
+    if (availableEntities.length > 0 && invoice) {
+      const savedKey =
+        invoice.corporateEntityKey ||
+        invoice.issuingEntity ||
+        (invoice.companyId ? availableEntities.find(e => e.id === invoice.companyId || e.key === invoice.companyId)?.key : undefined);
+      if (savedKey) {
+        const matched = availableEntities.find(e => e.key === savedKey || e.id === savedKey);
+        if (matched) {
+          setFormData(prev => ({
+            ...prev,
+            companyId: matched.id || matched.key,
+            issuingEntity: matched.key,
+            corporateEntityKey: matched.key,
+            corporateEntityName: matched.fullName,
+          }));
+        }
+      }
+    }
+  }, [invoice, availableEntities]);
+
+  const handleEntityChange = (entityKey: string) => {
+    const ent = availableEntities.find(x => x.key === entityKey);
+    if (ent) {
+      setFormData(p => ({
+        ...p,
+        companyId: ent.id || ent.key,
+        issuingEntity: ent.key,
+        corporateEntityKey: ent.key,
+        corporateEntityName: ent.fullName,
+      }));
+    }
+  };
 
   useEffect(() => {
     const unsub = unifiedCategoryService.subscribe((cats) => {
@@ -429,6 +474,10 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           : 'income',
         accountFrom: formData.accountFrom || null,
         accountTo: formData.accountTo || null,
+        companyId: formData.companyId || 'entity_aie_skyline',
+        issuingEntity: formData.issuingEntity || formData.corporateEntityKey || 'aie_skyline',
+        corporateEntityKey: formData.corporateEntityKey || formData.issuingEntity || 'aie_skyline',
+        corporateEntityName: formData.corporateEntityName || 'AIE Skyline Limited',
         updatedAt: new Date()
       };
 
@@ -515,20 +564,22 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
           const pdfCustomer = customers.find(c => c.id === formData.customerId);
           
           let finalDocUrl = invoice.documentUrl || '';
+          const companyId = payload.companyId || payload.issuingEntity || payload.corporateEntityKey || 'entity_aie_skyline';
+          const blob = await generateInvoicePDF(
+            fullInv,
+            pdfVehicle
+          );
+          const stRef = ref(storage, `invoices/${companyId}/${invoice.id}.pdf`);
+          const snap = await uploadBytes(stRef, blob, {
+            contentType: 'application/pdf',
+            contentDisposition: `inline; filename="Invoice_${(fullInv.invoiceNumber || invoice.id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf"`
+          });
+          finalDocUrl = await getDownloadURL(snap.ref);
           if (formData.uploadedDocument) {
-             const stRef = ref(storage, `invoices/${invoice.id}/${formData.uploadedDocument.name}`);
-             const snap = await uploadBytes(stRef, formData.uploadedDocument);
-             finalDocUrl = await getDownloadURL(snap.ref);
-             await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: finalDocUrl });
-          } else {
-             const companyDetails = await getCompanyDetails();
-             if (companyDetails) {
-                finalDocUrl = await generateAndUploadDocument(
-                  InvoiceDocument, { ...fullInv, vehicle: pdfVehicle, customer: pdfCustomer }, 
-                  'invoices', invoice.id, 'invoices', companyDetails
-                );
-             }
+             const uploadRef = ref(storage, `invoices/${companyId}/${invoice.id}_attachment_${formData.uploadedDocument.name}`);
+             await uploadBytes(uploadRef, formData.uploadedDocument);
           }
+          await updateDoc(doc(db, 'invoices', invoice.id), { documentUrl: finalDocUrl });
 
           const groupsByVehicle = new Map<string, { net: number, vat: number, gross: number, vehicleName: string }>();
           lineItems.forEach(li => {
@@ -1091,6 +1142,66 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             />
         </div>
 
+        {/* Issuing Company / Entity Selection Field */}
+        <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200 space-y-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Issuing Company / Entity
+              </h4>
+            </div>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              Document Branding
+            </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Select Issuing Corporate Entity
+            </label>
+            <select
+              value={formData.issuingEntity || formData.corporateEntityKey || 'aie_skyline'}
+              onChange={(e) => handleEntityChange(e.target.value)}
+              className="block w-full px-3 py-2 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-2xs text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+            >
+              {availableEntities.map((ent) => (
+                <option key={ent.key} value={ent.key}>
+                  {ent.tradingName} — {ent.fullName} {ent.registrationNumber ? `(Co. #${ent.registrationNumber})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Selected Entity Visual Badge / Preview */}
+          {(() => {
+            const curEnt = availableEntities.find(x => x.key === (formData.issuingEntity || formData.corporateEntityKey)) || availableEntities[0];
+            if (!curEnt) return null;
+            return (
+              <div className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center gap-3">
+                <div className="w-9 h-9 bg-slate-50 rounded-md border border-slate-200 p-1 flex items-center justify-center shrink-0">
+                  {curEnt.logoUrl ? (
+                    <img src={curEnt.logoUrl} alt={curEnt.tradingName} className="w-full h-full object-contain" />
+                  ) : (
+                    <Building2 className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-slate-900 truncate">{curEnt.fullName}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {curEnt.tradingName}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {curEnt.officialAddress}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <div className="space-y-4">
             <label className="flex items-center space-x-2">
@@ -1289,14 +1400,18 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div
                 className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                  profitMetrics.netProfit >= 0
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'bg-slate-50 border-slate-200'
+                    : profitMetrics.netProfit >= 0
                     ? 'bg-emerald-50/80 border-emerald-200'
                     : 'bg-rose-50/80 border-rose-200'
                 }`}
               >
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
-                  <span>Live Net Profit</span>
-                  {profitMetrics.netProfit >= 0 ? (
+                  <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                  {profitMetrics.subcontractorCost <= 0 ? (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                  ) : profitMetrics.netProfit >= 0 ? (
                     <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                   ) : (
                     <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
@@ -1304,18 +1419,27 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                 </div>
                 <p
                   className={`text-base font-black font-mono mt-0.5 ${
-                    profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    profitMetrics.subcontractorCost <= 0
+                      ? 'text-slate-700'
+                      : profitMetrics.netProfit >= 0
+                      ? 'text-emerald-700'
+                      : 'text-rose-700'
                   }`}
                 >
-                  {profitMetrics.netProfit >= 0 ? '+' : ''}
-                  {formatCurrency(profitMetrics.netProfit)}
+                  {profitMetrics.subcontractorCost <= 0
+                    ? '£0.00'
+                    : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
                 </p>
-                <span className="text-[10px] text-slate-500">Customer Billed – Dealer Cost</span>
+                <span className="text-[10px] text-slate-500">
+                  {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Customer Billed – Dealer Cost'}
+                </span>
               </div>
 
               <div
                 className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                  profitMetrics.profitMarginPercent >= 0
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'bg-slate-50 border-slate-200'
+                    : profitMetrics.profitMarginPercent >= 0
                     ? 'bg-indigo-50/80 border-indigo-200'
                     : 'bg-rose-50/80 border-rose-200'
                 }`}
@@ -1326,12 +1450,18 @@ const InvoiceEditModal: React.FC<InvoiceEditModalProps> = ({ invoice, vehicles, 
                 </div>
                 <p
                   className={`text-base font-black font-mono mt-0.5 ${
-                    profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                    profitMetrics.subcontractorCost <= 0
+                      ? 'text-slate-700'
+                      : profitMetrics.profitMarginPercent >= 0
+                      ? 'text-indigo-700'
+                      : 'text-rose-700'
                   }`}
                 >
-                  {profitMetrics.profitMarginPercent.toFixed(1)}%
+                  {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
                 </p>
-                <span className="text-[10px] text-slate-500">Margin on billed</span>
+                <span className="text-[10px] text-slate-500">
+                  {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Margin on billed'}
+                </span>
               </div>
             </div>
           </div>

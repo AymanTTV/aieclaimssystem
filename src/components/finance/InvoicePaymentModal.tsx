@@ -466,14 +466,18 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <div
               className={`p-2 rounded-lg border flex flex-col justify-between ${
-                profitMetrics.netProfit >= 0
+                profitMetrics.subcontractorCost <= 0
+                  ? 'bg-slate-50 border-slate-200'
+                  : profitMetrics.netProfit >= 0
                   ? 'bg-emerald-50/80 border-emerald-200'
                   : 'bg-rose-50/80 border-rose-200'
               }`}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
-                <span>Live Net Profit</span>
-                {profitMetrics.netProfit >= 0 ? (
+                <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                {profitMetrics.subcontractorCost <= 0 ? (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                ) : profitMetrics.netProfit >= 0 ? (
                   <TrendingUp className="w-3 h-3 text-emerald-600" />
                 ) : (
                   <TrendingDown className="w-3 h-3 text-rose-600" />
@@ -481,18 +485,27 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
               </div>
               <p
                 className={`text-sm font-black font-mono mt-0.5 ${
-                  profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'text-slate-700'
+                    : profitMetrics.netProfit >= 0
+                    ? 'text-emerald-700'
+                    : 'text-rose-700'
                 }`}
               >
-                {profitMetrics.netProfit >= 0 ? '+' : ''}
-                {formatCurrency(profitMetrics.netProfit)}
+                {profitMetrics.subcontractorCost <= 0
+                  ? '£0.00'
+                  : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
               </p>
-              <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+              <span className="text-[9px] text-slate-500">
+                {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Customer Billed – Dealer Cost'}
+              </span>
             </div>
 
             <div
               className={`p-2 rounded-lg border flex flex-col justify-between ${
-                profitMetrics.profitMarginPercent >= 0
+                profitMetrics.subcontractorCost <= 0
+                  ? 'bg-slate-50 border-slate-200'
+                  : profitMetrics.profitMarginPercent >= 0
                   ? 'bg-indigo-50/80 border-indigo-200'
                   : 'bg-rose-50/80 border-rose-200'
               }`}
@@ -503,12 +516,18 @@ const InvoicePaymentModal: React.FC<InvoicePaymentModalProps> = ({
               </div>
               <p
                 className={`text-sm font-black font-mono mt-0.5 ${
-                  profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'text-slate-700'
+                    : profitMetrics.profitMarginPercent >= 0
+                    ? 'text-indigo-700'
+                    : 'text-rose-700'
                 }`}
               >
-                {profitMetrics.profitMarginPercent.toFixed(1)}%
+                {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
               </p>
-              <span className="text-[9px] text-slate-500">Margin on billed</span>
+              <span className="text-[9px] text-slate-500">
+                {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Margin on billed'}
+              </span>
             </div>
           </div>
         </div>

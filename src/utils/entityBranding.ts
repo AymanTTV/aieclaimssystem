@@ -3,6 +3,11 @@
 import defaultSkylineLogo from '../assets/logo.png';
 import defaultClaimsLogo from '../assets/aieclaim.png';
 import defaultCompanySignature from '../assets/signiture.png';
+import {
+  AIE_SKYLINE_LOGO_BASE64,
+  AIE_CLAIMS_LOGO_BASE64,
+  resolveCompanyLogo,
+} from './companyLogoResolver';
 
 export interface CompanyEntity {
   id: string;
@@ -60,7 +65,7 @@ export const PRESET_COMPANY_ENTITIES: CompanyEntity[] = [
     phone: '020 1234 5678',
     email: 'info@aieskyline.co.uk',
     website: 'www.aieskyline.co.uk',
-    logoUrl: defaultSkylineLogo,
+    logoUrl: AIE_SKYLINE_LOGO_BASE64,
     signatureUrl: defaultCompanySignature,
     headerDisclaimer: 'Premier Fleet Solutions & Vehicle Hire Management',
     footerDisclaimer:
@@ -79,7 +84,7 @@ export const PRESET_COMPANY_ENTITIES: CompanyEntity[] = [
     phone: '+442080505337',
     email: 'claims@aieclaims.co.uk',
     website: 'www.aieclaims.co.uk',
-    logoUrl: defaultClaimsLogo,
+    logoUrl: AIE_CLAIMS_LOGO_BASE64,
     signatureUrl: defaultCompanySignature,
     headerDisclaimer: 'Accident Management & Credit Hire Claims Recovery',
     footerDisclaimer:
@@ -98,13 +103,51 @@ export const PRESET_COMPANY_ENTITIES: CompanyEntity[] = [
     phone: '020 8900 1212',
     email: 'dispatch@skylinecabs.co.uk',
     website: 'www.skylinecabs.co.uk',
-    logoUrl: defaultSkylineLogo,
+    logoUrl: AIE_SKYLINE_LOGO_BASE64,
     signatureUrl: defaultCompanySignature,
     headerDisclaimer: 'Licensed Private Hire & Chauffeur Services',
     footerDisclaimer:
       'Skyline Cabs & Transportation Ltd, registered in England and Wales (Company No: 14882190)\nRegistered Office: United House, 39-41 North Road, London, N7 9DP.',
     isDefault: false,
     assignedModules: ['rentals', 'vehicles'],
+  },
+  {
+    id: 'entity_sayarah_ijaraha',
+    key: 'sayarah_ijaraha',
+    fullName: 'Sayarah Ijaraha Limited',
+    tradingName: 'Sayarah Ijarah',
+    registrationNumber: '14992011',
+    vatNumber: '453448875',
+    officialAddress: 'United House, 39-41 North Road, London, N7 9DP',
+    phone: '020 8050 5337',
+    email: 'info@sayarahijarah.co.uk',
+    website: 'www.sayarahijarah.co.uk',
+    logoUrl: AIE_SKYLINE_LOGO_BASE64,
+    signatureUrl: defaultCompanySignature,
+    headerDisclaimer: 'Islamic Vehicle Lease & Hire Purchase Solutions',
+    footerDisclaimer:
+      'Sayarah Ijaraha Limited, registered in England and Wales (Company No: 14992011)\nRegistered Office: United House, 39-41 North Road, London, N7 9DP.',
+    isDefault: false,
+    assignedModules: ['rentals', 'invoices'],
+  },
+  {
+    id: 'entity_taxis_solutions',
+    key: 'taxis_solutions',
+    fullName: 'Taxis Solutions Ltd',
+    tradingName: 'Taxis Solutions',
+    registrationNumber: '15124098',
+    vatNumber: '453448875',
+    officialAddress: 'United House, 39-41 North Road, London, N7 9DP',
+    phone: '020 8900 1212',
+    email: 'operations@taxissolutions.co.uk',
+    website: 'www.taxissolutions.co.uk',
+    logoUrl: AIE_SKYLINE_LOGO_BASE64,
+    signatureUrl: defaultCompanySignature,
+    headerDisclaimer: 'Specialist PCO & Taxi Fleet Management Services',
+    footerDisclaimer:
+      'Taxis Solutions Ltd, registered in England and Wales (Company No: 15124098)\nRegistered Office: United House, 39-41 North Road, London, N7 9DP.',
+    isDefault: false,
+    assignedModules: ['rentals', 'invoices'],
   },
   {
     id: 'entity_third_party',
@@ -150,7 +193,7 @@ export const getAvailableCompanyEntities = (companyDetails?: any): CompanyEntity
       logoUrl: companyDetails.logoUrl || PRESET_COMPANY_ENTITIES[0].logoUrl,
     };
 
-    return [customizedSkyline, PRESET_COMPANY_ENTITIES[1], PRESET_COMPANY_ENTITIES[2]];
+    return [customizedSkyline, ...PRESET_COMPANY_ENTITIES.slice(1)];
   }
 
   return PRESET_COMPANY_ENTITIES;
@@ -184,10 +227,16 @@ export const buildEffectiveDocumentCompanyDetails = (
     return found || entity;
   };
 
-  const pageMapping = overrides?.pageTemplateMapping;
-  const page1Entity = resolveEntity(pageMapping?.page1EntityKey);
-  const page2Entity = resolveEntity(pageMapping?.page2EntityKey);
-  const page3Entity = resolveEntity(pageMapping?.page3EntityKey);
+  const pageMapping = overrides?.pageTemplateMapping || baseCompanyDetails?.pageTemplateMapping;
+  const page1Entity = overrides?.pageTemplateMapping?.page1EntityKey
+    ? resolveEntity(overrides.pageTemplateMapping.page1EntityKey)
+    : entity;
+  const page2Entity = overrides?.pageTemplateMapping?.page2EntityKey
+    ? resolveEntity(overrides.pageTemplateMapping.page2EntityKey)
+    : entity;
+  const page3Entity = overrides?.pageTemplateMapping?.page3EntityKey
+    ? resolveEntity(overrides.pageTemplateMapping.page3EntityKey)
+    : entity;
 
   const merged = {
     ...baseCompanyDetails,
@@ -201,7 +250,15 @@ export const buildEffectiveDocumentCompanyDetails = (
     phone: overrides?.phone || entity.phone,
     email: overrides?.email || entity.email,
     website: overrides?.website || entity.website,
-    logoUrl: overrides?.logoUrl || entity.logoUrl || baseCompanyDetails?.logoUrl,
+    logoUrl: resolveCompanyLogo(
+      {
+        key: entity.key,
+        fullName: overrides?.fullName || entity.fullName,
+        tradingName: overrides?.tradingName || entity.tradingName,
+        logoUrl: overrides?.logoUrl || entity.logoUrl || baseCompanyDetails?.logoUrl,
+      },
+      overrides?.fullName || entity.fullName
+    ),
     signatureUrl: overrides?.signatureUrl || entity.signatureUrl || baseCompanyDetails?.signatureUrl,
     customHeaderText: overrides?.customHeaderText || entity.headerDisclaimer || '',
     customFooterText: overrides?.customFooterText || entity.footerDisclaimer || '',
@@ -241,11 +298,12 @@ export const getDefaultEntityKeyForDocument = (
   };
 
   const doc = (documentType || '').toLowerCase();
+  // Requirement 1: Hire Agreement defaults to AIE Skyline Limited (aie_skyline)
+  if (doc.includes('hire') || doc.includes('rental') || doc.includes('agreement')) {
+    return mapping.rentalsEntityKey || 'aie_skyline';
+  }
   if (doc.includes('claim')) {
     return mapping.claimsEntityKey || 'aie_claims';
-  }
-  if (doc.includes('rental') || doc.includes('hire')) {
-    return mapping.rentalsEntityKey || 'aie_skyline';
   }
   if (doc.includes('invoice')) {
     return mapping.invoicesEntityKey || 'aie_skyline';
@@ -459,6 +517,15 @@ export const getManagerDefaultsForDocType = (
 ): DocumentTypeDefaultSettings => {
   const doc = (documentType || '').toLowerCase();
   const defaults = companyDetails?.managerDocumentDefaults;
+
+  // Requirement 1: Hire Agreement explicitly defaults to rental defaults (aie_skyline)
+  if (doc.includes('hire') || doc.includes('rental') || doc.includes('agreement')) {
+    return {
+      ...DEFAULT_MANAGER_DOCUMENT_DEFAULTS.rental,
+      ...(defaults?.rental || {}),
+      entityKey: 'aie_skyline',
+    };
+  }
 
   if (doc.includes('claim') || doc.includes('condition')) {
     return {

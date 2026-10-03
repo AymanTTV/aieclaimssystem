@@ -23,21 +23,21 @@ export const getShareableBaseOrigin = (): string => {
 };
 
 /**
- * Generates a clean, unique client web link for any document.
- * E.g., https://aieskyline.co.uk/view-doc?id=DOC_ID&type=invoice&ref=INV-1001&bank=bank_lloyds
+ * Generates a clean, unique client web link for any document using authentic database record ID.
+ * E.g., https://aieskyline.co.uk/doc/[realRentalId]/hireAgreement
  */
 export const generateShareableDocumentUrl = (params: ShareableDocumentParams): string => {
   if (params.customUrl) return params.customUrl;
 
   const baseOrigin = getShareableBaseOrigin();
-  const docId = params.docId || params.reference || 'DOC_PREVIEW';
-  const docType = params.documentType || 'document';
+  const docId = params.docId || params.reference;
+  if (!docId) {
+    throw new Error('Valid database record ID is required to generate document share URL');
+  }
+  const docType = params.documentType || 'hireAgreement';
 
   const queryParams = new URLSearchParams();
-  queryParams.set('id', docId);
-  queryParams.set('type', docType);
-
-  if (params.reference) {
+  if (params.reference && params.reference !== docId) {
     queryParams.set('ref', params.reference);
   }
   if (params.bankId) {
@@ -47,16 +47,39 @@ export const generateShareableDocumentUrl = (params: ShareableDocumentParams): s
     queryParams.set('customerId', params.customerId);
   }
 
-  return `${baseOrigin}/view-doc?${queryParams.toString()}`;
+  const qs = queryParams.toString();
+  return `${baseOrigin}/doc/${encodeURIComponent(docId)}/${encodeURIComponent(docType)}${qs ? `?${qs}` : ''}`;
 };
 
 /**
- * Generates direct UK Open Banking "Pay by Bank" URL for any invoice.
+ * Generates direct UK Open Banking "Pay by Bank" URL for any invoice or rental.
  * E.g., https://aieskyline.co.uk/invoice-pay?id=INV_1001
  */
-export const generateInvoicePayUrl = (invoiceId: string): string => {
+export const generateInvoicePayUrl = (invoiceOrRentalId: string, liveBalance?: number): string => {
   const baseOrigin = getShareableBaseOrigin();
-  return `${baseOrigin}/invoice-pay?id=${encodeURIComponent(invoiceId)}`;
+  const q = new URLSearchParams();
+  q.set('id', invoiceOrRentalId);
+  if (liveBalance !== undefined && liveBalance > 0) {
+    q.set('amount', liveBalance.toFixed(2));
+  }
+  return `${baseOrigin}/invoice-pay?${q.toString()}`;
+};
+
+/**
+ * Generates dedicated client Signature Request URL.
+ * E.g., https://aieskyline.co.uk/sign/cust_123?rentalId=rent_456
+ */
+export const generateSignatureRequestUrl = (params: {
+  customerId: string;
+  rentalId?: string;
+  token?: string;
+}): string => {
+  const baseOrigin = getShareableBaseOrigin();
+  const q = new URLSearchParams();
+  if (params.token) q.set('token', params.token);
+  if (params.rentalId) q.set('rentalId', params.rentalId);
+  const queryStr = q.toString();
+  return `${baseOrigin}/sign/${encodeURIComponent(params.customerId)}${queryStr ? `?${queryStr}` : ''}`;
 };
 
 /**
@@ -81,21 +104,30 @@ export interface WhatsAppShareOptions {
   documentTitle: string;
   shareUrl: string;
   payUrl?: string;
+  signatureUrl?: string;
+  outstandingBalance?: number;
 }
 
 /**
- * Constructs a one-click WhatsApp send link with pre-filled message according to specifications:
- * "Hello [Customer Name], here is your document from AIE Skyline: [Document Title].
- *  Please click the link to review, sign, and view payment details: [Shareable Link]"
+ * Constructs a clean WhatsApp share link with direct PDF document view
+ * and strictly separate dedicated signature and payment links.
  */
 export const generateWhatsAppShareUrl = (options: WhatsAppShareOptions): string => {
   const customerName = (options.customerName || 'Valued Customer').trim();
   const documentTitle = options.documentTitle.trim();
   const shareUrl = options.shareUrl.trim();
 
-  let message = `Hello ${customerName}, here is your document from AIE Skyline: ${documentTitle}. Please click the link to review, sign, and view payment details: ${shareUrl}`;
+  let message = `Hello ${customerName}, here is your document from AIE Skyline: ${documentTitle}.\n\nPlease click the link to view and download your document directly:\n${shareUrl}`;
+
+  if (options.signatureUrl) {
+    message += `\n\n✍️ Dedicated E-Signature Request:\n${options.signatureUrl}`;
+  }
+
   if (options.payUrl) {
-    message += `\n\nInstant UK Pay by Bank (FaceID / Open Banking): ${options.payUrl}`;
+    const balText = options.outstandingBalance !== undefined && options.outstandingBalance > 0
+      ? ` (Balance: £${options.outstandingBalance.toFixed(2)})`
+      : '';
+    message += `\n\n💳 Instant UK Pay by Bank${balText}:\n${options.payUrl}`;
   }
 
   const cleanPhone = formatPhoneForWhatsApp(options.phone);
@@ -121,6 +153,8 @@ export interface EmailShareOptions {
   };
   shareUrl: string;
   payUrl?: string;
+  signatureUrl?: string;
+  outstandingBalance?: number;
 }
 
 /**
@@ -141,28 +175,39 @@ export const generateEmailShareData = (options: EmailShareOptions) => {
   const bodyLines = [
     `Hello ${customerName},`,
     '',
-    `Your document from AIE Skyline is ready for review:`,
+    `Your official document from AIE Skyline is ready for review:`,
     `• Document: ${documentTitle}`,
     `• Reference: ${reference}`,
     '',
-    `Payment & Settlement Notice:`,
-    `• Bank: ${bankName}`,
-    `• Sort Code: ${sortCode}`,
-    `• Account Number: ${accountNumber}`,
+    `Direct Document Link:`,
+    shareUrl,
     '',
   ];
 
-  if (options.payUrl) {
+  if (options.signatureUrl) {
     bodyLines.push(
-      `Instant UK Open Banking Pay by Bank (Zero fee, One-tap FaceID / TouchID transfer):`,
+      `Dedicated E-Signature Request Link:`,
+      options.signatureUrl,
+      ''
+    );
+  }
+
+  if (options.payUrl) {
+    const balText = options.outstandingBalance !== undefined && options.outstandingBalance > 0
+      ? ` (Outstanding Balance: £${options.outstandingBalance.toFixed(2)})`
+      : '';
+    bodyLines.push(
+      `Instant UK Open Banking Pay by Bank${balText}:`,
       options.payUrl,
       ''
     );
   }
 
   bodyLines.push(
-    `Please click the link below to review your document, verify payment details & QR code, and execute your e-signature:`,
-    shareUrl,
+    `Bank Remittance Details:`,
+    `• Bank: ${bankName}`,
+    `• Sort Code: ${sortCode}`,
+    `• Account Number: ${accountNumber}`,
     '',
     `Thank you,`,
     `AIE Skyline Team`

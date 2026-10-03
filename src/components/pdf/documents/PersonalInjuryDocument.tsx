@@ -185,7 +185,7 @@ const PersonalInjuryDocument: React.FC<PersonalInjuryDocumentProps> = ({ data, c
     {/* Declaration */}
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Declaration</Text>
-      <View style={styles.signatureSection}>
+      <View style={styles.signatureSection} wrap={false} minPresenceAhead={150}>
         <View style={styles.signatureBox}>
           <Text>Claimant Signature:</Text>
           {data.signature && (

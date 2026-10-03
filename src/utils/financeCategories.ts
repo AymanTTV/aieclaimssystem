@@ -3,6 +3,7 @@
 export const FINANCE_CATEGORIES = {
   income: {
     'Vehicle Rental & Claims Income': [
+      'Vehicle Rental Income',
       'Rental',
       'Aie Claim Vdhspi',
       'Skyline Cabs Commission Income',

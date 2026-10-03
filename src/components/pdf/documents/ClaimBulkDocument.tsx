@@ -9,6 +9,7 @@ import { format } from 'date-fns' // Used for formatDate, keeping
 import { formatDate } from '../../../utils/dateHelpers'
 import aieClaimsLogo from '../../../assets/aieclaim.png';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
+import SafePdfLogo from '../SafePdfLogo';
 
 interface ClaimBulkDocumentProps {
   records: Claim[]
@@ -55,7 +56,7 @@ const ClaimBulkDocument: React.FC<ClaimBulkDocumentProps> = ({
             {/* HEADER */}
              <View style={styles.header} fixed>
               <View style={styles.headerLeft}>
-                <Image src={headerDetails.logoUrl} style={styles.logo} />
+                <SafePdfLogo src={headerDetails.logoUrl} companyName={headerDetails.fullName} style={styles.logo} />
               </View>
               <View style={styles.headerRight}>
                 <Text style={styles.companyName}>{headerDetails.fullName}</Text>

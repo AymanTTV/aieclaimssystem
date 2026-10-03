@@ -283,7 +283,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           { name: resolveLabel(ROUTES.CLAIMS), href: ROUTES.CLAIMS, icon: resolveIcon(ROUTES.CLAIMS), permission: resolvePerm(ROUTES.CLAIMS) },
           { name: resolveLabel(ROUTES.VD_FINANCE), href: ROUTES.VD_FINANCE, icon: resolveIcon(ROUTES.VD_FINANCE), permission: resolvePerm(ROUTES.VD_FINANCE) },
           { name: resolveLabel(ROUTES.VD_INVOICE) || 'VD Invoice', href: ROUTES.VD_INVOICE, icon: resolveIcon(ROUTES.VD_INVOICE), permission: resolvePerm(ROUTES.VD_INVOICE) },
-          { name: resolveLabel(ROUTES.SHARE), href: ROUTES.SHARE, icon: resolveIcon(ROUTES.SHARE), permission: resolvePerm(ROUTES.SHARE) ?? { module: 'share', action: 'view' } },
           { name: resolveLabel(ROUTES.ACCIDENTS), href: ROUTES.ACCIDENTS, icon: resolveIcon(ROUTES.ACCIDENTS), permission: resolvePerm(ROUTES.ACCIDENTS) },
         ],
       },

@@ -70,6 +70,16 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /companySettings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     match /messageTemplates/{templateId} {
       allow read: if true;
       allow write: if isAuthenticated();

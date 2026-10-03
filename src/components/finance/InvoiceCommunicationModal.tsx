@@ -499,8 +499,12 @@ export const InvoiceCommunicationModal: React.FC<InvoiceCommunicationModalProps>
         : (invoice.rentalId 
             ? `${origin}/doc/${encodeURIComponent(invoice.rentalId)}/invoice`
             : `${origin}/view-document?rentalId=${encodeURIComponent(invoice.id)}&docType=invoice`);
+      const liveBal = invoice.remainingAmount !== undefined && invoice.remainingAmount > 0
+        ? invoice.remainingAmount
+        : Math.max(0, (invoice.total || invoice.amount || 0) - (invoice.paidAmount || 0));
+      const balStr = liveBal > 0 ? ` (Balance: £${liveBal.toFixed(2)})` : '';
       lines.push(`• Invoice #${invoice.invoiceNumber || invoice.id}:\n  ${invUrl}`);
-      lines.push(`• UK Pay by Bank (Open Banking Instant Transfer):\n  ${origin}/invoice-pay?id=${encodeURIComponent(invoice.id)}`);
+      lines.push(`• UK Pay by Bank (Open Banking Instant Transfer)${balStr}:\n  ${origin}/invoice-pay?id=${encodeURIComponent(invoice.id)}`);
     }
 
     if (includeHireAgreement && (invoice?.rentalId || (invoice as any)?.rentalAgreementNumber)) {

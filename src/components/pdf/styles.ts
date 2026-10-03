@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
     textAlign: 'right',
   },
   logo: {
-    width: 100,
+    width: 150,
     height: 'auto',
     objectFit: 'contain',
   },
@@ -288,8 +288,16 @@ export const styles = StyleSheet.create({
   termsText: {
     fontSize: 9,
     color: '#374151',
-    lineHeight: 1.3,
-    marginBottom: 7,
+    lineHeight: 1.35,
+    marginBottom: 4.5,
+    textAlign: 'justify',
+  },
+  trailingTermsText: {
+    fontSize: 8.5,
+    color: '#374151',
+    lineHeight: 1.35,
+    marginBottom: 4,
+    textAlign: 'justify',
   },
 
   // --- Summary Row Text Colors (no background) ---
@@ -389,11 +397,14 @@ export const styles = StyleSheet.create({
     color: '#4B5563',
   },
   signatureSection: {
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   signatureBox: {
     width: '45%',

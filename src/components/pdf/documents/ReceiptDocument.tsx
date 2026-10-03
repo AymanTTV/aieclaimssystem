@@ -3,6 +3,8 @@
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import { Transaction } from '../../../types/finance';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 
 interface ReceiptDocumentProps {
   data: Transaction;

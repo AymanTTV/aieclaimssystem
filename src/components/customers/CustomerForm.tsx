@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import CustomerSignature from './CustomerSignature';
 import { combineFullName, combineFullAddress, splitFullName, splitFullAddress } from '../../utils/nameAddressUtils';
 import { formatSignatureTimestamp, stampSignatureImage } from '../../utils/signatureStamp';
+import { saveSignatureEverywhere, propagateCustomerSignatureToRentalsAndClaims } from '../../utils/signatureStorage';
 import { CustomerAvatar } from './CustomerAvatar';
 import { uploadProfilePicture, compressImageFile } from '../../utils/imageUtils';
 
@@ -308,11 +309,20 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
           signature: finalSignature,
           signatureTimestamp: sigTimestamp || null,
           signedAt: signedAt || null,
+          documentStatus: finalSignature ? 'Legally Signed & Verified' : null,
           termsAccepted: Boolean(finalSignature && termsAccepted),
           termsAcceptedAt: Boolean(finalSignature && termsAccepted) ? (customer?.termsAcceptedAt || new Date()) : null,
         };
         
         const docPath = customer?.id || doc(collection(db, 'customers')).id;
+
+        if (finalSignature) {
+          saveSignatureEverywhere(docPath, finalSignature, {
+            customerId: docPath,
+            customerName: formData.name,
+            autoUpdateFirestore: false,
+          }).catch(() => {});
+        }
 
         if (documents.licenseFront) {
           const storageRef = ref(storage, `customers/${docPath}/license-front`);
@@ -333,9 +343,21 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onClose }) => {
 
       if (customer) {
         await updateDoc(doc(db, 'customers', customer.id), { ...customerData, ...documentUrls });
+        if (finalSignature) {
+          propagateCustomerSignatureToRentalsAndClaims(customer.id, finalSignature, {
+            customerData: { ...customerData, id: customer.id },
+            timestampText: sigTimestamp || undefined,
+          }).catch((err) => console.warn('Signature propagation error:', err));
+        }
         toast.success('Customer updated successfully');
       } else {
-        await addDoc(collection(db, 'customers'), { ...customerData, ...documentUrls });
+        const newCustRef = await addDoc(collection(db, 'customers'), { ...customerData, ...documentUrls });
+        if (finalSignature) {
+          propagateCustomerSignatureToRentalsAndClaims(newCustRef.id, finalSignature, {
+            customerData: { ...customerData, id: newCustRef.id },
+            timestampText: sigTimestamp || undefined,
+          }).catch((err) => console.warn('Signature propagation error:', err));
+        }
         toast.success('Customer added successfully');
       }
       onClose();

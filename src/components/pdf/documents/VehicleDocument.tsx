@@ -4,6 +4,8 @@ import { Page, Text, View, Document, Image, StyleSheet } from '@react-pdf/render
 import { Vehicle } from '../../../types';
 import { format } from 'date-fns';
 import { styles } from '../styles';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface VehicleDocumentProps {
@@ -73,9 +75,11 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data: vehicle, compan
         {/* Header */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {!!companyDetails?.logoUrl && (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            )}
+            <SafePdfLogo
+              src={companyDetails?.logoUrl}
+              companyName={companyDetails?.fullName || 'AIE Skyline Limited'}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
@@ -315,9 +319,11 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data: vehicle, compan
         {/* Repeated Header */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {!!companyDetails?.logoUrl && (
-              <Image src={companyDetails.logoUrl} style={styles.logo} />
-            )}
+            <SafePdfLogo
+              src={companyDetails?.logoUrl}
+              companyName={companyDetails?.fullName || 'AIE Skyline Limited'}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
@@ -329,7 +335,7 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data: vehicle, compan
 
         {/* Centered Vehicle Image */}
         <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 15 }}>
-          {!!(vehicle as any)?.image ? (
+          {isValidPdfImageSrc((vehicle as any)?.image) ? (
             <Image 
               src={(vehicle as any).image} 
               style={{ width: 320, height: 180, objectFit: 'contain', borderRadius: 8 }} 
@@ -354,7 +360,7 @@ const VehicleDocument: React.FC<VehicleDocumentProps> = ({ data: vehicle, compan
 
           {/* Conditional Signatures for "Other Owners" */}
           {!isAIESkyline && (
-            <View style={localStyles.signatureSection} wrap={false}>
+            <View style={localStyles.signatureSection} wrap={false} minPresenceAhead={150}>
               <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
                 {/* Blank space for owner to physically sign, or if they had a digital signature it would go here */}
                 <View style={{ height: 25, marginVertical: 2 }}></View>
@@ -397,12 +403,15 @@ export default VehicleDocument;
 // --- Local Styles for Signatures and Terms ---
 const localStyles = StyleSheet.create({
   signatureSection: {
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   compactBox: {
     padding: 5,

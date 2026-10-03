@@ -7,6 +7,8 @@ import StatusBadge from '../ui/StatusBadge';
 import { format } from 'date-fns';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 
@@ -51,7 +53,20 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   };
 
   const isOverdue = (invoice: Invoice): boolean => {
-    return (invoice.remainingAmount > 0) && new Date() > new Date(invoice.dueDate);
+    const hasPayments = Array.isArray(invoice.payments);
+    const paymentsSum = hasPayments
+      ? (invoice.payments || []).reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0)
+      : 0;
+    const paid = hasPayments
+      ? paymentsSum
+      : Math.max(0, Number(invoice.paidAmount ?? invoice.paid ?? 0));
+    const billed = Math.max(0, Number(invoice.customerBilled ?? invoice.total ?? invoice.amount ?? 0));
+    const owing = hasPayments
+      ? Math.max(0, Number((billed - paid).toFixed(2)))
+      : (invoice.remainingAmount !== undefined && invoice.remainingAmount !== null ? Number(invoice.remainingAmount) : Math.max(0, Number((billed - paid).toFixed(2))));
+
+    const dueDateObj = (invoice.dueDate as any)?.toDate ? (invoice.dueDate as any).toDate() : new Date(invoice.dueDate);
+    return owing > 0.001 && !isNaN(dueDateObj.getTime()) && new Date() > dueDateObj;
   };
 
   const sortedInvoices = [...invoices].sort((a, b) => {
@@ -252,15 +267,27 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Status',
         cell: ({ row }: any) => {
           const inv = row.original;
-          // Dynamic Status Calculation: Derive status from owing (if owing <= 0 -> 'PAID', if paid > 0 -> 'PARTIALLY_PAID', else -> 'UNPAID')
+          const hasPayments = Array.isArray(inv.payments);
+          const paymentsSum = hasPayments
+            ? (inv.payments || []).reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0)
+            : 0;
+          const paid = hasPayments
+            ? paymentsSum
+            : Math.max(0, Number(inv.paidAmount ?? inv.paid ?? 0));
+          const billed = Math.max(0, Number(inv.customerBilled ?? inv.total ?? inv.amount ?? 0));
+          const owing = hasPayments
+            ? Math.max(0, Number((billed - paid).toFixed(2)))
+            : (inv.remainingAmount !== undefined && inv.remainingAmount !== null ? Number(inv.remainingAmount) : Math.max(0, Number((billed - paid).toFixed(2))));
+
+          // Dynamic Status Calculation: Derive status from owing/paid synced with payment history
           const displayStatus = derivePaymentStatus({
-            customerBilled: inv.customerBilled,
-            total: inv.total,
-            amount: inv.amount,
-            paidAmount: inv.paidAmount,
-            remainingAmount: inv.remainingAmount,
-            amountOwing: inv.amountOwing,
-            owing: inv.owing,
+            customerBilled: billed,
+            total: billed,
+            amount: billed,
+            paidAmount: paid,
+            paid: paid,
+            remainingAmount: owing,
+            owing: owing,
             payments: inv.payments
           });
 
@@ -281,50 +308,79 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
         header: 'Cost Breakdown',
         cell: ({ row }: any) => {
           const inv = row.original;
+          const hasPayments = Array.isArray(inv.payments);
+          const paymentsSum = hasPayments
+            ? (inv.payments || []).reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0)
+            : 0;
+          const paid = hasPayments
+            ? paymentsSum
+            : Math.max(0, Number(inv.paidAmount ?? inv.paid ?? 0));
+          const billed = Math.max(0, Number(inv.customerBilled !== undefined ? inv.customerBilled : (inv.total || inv.amount || 0)));
+          const owing = hasPayments
+            ? Math.max(0, Number((billed - paid).toFixed(2)))
+            : (inv.remainingAmount !== undefined && inv.remainingAmount !== null ? Number(inv.remainingAmount) : Math.max(0, Number((billed - paid).toFixed(2))));
+
           let sub = inv.subcontractorCost !== undefined ? Number(inv.subcontractorCost) : 0;
           if (sub <= 0 && Array.isArray(inv.lineItems)) {
             sub = inv.lineItems.reduce((acc: number, li: any) => acc + (Number(li.subcontractorCost) || 0), 0);
           }
-          const billed = inv.customerBilled !== undefined ? Number(inv.customerBilled) : (inv.total || inv.amount || 0);
-          const netProfit = inv.netProfit !== undefined ? Number(inv.netProfit) : (billed - sub);
-          const margin = inv.profitMarginPercent !== undefined ? Number(inv.profitMarginPercent) : (billed > 0 ? (netProfit / billed) * 100 : 0);
+          const billedTotal = billed;
+          const netProfit = inv.netProfit !== undefined ? Number(inv.netProfit) : (billedTotal - sub);
+          const margin = inv.profitMarginPercent !== undefined ? Number(inv.profitMarginPercent) : (billedTotal > 0 ? (netProfit / billedTotal) * 100 : 0);
           const hasSub = sub > 0;
+
+          // Standardized Cost Breakdown Color System:
+          // Billed Total: Orange (text-amber-600) if Owing > £0 (Awaiting Payment); Green (text-emerald-600) if Paid == Billed Total (Fully Collected)
+          const isFullyCollected = billedTotal > 0 && paid >= billedTotal - 0.001;
+          const billedColorClass = isFullyCollected ? 'text-emerald-600' : 'text-amber-600';
 
           return (
             <div className="text-sm space-y-0.5 min-w-[130px]">
-              <div className="flex justify-between font-bold text-[#D97706] border-b border-gray-100 pb-0.5">
+              {/* Billed Total: Orange if Owing > £0, Green if Paid == Billed Total */}
+              <div className={`flex justify-between font-bold border-b border-gray-100 pb-0.5 ${billedColorClass}`}>
                 <span>Billed Total:</span>
-                <span className="font-mono">{formatCurrency(billed)}</span>
+                <span className="font-mono">{formatCurrency(billedTotal)}</span>
               </div>
-              <div className="flex justify-between text-[#15803D] font-bold text-xs">
+
+              {/* Paid: Green (text-emerald-600) for all settled payment amounts (> £0.00), Muted Gray if £0.00 */}
+              <div className={`flex justify-between text-xs ${paid > 0.001 ? 'text-emerald-600 font-bold' : 'text-gray-400 font-normal'}`}>
                 <span>Paid:</span>
-                <span className="font-mono">{formatCurrency(inv.paidAmount)}</span>
+                <span className="font-mono">{formatCurrency(paid)}</span>
               </div>
-              <div className={`flex justify-between font-bold text-xs ${inv.remainingAmount > 0.001 ? 'text-[#DC2626]' : 'text-[#15803D]'}`}>
+
+              {/* Owing: Red (text-rose-600 / bold) for any unpaid balance remaining (> £0.00), Muted Gray if £0.00 */}
+              <div className={`flex justify-between text-xs ${owing > 0.001 ? 'text-rose-600 font-bold' : 'text-gray-400 font-normal'}`}>
                 <span>Owing:</span>
-                <span className="font-mono">{formatCurrency(inv.remainingAmount)}</span>
+                <span className="font-mono">{formatCurrency(owing)}</span>
               </div>
+
               {hasSub && (
                 <>
+                  {/* Dealer / Subcontractor Cost: Red (text-rose-500) representing out-of-pocket costs/expenses */}
                   <div className="pt-0.5 border-t border-dashed border-slate-200 flex justify-between text-[11px] font-medium text-slate-500">
                     <span>Dealer Cost:</span>
-                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                    <span className="font-mono font-bold text-rose-500">-{formatCurrency(sub)}</span>
                   </div>
+
+                  {/* Net Profit: Green (text-emerald-600) if Profit > £0.00, Red (text-rose-600) if Profit < £0.00 (Loss) */}
                   <div className="flex justify-between text-[11px] font-bold items-center pt-0.5">
-                    <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>Net Profit:</span>
-                    <span className={`font-mono ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                      {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
+                    <span className={netProfit > 0.001 ? 'text-emerald-600' : netProfit < -0.001 ? 'text-rose-600' : 'text-slate-600'}>Net Profit:</span>
+                    <span className={`font-mono ${netProfit > 0.001 ? 'text-emerald-600' : netProfit < -0.001 ? 'text-rose-600' : 'text-slate-600'}`}>
+                      {netProfit > 0.001 ? '+' : ''}{formatCurrency(netProfit)}
                     </span>
                   </div>
+
                   <div className="flex justify-end pt-0.5">
                     <span
                       className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
-                        margin >= 0
+                        margin > 0.001
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                          : margin < -0.001
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
                       }`}
                     >
-                      {margin.toFixed(1)}% Margin
+                      {margin > 0.001 ? '+' : ''}{margin.toFixed(1)}% Margin
                     </span>
                   </div>
                 </>

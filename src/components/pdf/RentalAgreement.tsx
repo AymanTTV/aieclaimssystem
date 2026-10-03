@@ -6,7 +6,11 @@ import { RENTAL_RATES } from '../../utils/rentalCalculations';
 import { format, addDays } from 'date-fns';
 import { formatDate } from '../../utils/dateHelpers';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
-import { getHireCommencementDate, formatInlineCompanyFooter, splitParagraphs } from '../../utils/legalDocumentUtils';
+import { getHireCommencementDate, formatExecutionDateTime, formatInlineCompanyFooter, splitParagraphs, sanitizeAndInterpolateTerms, extractActiveCorporateEntityProfile } from '../../utils/legalDocumentUtils';
+import { getAvailableCompanyEntities } from '../../utils/entityBranding';
+import { getResolvedTermsContent } from '../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './claims/PdfTermsWarningNotice';
+import SafePdfLogo from './SafePdfLogo';
 import { styles } from './styles';
 
 const localStyles = StyleSheet.create({
@@ -19,7 +23,7 @@ const localStyles = StyleSheet.create({
     borderColor: '#3B82F6',
     borderRadius: 6,
     padding: 7,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   hirerRow: {
     flexDirection: 'row',
@@ -42,36 +46,57 @@ const localStyles = StyleSheet.create({
     color: '#1F2937',
   },
   termsSection: {
-    marginBottom: 5,
-    paddingBottom: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    marginBottom: 8,
+    paddingBottom: 6,
+  },
+  termsText: {
+    fontSize: 9,
+    lineHeight: 1.35,
+    marginBottom: 4.5,
+    textAlign: 'justify',
+    color: '#374151',
+  },
+  trailingTermsText: {
+    fontSize: 8.5,
+    lineHeight: 1.35,
+    marginBottom: 4,
+    textAlign: 'justify',
+    color: '#374151',
+  },
+  executionAndSignaturesWrapper: {
+    flexGrow: 0,
+    minPresenceAhead: 150,
+    marginTop: 6,
   },
   signatureSection: {
-    marginTop: 5,
+    marginTop: 8,
     marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
+    flexGrow: 0,
+    minPresenceAhead: 150,
     breakInside: 'avoid',
   },
   compactBox: {
-    padding: 5,
+    padding: 6,
     width: '48%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
   },
   compactImage: {
-    height: 25,
+    height: 32,
     marginVertical: 2,
     objectFit: 'contain',
   },
   compactLine: {
-    marginTop: 2,
+    marginTop: 3,
     marginBottom: 2,
     paddingTop: 2,
-    fontSize: 9,
+    fontSize: 8.5,
   },
   compactText: {
-    fontSize: 9,
+    fontSize: 8.5,
   }
 });
 
@@ -207,6 +232,8 @@ const RentalAgreement: React.FC<{
 
   const activeSub = getActiveSubstitute();
   const signatureDate = getHireCommencementDate(rental);
+  const effectiveHirerSignature = rental.signature || customer?.signature || '';
+  const signatureExecutionDateFormatted = formatExecutionDateTime(rental, 'dd/MM/yyyy HH:mm');
 
   const getUsageHistory = () => {
     const history: Array<{ vehicle: string; reg: string; start: Date; end: Date }> = [];
@@ -358,9 +385,53 @@ const RentalAgreement: React.FC<{
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
 
-  const page1Entity = (companyDetails as any)?.page1Entity || companyDetails;
-  const page2Entity = (companyDetails as any)?.page2Entity || companyDetails;
-  const page3Entity = (companyDetails as any)?.page3Entity || companyDetails;
+  const availableEntities = getAvailableCompanyEntities(companyDetails);
+  const targetEntityKey =
+    rental?.corporateEntityKey ||
+    (companyDetails as any)?.corporateEntityKey ||
+    (companyDetails as any)?.entityKey ||
+    (rental?.type === 'claim' ? 'aie_claims' : 'aie_skyline');
+  const matchedEntity =
+    availableEntities.find(
+      (e) =>
+        e.key === targetEntityKey ||
+        e.id === targetEntityKey ||
+        (rental?.corporateEntityName &&
+          (e.fullName.toLowerCase() === rental.corporateEntityName.toLowerCase() ||
+           e.tradingName.toLowerCase() === rental.corporateEntityName.toLowerCase())) ||
+        (targetEntityKey.includes('sayarah') && e.key.includes('sayarah'))
+    ) || availableEntities[0];
+
+  const hasRentalSpecificEntity = Boolean(rental?.corporateEntityKey || rental?.corporateEntityName);
+  const page1Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page1Entity) || matchedEntity || companyDetails;
+  const page2Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page2Entity) || matchedEntity || companyDetails;
+  const page3Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page3Entity) || matchedEntity || companyDetails;
+
+  const activeProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...matchedEntity,
+    corporateEntityKey: matchedEntity?.key || targetEntityKey,
+    corporateEntityName: rental?.corporateEntityName || matchedEntity?.fullName,
+  });
+
+  const effectiveCompanyDetails = {
+    ...companyDetails,
+    ...matchedEntity,
+    fullName: activeProfile.companyName,
+    officialAddress: activeProfile.companyAddress,
+    phone: activeProfile.phone,
+    email: activeProfile.email,
+    website: activeProfile.website,
+    claimsTeam: activeProfile.claimsTeam,
+    companyNumber: activeProfile.companyNumber,
+    vatNumber: activeProfile.vatNumber,
+    entityKey: matchedEntity?.key,
+    corporateEntityKey: matchedEntity?.key,
+    corporateEntityName: activeProfile.companyName,
+    page1Entity,
+    page2Entity,
+    page3Entity,
+  };
 
   const pageMapping = (companyDetails as any)?.pageTemplateMapping;
   const page1Template = pageMapping?.page1Template || 'standard_rental_agreement';
@@ -369,11 +440,7 @@ const RentalAgreement: React.FC<{
 
   const includePage2 = pageMapping
     ? Boolean(pageMapping.includePage2 && pageMapping.page2Template !== 'none')
-    : Boolean(
-        rental.checkOutCondition != null ||
-        (includeImages && (rental.checkOutImages?.length || 0) > 0) ||
-        (rental.hireSubstitutionDetails && rental.hireSubstitutionDetails.length > 0)
-      );
+    : true;
 
   const includePage3 = pageMapping
     ? Boolean(pageMapping.includePage3 && pageMapping.page3Template !== 'none')
@@ -394,31 +461,43 @@ const RentalAgreement: React.FC<{
     return `RENTAL AGREEMENT ${agreementNum}`;
   };
 
+  // ── AUTOMATED T&C ROUTING ENGINE RESOLUTION ──
+  const isClaimRental = Boolean(
+    rental.type === 'claim' ||
+    customer?.type === 'claim' ||
+    (rental as any)?.customerType === 'claim' ||
+    (rental as any)?.claimId ||
+    String(rental.reason || '').toLowerCase().includes('claim')
+  );
+
+  const resolvedTermsData = getResolvedTermsContent(
+    {
+      documentScope: 'rental',
+      hireType: rental.type,
+      customerType: customer?.type,
+      rentalStatus: rental.status,
+      paymentStatus: rental.paymentStatus,
+      targetPagePosition: 'page_3_terms',
+      isClaim: isClaimRental,
+    },
+    effectiveCompanyDetails
+  );
+
+  const resolvedTrailingTermsData = getResolvedTermsContent(
+    {
+      documentScope: 'rental',
+      hireType: rental.type,
+      customerType: customer?.type,
+      rentalStatus: rental.status,
+      paymentStatus: rental.paymentStatus,
+      targetPagePosition: 'trailing_before_signatures',
+      isClaim: isClaimRental,
+    },
+    effectiveCompanyDetails
+  );
+
   const getPage3TermsContent = () => {
-    if (page3Template === 'strict_commercial_terms') {
-      return [
-        '1. COMMERCIAL EXCESS & SECURITY DEPOSIT: The Hirer agrees that any damage excess, unrecovered insurance losses, penalties, and traffic/parking fines will be charged immediately to the Hirer or deducted from security deposits.',
-        '2. AUTHORIZED DRIVER COVENANTS: Only vetted, fully licensed drivers named in this Agreement are insured to operate the vehicle. Any breach invalidates fleet insurance coverage and creates personal liability for all damages.',
-        '3. PROHIBITED USES & SUBLEASING: The vehicle shall not be operated off-road, subleased, used for courier parcel hauling (unless expressly permitted in writing), or used for towing or racing.',
-        '4. MAINTENANCE, TIRES & FLUIDS: The Hirer covenants to inspect engine oil, coolant, and tire pressures weekly or every 250 miles. Running the vehicle with deficient fluids constitutes gross negligence.',
-        '5. TIMELY RETURN & SUBROGATION: The vehicle must be returned at the appointed check-in timestamp. Failure to return without written authorization incurs standard daily rate plus 25% recovery penalty.',
-      ];
-    }
-    if (page3Template === 'satisfaction_notice_terms') {
-      return [
-        '1. VEHICLE ACCEPTANCE & CONDITION ACKNOWLEDGEMENT: The Hirer confirms that the vehicle described in this agreement has been received in clean, roadworthy, and acceptable cosmetic and mechanical condition as recorded in the Inspection Report.',
-        '2. OPERATIONAL SAFETY VERIFICATION: The Hirer has personally verified that all vehicle safety systems, including headlights, brake lights, indicators, tires, windscreen wipers, and horn, operate satisfactorily.',
-        '3. DECLARATION OF FIT & PROPER USE: The Hirer undertakes to operate the vehicle in compliance with all applicable Road Traffic Acts and statutory speed regulations.',
-        '4. FINAL SIGN-OFF & SATISFACTION: By accepting hand-over, the Hirer confirms that no undisclosed pre-existing damage exists and agrees to indemnify the Company against subsequent unreported damage upon check-in.',
-      ];
-    }
-    return splitParagraphs(
-      companyDetails?.customTermsText ||
-      companyDetails?.hireAgreementText ||
-      companyDetails?.conditionOfHireText ||
-      companyDetails?.termsAndConditions ||
-      '1. Standard terms and conditions apply. By signing this agreement, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement.\n2. The Hirer agrees to maintain the vehicle in roadworthy condition and report any defects immediately.\n3. The vehicle must be returned on the agreed date and time.'
-    );
+    return resolvedTermsData.paragraphs;
   };
 
   return (
@@ -431,20 +510,25 @@ const RentalAgreement: React.FC<{
           {/* HEADER */}
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(page1Entity?.logoUrl) && (
-                <Image src={page1Entity.logoUrl} style={styles.logo} />
-              )}
+              <SafePdfLogo
+                src={page1Entity?.logoUrl}
+                companyName={page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+                style={styles.logo}
+              />
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{page1Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyName}>{page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
               {Boolean(page1Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
                 <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
                   {page1Entity?.headerDisclaimer || companyDetails?.customHeaderText}
                 </Text>
               )}
-              <Text style={styles.companyDetail}>{page1Entity?.officialAddress || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Tel: {page1Entity?.phone || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Email: {page1Entity?.email || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>{page1Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page1Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page1Entity?.email || activeProfile.email || 'N/A'}</Text>
+              {Boolean(page1Entity?.website || activeProfile.website) && (
+                <Text style={styles.companyDetail}>Web: {page1Entity?.website || activeProfile.website}</Text>
+              )}
             </View>
           </View>
 
@@ -637,234 +721,9 @@ const RentalAgreement: React.FC<{
           </View>
 
           <Text style={styles.warningText}>Maximum Period of Hire: 90 Days</Text>
-
-          {/* CHECK-OUT CONDITION */}
-          {rental.checkOutCondition && (
-            <View style={[styles.sectionBreak]} wrap={false}>
-              <View style={styles.infoCard}>
-                <Text style={styles.infoCardTitle}>Main Vehicle Condition at Check-Out</Text>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Check-Out Date & Time:</Text>
-                    <Text style={styles.subValue}>{formatDateTime(rental.startDate)}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Mileage:</Text>
-                    <Text style={styles.subValue}>
-                      {rental.checkOutCondition.mileage?.toLocaleString() ?? 'N/A'} miles
-                    </Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Fuel Level:</Text>
-                    <Text style={styles.subValue}>{rental.checkOutCondition.fuelLevel}%</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Vehicle Condition:</Text>
-                    <Text style={styles.subValue}>
-                      {rental.checkOutCondition.isClean ? 'Clean' : 'Needs Cleaning'}
-                    </Text>
-                  </View>
-                </View>
-                {rental.checkOutCondition.hasDamage && (
-                  <View style={styles.highlight}>
-                    <Text style={styles.highlightText}>Existing Damage:</Text>
-                    <Text>{rental.checkOutCondition.damageDescription}</Text>
-                  </View>
-                )}
-                {includeImages && (rental.checkOutCondition.images || []).filter(isValidPdfImageSrc).length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    <Text style={{ ...styles.subLabel, marginBottom: 5 }}>Vehicle Images:</Text>
-                    <View style={styles.grid}>
-                      {(rental.checkOutCondition.images || [])
-                        .filter(isValidPdfImageSrc)
-                        .slice(0, 7)
-                        .map((url, idx) => (
-                          <View key={idx} style={styles.gridItem}>
-                            <View style={styles.imageContainer}>
-                              <Image
-                                src={url}
-                                style={{ width: '100%', height: 80, objectFit: 'contain' }}
-                              />
-                            </View>
-                            <Text style={styles.imageCaption}>{`Image ${idx + 1}`}</Text>
-                          </View>
-                        ))}
-                    </View>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* ✅ UPDATED: RETURN CONDITION (Visible ONLY when rental is completed) */}
-          {rental.status === 'completed' && rental.returnCondition && (
-            <View style={[styles.sectionBreak]} wrap={false}>
-              <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN</Text>
-              <View style={styles.card}>
-                <View style={styles.grid}>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Return Date & Time:</Text>
-                    <Text style={styles.subValue}>{formatDateTime(rental.returnCondition.date)}</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Mileage:</Text>
-                    <Text style={styles.subValue}>{rental.returnCondition.mileage.toLocaleString()} miles</Text>
-                  </View>
-                  <View style={styles.gridItem}>
-                    <Text style={styles.subLabel}>Total Additional Charges:</Text>
-                    <Text style={styles.subValue}>£{rental.returnCondition.totalCharges.toFixed(2)}</Text>
-                  </View>
-                </View>
-                {includeImages && (rental.returnCondition.images || []).filter(isValidPdfImageSrc).length > 0 && (
-                  <View style={styles.grid}>
-                    {(rental.returnCondition.images || [])
-                      .filter(isValidPdfImageSrc)
-                      .slice(0, 7)
-                      .map((img, i) => (
-                        <Image
-                          key={i}
-                          src={img}
-                          style={{
-                            width: '30%',
-                            margin: '1%',
-                            height: 70,
-                            objectFit: 'cover',
-                          }}
-                        />
-                      ))}
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-
-          {renderSubstitutionVehicles()}
-
-          {/* SUBSTITUTE CONDITION REPORTS */}
-          {rental.hireSubstitutionDetails &&
-            rental.hireSubstitutionDetails.map((sub, index) => (
-              <View key={`sub_card_${index}`} style={[styles.sectionBreak, { marginTop: 10 }]} wrap={false}>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoCardTitle}>
-                    Condition Report: Substitution Vehicle {index + 1} ({sub.make} {sub.model})
-                  </Text>
-                  <Text style={[styles.subLabel, { marginTop: 5, marginBottom: 5, color: '#374151' }]}>
-                    Check-Out Details
-                  </Text>
-                  <View style={styles.grid}>
-                    <View style={styles.gridItem}>
-                      <Text style={styles.subLabel}>Date Out:</Text>
-                      <Text style={styles.subValue}>{formatDateTime(sub.givenAt)}</Text>
-                    </View>
-                    <View style={styles.gridItem}>
-                      <Text style={styles.subLabel}>Mileage Out:</Text>
-                      <Text style={styles.subValue}>{sub.mileage?.toLocaleString() ?? 'N/A'}</Text>
-                    </View>
-                    <View style={styles.gridItem}>
-                      <Text style={styles.subLabel}>Fuel Out:</Text>
-                      <Text style={styles.subValue}>{sub.fuelLevel ?? 'N/A'}%</Text>
-                    </View>
-                    <View style={styles.gridItem}>
-                      <Text style={styles.subLabel}>Clean Out:</Text>
-                      <Text style={styles.subValue}>{sub.isClean ? 'Yes' : 'No'}</Text>
-                    </View>
-                  </View>
-                  
-                  {sub.hasDamage && sub.damageDescription && (
-                    <View style={styles.highlight}>
-                      <Text style={styles.highlightText}>Recorded Damage (Out):</Text>
-                      <Text>{sub.damageDescription}</Text>
-                    </View>
-                  )}
-
-                  {includeImages && (sub.images || []).filter(isValidPdfImageSrc).length > 0 && (
-  <View style={{ marginTop: 5, marginBottom: 10 }}>
-    <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out Images:</Text>
-    <View style={styles.grid}>
-      {(sub.images || [])
-        .filter(isValidPdfImageSrc)
-        .slice(0, 4)
-        .map((url, i) => (
-          <Image
-            key={i}
-            src={url}
-            // Increased height to 70 and changed objectFit to 'contain'
-            style={{ width: '23%', height: 70, objectFit: 'contain', margin: '1%' }}
-          />
-        ))}
-    </View>
-  </View>
-)}
-
-                  <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 5, paddingTop: 5 }}>
-                    <Text style={[styles.subLabel, { marginBottom: 5, color: '#374151' }]}>
-                      Return Details (Check-In)
-                    </Text>
-                    
-                    {sub.returnCondition ? (
-                      <>
-                        <View style={styles.grid}>
-                          <View style={styles.gridItem}>
-                            <Text style={styles.subLabel}>Date In:</Text>
-                            <Text style={styles.subValue}>{formatDateTime(sub.returnCondition.date)}</Text>
-                          </View>
-                          <View style={styles.gridItem}>
-                            <Text style={styles.subLabel}>Mileage In:</Text>
-                            <Text style={styles.subValue}>{sub.returnCondition.mileage.toLocaleString()}</Text>
-                          </View>
-                          <View style={styles.gridItem}>
-                            <Text style={styles.subLabel}>Fuel In:</Text>
-                            <Text style={styles.subValue}>{sub.returnCondition.fuelLevel}%</Text>
-                          </View>
-                          <View style={styles.gridItem}>
-                            <Text style={styles.subLabel}>Return Charges:</Text>
-                            <Text style={styles.subValue}>£{sub.returnCondition.totalCharges.toFixed(2)}</Text>
-                          </View>
-                        </View>
-                      </>
-                    ) : (
-                      <View style={{ padding: 5, backgroundColor: '#FEF3C7', borderRadius: 4 }}>
-                        <Text style={{ fontSize: 9, color: '#92400E', textAlign: 'center' }}>
-                          Vehicle currently active (Not returned)
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-            ))}
-
-          {/* TERMS AND CONDITIONS SUMMARY & SIGNATURES */}
-          <View style={[styles.section, localStyles.termsSection]}>
-            <Text style={styles.sectionTitle} minPresenceAhead={60}>DECLARATION &amp; TERMS ACKNOWLEDGEMENT</Text>
-            <Text style={styles.text}>
-              {companyDetails.termsAndConditions || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this Vehicle Hire Agreement, confirms receipt of the vehicle in good order, and authorizes payment allocation.'}
-            </Text>
-          </View>
-
-          {/* SIGNATURE SECTION */}
-          <View style={localStyles.signatureSection} wrap={false}>
-            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-              {isValidPdfImageSrc(rental.signature) && (
-                <Image src={rental.signature} style={[styles.signature, localStyles.compactImage]} />
-              )}
-              <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
-              <Text style={localStyles.compactText}>{customer.name}</Text>
-              <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
-            </View>
-
-            <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
-              {isValidPdfImageSrc(companyDetails.signature) && (
-                <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
-              )}
-              <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
-              <Text style={localStyles.compactText}>{page1Entity?.tradingName || page1Entity?.fullName || 'AIE SKYLINE'}</Text>
-              <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
-            </View>
-          </View>
         </View>
 
-        {/* FOOTER */}
+        {/* PAGE 1 FOOTER */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>{page1FooterText}</Text>
           <Text
@@ -875,26 +734,31 @@ const RentalAgreement: React.FC<{
       </Page>
 
       {/* ══════════════════════════════════════════════════════════════
-          PAGE 2: INSPECTION, SUBSTITUTION, OR CHARGE LEDGER
+          PAGE 2: MAIN VEHICLE CONDITION AT CHECK-OUT & RETURN INSPECTION
          ══════════════════════════════════════════════════════════════ */}
       {includePage2 && (
         <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(page2Entity?.logoUrl) && (
-                <Image src={page2Entity.logoUrl} style={styles.logo} />
-              )}
+              <SafePdfLogo
+                src={page2Entity?.logoUrl}
+                companyName={page2Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+                style={styles.logo}
+              />
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{page2Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyName}>{page2Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
               {Boolean(page2Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
                 <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
                   {page2Entity?.headerDisclaimer || companyDetails?.customHeaderText}
                 </Text>
               )}
-              <Text style={styles.companyDetail}>{page2Entity?.officialAddress || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Tel: {page2Entity?.phone || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Email: {page2Entity?.email || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>{page2Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page2Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page2Entity?.email || activeProfile.email || 'N/A'}</Text>
+              {Boolean(page2Entity?.website || activeProfile.website) && (
+                <Text style={styles.companyDetail}>Web: {page2Entity?.website || activeProfile.website}</Text>
+              )}
             </View>
           </View>
 
@@ -904,7 +768,7 @@ const RentalAgreement: React.FC<{
               <View>
                 <View style={styles.titleContainer}>
                   <Text style={[styles.title, { fontSize: 13 }]}>
-                    VEHICLE CONDITION &amp; INSPECTION REPORT (PAGE 2)
+                    VEHICLE CONDITION &amp; RETURN INSPECTION REPORT
                   </Text>
                 </View>
 
@@ -920,7 +784,7 @@ const RentalAgreement: React.FC<{
                       <View style={styles.gridItem}>
                         <Text style={styles.subLabel}>Mileage Out:</Text>
                         <Text style={styles.subValue}>
-                          {rental.checkOutCondition?.mileage?.toLocaleString() ?? 'N/A'} miles
+                          {rental.checkOutCondition?.mileage?.toLocaleString() ?? (vehicle?.mileage ? vehicle.mileage.toLocaleString() : 'N/A')} miles
                         </Text>
                       </View>
                       <View style={styles.gridItem}>
@@ -930,7 +794,7 @@ const RentalAgreement: React.FC<{
                       <View style={styles.gridItem}>
                         <Text style={styles.subLabel}>Cleanliness:</Text>
                         <Text style={styles.subValue}>
-                          {rental.checkOutCondition?.isClean ? 'Clean & Roadworthy' : 'Needs Cleaning'}
+                          {rental.checkOutCondition ? (rental.checkOutCondition.isClean ? 'Clean & Roadworthy' : 'Needs Cleaning') : 'Clean & Roadworthy'}
                         </Text>
                       </View>
                     </View>
@@ -942,11 +806,11 @@ const RentalAgreement: React.FC<{
                       </View>
                     )}
 
-                    {includeImages && (rental.checkOutCondition?.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                    {includeImages && (rental.checkOutCondition?.images || rental.checkOutImages || []).filter(isValidPdfImageSrc).length > 0 && (
                       <View style={{ marginTop: 8 }}>
                         <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out High-Res Inspection Images:</Text>
                         <View style={styles.grid}>
-                          {(rental.checkOutCondition?.images || [])
+                          {(rental.checkOutCondition?.images || rental.checkOutImages || [])
                             .filter(isValidPdfImageSrc)
                             .slice(0, 6)
                             .map((url, idx) => (
@@ -964,7 +828,7 @@ const RentalAgreement: React.FC<{
                 </View>
 
                 {/* RETURN CONDITION */}
-                {rental.status === 'completed' && rental.returnCondition && (
+                {rental.status === 'completed' && rental.returnCondition ? (
                   <View style={[styles.sectionBreak, { marginTop: 10 }]} wrap={false}>
                     <Text style={styles.sectionTitle}>VEHICLE CONDITION AT RETURN (CHECK-IN)</Text>
                     <View style={styles.card}>
@@ -999,7 +863,70 @@ const RentalAgreement: React.FC<{
                       )}
                     </View>
                   </View>
+                ) : (
+                  <View style={[styles.card, { marginTop: 8, padding: 8, backgroundColor: '#F9FAFB', borderLeftWidth: 3, borderLeftColor: '#9CA3AF' }]} wrap={false}>
+                    <Text style={[styles.subLabel, { fontWeight: 'bold', color: '#4B5563', marginBottom: 2 }]}>
+                      VEHICLE RETURN INSPECTION (CHECK-IN)
+                    </Text>
+                    <Text style={{ fontSize: 8.5, color: '#6B7280' }}>
+                      Return inspection will be conducted and certified upon end-of-hire vehicle hand-over.
+                    </Text>
+                  </View>
                 )}
+
+                {/* SUBSTITUTION VEHICLES & CONDITION REPORTS */}
+                {renderSubstitutionVehicles()}
+                {rental.hireSubstitutionDetails &&
+                  rental.hireSubstitutionDetails.map((sub, index) => (
+                    <View key={`sub_card_${index}`} style={[styles.sectionBreak, { marginTop: 8 }]} wrap={false}>
+                      <View style={styles.infoCard}>
+                        <Text style={styles.infoCardTitle}>
+                          Substitution Record #{index + 1}: {sub.make} {sub.model}
+                        </Text>
+                        <View style={styles.grid}>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Date Out:</Text>
+                            <Text style={styles.subValue}>{formatDateTime(sub.givenAt)}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Mileage Out:</Text>
+                            <Text style={styles.subValue}>{sub.mileage?.toLocaleString() ?? 'N/A'}</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Fuel Out:</Text>
+                            <Text style={styles.subValue}>{sub.fuelLevel ?? 'N/A'}%</Text>
+                          </View>
+                          <View style={styles.gridItem}>
+                            <Text style={styles.subLabel}>Clean Out:</Text>
+                            <Text style={styles.subValue}>{sub.isClean ? 'Yes' : 'No'}</Text>
+                          </View>
+                        </View>
+                        {sub.hasDamage && sub.damageDescription && (
+                          <View style={styles.highlight}>
+                            <Text style={styles.highlightText}>Recorded Damage (Out):</Text>
+                            <Text>{sub.damageDescription}</Text>
+                          </View>
+                        )}
+                        {includeImages && (sub.images || []).filter(isValidPdfImageSrc).length > 0 && (
+                          <View style={{ marginTop: 5, marginBottom: 5 }}>
+                            <Text style={{ ...styles.subLabel, marginBottom: 4 }}>Check-Out Images:</Text>
+                            <View style={styles.grid}>
+                              {(sub.images || [])
+                                .filter(isValidPdfImageSrc)
+                                .slice(0, 4)
+                                .map((url, i) => (
+                                  <Image
+                                    key={i}
+                                    src={url}
+                                    style={{ width: '23%', height: 70, objectFit: 'contain', margin: '1%' }}
+                                  />
+                                ))}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ))}
               </View>
             )}
 
@@ -1115,65 +1042,224 @@ const RentalAgreement: React.FC<{
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-          PAGE 3: TRAILING STATUTORY / COMMERCIAL TERMS & CONDITIONS
+          PAGE 3+: FULL TERMS & CONDITIONS, CONTRACT EXECUTION & E-SIGNATURES
          ══════════════════════════════════════════════════════════════ */}
-      {includePage3 && (
+      {includePage3 ? (
         <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(page3Entity?.logoUrl) && (
-                <Image src={page3Entity.logoUrl} style={styles.logo} />
-              )}
+              <SafePdfLogo
+                src={page3Entity?.logoUrl || page1Entity?.logoUrl}
+                companyName={page3Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+                style={styles.logo}
+              />
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{page3Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyName}>{page3Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
               {Boolean(page3Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
                 <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
                   {page3Entity?.headerDisclaimer || companyDetails?.customHeaderText}
                 </Text>
               )}
-              <Text style={styles.companyDetail}>{page3Entity?.officialAddress || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Tel: {page3Entity?.phone || 'N/A'}</Text>
-              <Text style={styles.companyDetail}>Email: {page3Entity?.email || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>{page3Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page3Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page3Entity?.email || activeProfile.email || 'N/A'}</Text>
+              {Boolean(page3Entity?.website || activeProfile.website) && (
+                <Text style={styles.companyDetail}>Web: {page3Entity?.website || activeProfile.website}</Text>
+              )}
             </View>
           </View>
 
-          <View style={{ marginTop: 15, marginBottom: 15 }}>
-            <Text style={[styles.sectionTitle, { fontSize: 12, textDecoration: 'underline', marginBottom: 12 }]}>
-              {page3Template === 'strict_commercial_terms'
-                ? 'COMMERCIAL FLEET & DAMAGE EXCESS COVENANTS'
-                : page3Template === 'satisfaction_notice_terms'
-                ? 'SATISFACTION NOTICE & HIRER SIGN-OFF'
-                : companyDetails?.customTermsTitle || 'STATUTORY TERMS AND CONDITIONS OF VEHICLE HIRE'}
+          {/* DYNAMIC TERMS CONTAINER - WRAP ENABLED */}
+          <View style={{ marginTop: 10, marginBottom: 8 }} wrap={true}>
+            <Text style={[styles.sectionTitle, { fontSize: 11, marginBottom: 6, paddingVertical: 4, paddingHorizontal: 8 }]}>
+              {resolvedTermsData.isConfigured
+                ? resolvedTermsData.title
+                : 'STATUTORY COVENANTS & TERMS'}
             </Text>
-            {getPage3TermsContent().map((para, i) => (
-              <Text key={i} style={[styles.text, { fontSize: 8.5, lineHeight: 1.45, marginBottom: 6, textAlign: 'justify', color: '#374151' }]}>
-                {para}
-              </Text>
-            ))}
+            {resolvedTermsData.isConfigured && resolvedTermsData.paragraphs.length > 0 ? (
+              getPage3TermsContent().map((para, i) => (
+                <Text key={i} wrap={true} style={[styles.text, localStyles.termsText]}>
+                  {para}
+                </Text>
+              ))
+            ) : (
+              <PdfTermsWarningNotice message={resolvedTermsData.warningMessage} />
+            )}
           </View>
 
-          {/* Optional Sign-off box on Page 3 for Satisfaction Notice */}
-          {page3Template === 'satisfaction_notice_terms' && (
-            <View style={[styles.card, { marginTop: 15, padding: 10 }]} wrap={false}>
-              <Text style={[styles.subLabel, { fontWeight: 'bold', marginBottom: 6 }]}>
-                Hirer Acceptance &amp; Satisfaction Declaration
+          {/* CONTRACT EXECUTION & SIGNATURES SECTION - ANCHORED DIRECTLY BELOW FINAL CLAUSE */}
+          <View wrap={false} minPresenceAhead={150} style={localStyles.executionAndSignaturesWrapper}>
+            <View style={[styles.titleContainer, { marginBottom: 8, paddingBottom: 3 }]}>
+              <Text style={[styles.title, { fontSize: 12 }]}>
+                CONTRACT EXECUTION &amp; FINAL ACKNOWLEDGEMENT
               </Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                <View style={{ width: '48%' }}>
-                  <Text style={{ fontSize: 8, color: '#6B7280' }}>Hirer Name:</Text>
-                  <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{customer.name}</Text>
-                </View>
-                <View style={{ width: '48%' }}>
-                  <Text style={{ fontSize: 8, color: '#6B7280' }}>Date of Acknowledgment:</Text>
-                  <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{formatDate(signatureDate)}</Text>
+            </View>
+
+            {/* FINAL ACKNOWLEDGMENT STATEMENT */}
+            <View style={[localStyles.termsSection, { backgroundColor: '#F9FAFB', padding: 8, borderRadius: 5, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 8 }]}>
+              <Text style={[styles.sectionTitle, { fontSize: 9.5, marginBottom: 4, paddingVertical: 3, paddingHorizontal: 6 }]}>
+                {resolvedTrailingTermsData.isConfigured
+                  ? resolvedTrailingTermsData.title
+                  : 'DECLARATION & TERMS ACKNOWLEDGEMENT'}
+              </Text>
+              {resolvedTrailingTermsData.isConfigured && resolvedTrailingTermsData.paragraphs.length > 0 ? (
+                resolvedTrailingTermsData.paragraphs.map((para, i) => (
+                  <Text key={i} wrap={true} style={[styles.text, localStyles.trailingTermsText]}>
+                    {para}
+                  </Text>
+                ))
+              ) : (
+                <PdfTermsWarningNotice message={resolvedTrailingTermsData.warningMessage} />
+              )}
+            </View>
+
+            {/* Optional Sign-off box for Satisfaction Notice if template active */}
+            {page3Template === 'satisfaction_notice_terms' && (
+              <View style={[styles.card, { marginBottom: 8, padding: 6 }]} wrap={false}>
+                <Text style={[styles.subLabel, { fontWeight: 'bold', marginBottom: 3, fontSize: 8 }]}>
+                  Hirer Acceptance &amp; Satisfaction Declaration
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+                  <View style={{ width: '48%' }}>
+                    <Text style={{ fontSize: 7.5, color: '#6B7280' }}>Hirer Name:</Text>
+                    <Text style={{ fontSize: 8.5, fontWeight: 'bold' }}>{customer.name}</Text>
+                  </View>
+                  <View style={{ width: '48%' }}>
+                    <Text style={{ fontSize: 7.5, color: '#6B7280' }}>Date of Acknowledgment:</Text>
+                    <Text style={{ fontSize: 8.5, fontWeight: 'bold' }}>{signatureExecutionDateFormatted}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
 
+            {/* E-SIGNATURE EXECUTION BLOCKS */}
+            <View style={localStyles.signatureSection} wrap={false} minPresenceAhead={150}>
+              <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+                {isValidPdfImageSrc(effectiveHirerSignature) && (
+                  <Image src={effectiveHirerSignature} style={[styles.signature, localStyles.compactImage]} />
+                )}
+                <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
+                <Text style={localStyles.compactText}>{customer.name}</Text>
+                <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
+              </View>
+
+              <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+                {isValidPdfImageSrc(companyDetails.signature) && (
+                  <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
+                )}
+                <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
+                <Text style={localStyles.compactText}>{page1Entity?.tradingName || page1Entity?.fullName || activeProfile.companyName || 'Authorized Signatory'}</Text>
+                <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* PAGE 3+ FOOTER */}
           <View style={styles.footer} fixed>
-            <Text style={styles.footerText}>{page3FooterText}</Text>
+            <Text style={styles.footerText}>{page3FooterText || page1FooterText}</Text>
+            <Text
+              style={styles.pageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            />
+          </View>
+        </Page>
+      ) : (
+        /* Standalone execution page when page 3 T&C clauses are disabled */
+        <Page size="A4" style={[styles.page, { paddingBottom: 65 }]}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              <SafePdfLogo
+                src={page1Entity?.logoUrl}
+                companyName={page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+                style={styles.logo}
+              />
+            </View>
+            <View style={styles.headerRight}>
+              <Text style={styles.companyName}>{page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
+              {Boolean(page1Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
+                <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
+                  {page1Entity?.headerDisclaimer || companyDetails?.customHeaderText}
+                </Text>
+              )}
+              <Text style={styles.companyDetail}>{page1Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page1Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page1Entity?.email || activeProfile.email || 'N/A'}</Text>
+              {Boolean(page1Entity?.website || activeProfile.website) && (
+                <Text style={styles.companyDetail}>Web: {page1Entity?.website || activeProfile.website}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={{ marginTop: 15 }}>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, { fontSize: 13 }]}>
+                CONTRACT EXECUTION &amp; FINAL ACKNOWLEDGEMENT
+              </Text>
+            </View>
+
+            {/* FINAL ACKNOWLEDGMENT STATEMENT */}
+            <View style={[styles.section, localStyles.termsSection, { backgroundColor: '#F9FAFB', padding: 10, borderRadius: 6, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 12 }]}>
+              <Text style={[styles.sectionTitle, { fontSize: 11, marginBottom: 6 }]}>
+                {resolvedTrailingTermsData.isConfigured
+                  ? resolvedTrailingTermsData.title
+                  : 'DECLARATION & TERMS ACKNOWLEDGEMENT'}
+              </Text>
+              {resolvedTrailingTermsData.isConfigured && resolvedTrailingTermsData.paragraphs.length > 0 ? (
+                resolvedTrailingTermsData.paragraphs.map((para, i) => (
+                  <Text key={i} wrap={true} style={[styles.text, localStyles.trailingTermsText]}>
+                    {para}
+                  </Text>
+                ))
+              ) : (
+                <PdfTermsWarningNotice message={resolvedTrailingTermsData.warningMessage} />
+              )}
+            </View>
+
+            {/* Optional Sign-off box for Satisfaction Notice if template active */}
+            {page3Template === 'satisfaction_notice_terms' && (
+              <View style={[styles.card, { marginBottom: 12, padding: 8 }]} wrap={false}>
+                <Text style={[styles.subLabel, { fontWeight: 'bold', marginBottom: 4 }]}>
+                  Hirer Acceptance &amp; Satisfaction Declaration
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
+                  <View style={{ width: '48%' }}>
+                    <Text style={{ fontSize: 8, color: '#6B7280' }}>Hirer Name:</Text>
+                    <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{customer.name}</Text>
+                  </View>
+                  <View style={{ width: '48%' }}>
+                    <Text style={{ fontSize: 8, color: '#6B7280' }}>Date of Acknowledgment:</Text>
+                    <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{signatureExecutionDateFormatted}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* E-SIGNATURE EXECUTION BLOCKS */}
+            <View style={localStyles.signatureSection} wrap={false} minPresenceAhead={150}>
+              <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+                {isValidPdfImageSrc(effectiveHirerSignature) && (
+                  <Image src={effectiveHirerSignature} style={[styles.signature, localStyles.compactImage]} />
+                )}
+                <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
+                <Text style={localStyles.compactText}>{customer.name}</Text>
+                <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
+              </View>
+
+              <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
+                {isValidPdfImageSrc(companyDetails.signature) && (
+                  <Image src={companyDetails.signature} style={[styles.signature, localStyles.compactImage]} />
+                )}
+                <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
+                <Text style={localStyles.compactText}>{page1Entity?.tradingName || page1Entity?.fullName || activeProfile.companyName || 'Authorized Signatory'}</Text>
+                <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* FINAL PAGE FOOTER */}
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{page1FooterText}</Text>
             <Text
               style={styles.pageNumber}
               render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

@@ -10,7 +10,8 @@ import {
   setDoc,
   updateDoc,
   where,
-  getDocs
+  getDocs,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { MaintenanceLog, Vehicle } from '../types';
@@ -420,20 +421,30 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
     const targetOrderId = (params.orderId || params.orderNumber || params.maintenanceOrderId)?.trim();
     const candidateVariants = targetOrderId ? getOrderCandidateVariants(targetOrderId) : [];
 
-    const isMaintenanceExpense = (transactionType === 'EXPENSE' || normalizedType === 'expense' || entryType === 'DEBIT') && Boolean(
+    const isMaintenanceJob = Boolean(
       params.entityType === 'MAINTENANCE' ||
       params.category?.toLowerCase() === 'maintenance' ||
       params.maintenanceJobId ||
       params.maintenanceOrderId ||
       Boolean(targetOrderId) ||
       (candidateVariants && candidateVariants.length > 0) ||
-      Boolean(candidateSourceRefId)
+      Boolean(candidateSourceRefId && params.category?.toLowerCase() === 'maintenance')
+    );
+
+    const isMaintenanceExpense = Boolean(
+      isMaintenanceJob &&
+      (normalizedType === 'expense' ||
+        transactionType === 'EXPENSE' ||
+        entryType === 'DEBIT' ||
+        String(params.type || '').toLowerCase() === 'expense' ||
+        String(params.transactionType || '').toUpperCase() === 'EXPENSE' ||
+        String(params.entryType || '').toUpperCase() === 'DEBIT')
     );
 
     const transaction: Record<string, any> = {
-      type: isMaintenanceExpense ? 'expense' : normalizedType,
-      transactionType: isMaintenanceExpense ? 'EXPENSE' : transactionType,
-      entryType: isMaintenanceExpense ? 'DEBIT' : entryType,
+      type: normalizedType,
+      transactionType: transactionType,
+      entryType: entryType,
       category,
       amount,
       description,
@@ -485,21 +496,65 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       })
     };
 
-    if (isMaintenanceExpense) {
-      transaction.type = 'expense';
-      transaction.transactionType = 'EXPENSE';
-      transaction.entryType = 'DEBIT';
-      const billedVal = params.customerBilled !== undefined ? Number(params.customerBilled) : amount;
+    if (isMaintenanceJob) {
+      const billedVal = params.customerBilled !== undefined ? Number(params.customerBilled) : (params.type === 'income' ? amount : (params.customerBilled ?? amount));
       const dealerVal = params.dealerCost !== undefined ? Number(params.dealerCost) : (params.subcontractorCost !== undefined ? Number(params.subcontractorCost) : undefined);
+      
+      const hasDealerCost = dealerVal !== undefined && !isNaN(dealerVal) && dealerVal > 0;
+      const isPassThrough = hasDealerCost && Math.abs(billedVal - dealerVal) < 0.01;
+      const isMarkUp = hasDealerCost && billedVal > dealerVal + 0.01;
+      const isPureExpense = billedVal <= 0.01 && (dealerVal || 0) > 0;
+
       transaction.customerBilled = billedVal;
-      if (dealerVal !== undefined) {
+      transaction.grossBilling = billedVal;
+
+      if (hasDealerCost) {
         transaction.dealerCost = dealerVal;
         transaction.subcontractorCost = dealerVal;
-        const profit = params.netProfit !== undefined ? Number(params.netProfit) : Number((billedVal - dealerVal).toFixed(2));
+        const profit = isPassThrough ? 0 : (params.netProfit !== undefined ? Number(params.netProfit) : Number((billedVal - dealerVal).toFixed(2)));
         transaction.netProfit = profit;
-        transaction.profitMarginPercent = params.profitMarginPercent !== undefined ? Number(params.profitMarginPercent) : (billedVal > 0 ? Number(((profit / billedVal) * 100).toFixed(1)) : 0);
+        transaction.profitMarginPercent = isPassThrough ? 0 : (params.profitMarginPercent !== undefined ? Number(params.profitMarginPercent) : (billedVal > 0 ? Number(((profit / billedVal) * 100).toFixed(1)) : 0));
         transaction.isProfitEdited = true;
         transaction.isEdited = true;
+        transaction.hasSubcontractorCost = true;
+        transaction.isDirectTransaction = false;
+      } else {
+        transaction.dealerCost = 0;
+        transaction.subcontractorCost = 0;
+        transaction.netProfit = 0;
+        transaction.profitMarginPercent = 0;
+        transaction.hasSubcontractorCost = false;
+        transaction.isDirectTransaction = true;
+      }
+
+      if (isPassThrough) {
+        transaction.type = 'income';
+        transaction.transactionType = 'INCOME';
+        transaction.entryType = 'CREDIT';
+        transaction.amount = billedVal;
+        transaction.isPassThrough = true;
+        transaction.passThrough = true;
+        transaction.isPassThroughMaintenance = true;
+        transaction.customCategory = 'Pass-Through Maintenance';
+        transaction.category = 'Pass-Through Maintenance';
+      } else if (isMarkUp) {
+        // Mark-Up Jobs (Client Billed > Subcontractor Cost):
+        // • Record Billed Amount as Income (e.g. £350.00).
+        // • Record Subcontractor Cost as Expense (e.g. £200.00).
+        // • Accrue Net Profit (£150.00) directly to the Finance Dashboard.
+        transaction.type = 'income';
+        transaction.transactionType = 'INCOME';
+        transaction.entryType = 'CREDIT';
+        transaction.amount = billedVal;
+        transaction.isPassThrough = false;
+        transaction.passThrough = false;
+        transaction.isPassThroughMaintenance = false;
+      } else if (isPureExpense) {
+        transaction.type = 'expense';
+        transaction.transactionType = 'EXPENSE';
+        transaction.entryType = 'DEBIT';
+        transaction.amount = dealerVal;
+        transaction.isPassThrough = false;
       }
     }
 
@@ -779,6 +834,25 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
         { merge: true }
       );
       await batch.commit();
+
+      const committedId = existingTxDocId;
+      invalidateFinanceLedgerCache(candidatePaymentId || committedId);
+      manuallyRefetchFinanceLedger().catch(() => {});
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              id: committedId,
+              ...transaction,
+              paymentId: candidatePaymentId || transaction.paymentId,
+              action: 'UPDATE_TRANSACTION',
+              timestamp: Date.now(),
+            },
+          })
+        );
+      }
+
       return { success: true, id: existingTxDocId, isUpdate: true };
     }
 
@@ -797,6 +871,25 @@ export const createFinanceTransaction = async (params: FinanceTransactionParams)
       { merge: true }
     );
     await batch.commit();
+
+    const newCommittedId = newTxRef.id;
+    invalidateFinanceLedgerCache(candidatePaymentId || newCommittedId);
+    manuallyRefetchFinanceLedger().catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            id: newCommittedId,
+            ...transaction,
+            paymentId: candidatePaymentId || transaction.paymentId,
+            action: 'CREATE_TRANSACTION',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+
     return { success: true, id: newTxRef.id, isUpdate: false };
   } catch (error) {
     console.error('Error creating finance transaction:', error);

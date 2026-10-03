@@ -25,8 +25,6 @@ import {
   RefreshCw as RefreshCwIcon, 
   Search, 
   FileText, 
-  Image as ImageIcon, 
-  FileText as FileTextIcon,
   Mail,
   MessageCircle,
   Settings2,
@@ -53,9 +51,9 @@ import {
   getCompanyDetails
 } from '../utils/documentGenerator';
 import { RentalAgreement, RentalInvoice } from '../components/pdf';
-import SplitDocumentPreviewModal from '../components/common/SplitDocumentPreviewModal';
 import { RentalBulkDocument } from '../components/pdf/documents';
 import { generateRentalDocuments } from '../utils/generateRentalDocuments';
+import { resolveCustomerOrUserSignature } from '../utils/signatureStorage';
 import { uploadRentalDocuments, openDocument } from '../utils/uploadRentalDocuments';
 import { saveAs } from 'file-saver';
 import { useCompanyDetails } from '../hooks/useCompanyDetails';
@@ -106,21 +104,12 @@ const Rentals = () => {
     rental: null,
   });
   
-  const [agreementRental, setAgreementRental] = useState<Rental | null>(null);
   const [showReturnSelector, setShowReturnSelector] = useState(false);
   const [returnTarget, setReturnTarget] = useState<{ type: 'main' | 'sub', index?: number } | null>(null);
   const [permitRental, setPermitRental] = useState<Rental | null>(null);
   const [returnExpectationRental, setReturnExpectationRental] = useState<Rental | null>(null);
   const [rentalFor90, setRentalFor90] = useState<Rental | null>(null);
   const [show90, setShow90] = useState(false);
-
-  // Split-Screen Live Preview State
-  const [previewRentalDoc, setPreviewRentalDoc] = useState<{
-    rental: Rental;
-    type: 'agreement' | 'invoice';
-    includeImages?: boolean;
-  } | null>(null);
-  const [isGeneratingRentalPDF, setIsGeneratingRentalPDF] = useState(false);
 
   const open90 = (r: Rental) => { setRentalFor90(r); setShow90(true); };
   const close90 = () => { setShow90(false); setRentalFor90(null); };
@@ -281,28 +270,197 @@ const Rentals = () => {
     return result as Awaited<ReturnType<typeof generateRentalDocuments>>;
   };
 
-  const handleOpenAgreementModal = useCallback((rental: Rental) => { setAgreementRental(rental); }, []);
+  const handleDirectDownloadAgreement = useCallback(
+    async (rental: Rental) => {
+      const safeRef = (rental.rentalAgreementNumber || rental.id || 'N/A').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileName = `Rental_Agreement_${safeRef}.pdf`;
 
-  const processAgreementGeneration = useCallback(
-    async (rental: Rental, includeImages: boolean) => {
-      setAgreementRental(null);
-      setPreviewRentalDoc({
-        rental,
-        type: 'agreement',
-        includeImages,
-      });
+      // 1. If agreement already exists in rental documents
+      const agreementKeys = rental.documents?.agreements
+        ? Object.keys(rental.documents.agreements).sort(
+            (a, b) => parseInt(a.split('_')[1] || '0', 10) - parseInt(b.split('_')[1] || '0', 10)
+          )
+        : [];
+      const latestKey = agreementKeys.length > 0 ? agreementKeys[agreementKeys.length - 1] : null;
+      const existingDocUrl = latestKey ? rental.documents?.agreements?.[latestKey] : null;
+
+      if (existingDocUrl) {
+        const toastId = toast.loading('Generating Rental Agreement PDF...');
+        try {
+          if (existingDocUrl.startsWith('data:') || existingDocUrl.startsWith('blob:')) {
+            const res = await fetch(existingDocUrl);
+            const blob = await res.blob();
+            saveAs(blob, fileName);
+            try {
+              const url = URL.createObjectURL(blob);
+              window.open(url, '_blank');
+              setTimeout(() => URL.revokeObjectURL(url), 60000);
+            } catch {}
+          } else {
+            try {
+              const res = await fetch(existingDocUrl);
+              if (res.ok) {
+                const blob = await res.blob();
+                saveAs(blob, fileName);
+              } else {
+                openDocument(existingDocUrl);
+              }
+            } catch {
+              openDocument(existingDocUrl);
+            }
+          }
+          toast.success('Rental Agreement PDF downloaded successfully!', { id: toastId });
+          return;
+        } catch (err: any) {
+          console.warn('Error reading existing agreement document:', err);
+        }
+      }
+
+      // 2. Otherwise generate agreement on the fly
+      const vehicle = vehicles.find((v) => v.id === rental.vehicleId);
+      const customer = customers.find((c) => c.id === rental.customerId);
+      if (!vehicle || !customer) {
+        toast.error('Vehicle or customer not found for document generation');
+        return;
+      }
+
+      const toastId = toast.loading('Generating Rental Agreement PDF...');
+      try {
+        const validatedRental: Rental = {
+          ...rental,
+          startDate: ensureValidDate(rental.startDate) || new Date(),
+          endDate: ensureValidDate(rental.endDate) || new Date(),
+          createdAt: ensureValidDate(rental.createdAt) || new Date(),
+          updatedAt: ensureValidDate(rental.updatedAt) || new Date(),
+          hireSubstitutionDetails: rental.hireSubstitutionDetails?.map((sub) => ({
+            ...sub,
+            givenAt: ensureValidDate(sub.givenAt) || new Date(),
+            expectedReturnAt: ensureValidDate(sub.expectedReturnAt) || new Date(),
+          })) || [],
+        };
+
+        const docs = await generateRentalDocuments(validatedRental, vehicle, customer, { includeImages: true });
+        const blob = docs.agreement;
+
+        if (blob) {
+          saveAs(blob, fileName);
+          try {
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+          } catch {}
+
+          toast.success('Rental Agreement PDF downloaded successfully!', { id: toastId });
+
+          const ts = (rental as any).originalStartDate
+            ? new Date((rental as any).originalStartDate).getTime()
+            : new Date(rental.startDate).getTime();
+          const key = `agreement_${ts}`;
+
+          uploadRentalDocuments(rental.id, {
+            agreements: { [key]: blob },
+            invoice: docs.invoice,
+            permit: docs.permit,
+            claimDocuments: docs.claimDocuments,
+          }).catch((err) => console.warn('Background upload notice:', err));
+        } else {
+          toast.error('Failed to generate agreement PDF', { id: toastId });
+        }
+      } catch (err: any) {
+        console.error('Error generating agreement:', err);
+        toast.error(err?.message || 'Failed to generate agreement', { id: toastId });
+      }
     },
-    []
+    [vehicles, customers]
   );
 
   const handleDownloadInvoice = useCallback(
     async (rental: Rental) => {
-      setPreviewRentalDoc({
-        rental,
-        type: 'invoice',
-      });
+      const safeRef = (rental.rentalAgreementNumber || rental.id || 'N/A').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileName = `Rental_Invoice_${safeRef}.pdf`;
+
+      if (rental.documents?.invoice) {
+        const toastId = toast.loading('Generating Rental Invoice PDF...');
+        try {
+          if (rental.documents.invoice.startsWith('data:') || rental.documents.invoice.startsWith('blob:')) {
+            const res = await fetch(rental.documents.invoice);
+            const blob = await res.blob();
+            saveAs(blob, fileName);
+            try {
+              const url = URL.createObjectURL(blob);
+              window.open(url, '_blank');
+              setTimeout(() => URL.revokeObjectURL(url), 60000);
+            } catch {}
+          } else {
+            try {
+              const res = await fetch(rental.documents.invoice);
+              if (res.ok) {
+                const blob = await res.blob();
+                saveAs(blob, fileName);
+              } else {
+                openDocument(rental.documents.invoice);
+              }
+            } catch {
+              openDocument(rental.documents.invoice);
+            }
+          }
+          toast.success('Rental Invoice PDF downloaded successfully!', { id: toastId });
+          return;
+        } catch {
+          openDocument(rental.documents.invoice);
+          toast.dismiss(toastId);
+          return;
+        }
+      }
+
+      const vehicle = vehicles.find((v) => v.id === rental.vehicleId);
+      const customer = customers.find((c) => c.id === rental.customerId);
+      if (!vehicle || !customer) {
+        toast.error('Vehicle or customer not found');
+        return;
+      }
+
+      const toastId = toast.loading('Generating Rental Invoice PDF...');
+      try {
+        const validatedRental: Rental = {
+          ...rental,
+          startDate: ensureValidDate(rental.startDate) || new Date(),
+          endDate: ensureValidDate(rental.endDate) || new Date(),
+          createdAt: ensureValidDate(rental.createdAt) || new Date(),
+          updatedAt: ensureValidDate(rental.updatedAt) || new Date(),
+          hireSubstitutionDetails: rental.hireSubstitutionDetails?.map((sub) => ({
+            ...sub,
+            givenAt: ensureValidDate(sub.givenAt) || new Date(),
+            expectedReturnAt: ensureValidDate(sub.expectedReturnAt) || new Date(),
+          })) || [],
+        };
+
+        const docs = await generateRentalDocuments(validatedRental, vehicle, customer);
+        const blob = docs.invoice;
+        if (blob) {
+          saveAs(blob, fileName);
+          try {
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+          } catch {}
+          toast.success('Rental Invoice PDF downloaded successfully!', { id: toastId });
+
+          uploadRentalDocuments(rental.id, {
+            agreements: docs.agreement ? { [`agreement_${new Date(rental.startDate).getTime()}`]: docs.agreement } : {},
+            invoice: blob,
+            permit: docs.permit,
+            claimDocuments: docs.claimDocuments,
+          }).catch((err) => console.warn('Background upload notice:', err));
+        } else {
+          toast.error('Failed to generate invoice PDF', { id: toastId });
+        }
+      } catch (err: any) {
+        console.error('Error generating invoice:', err);
+        toast.error(err?.message || 'Failed to generate invoice', { id: toastId });
+      }
     },
-    []
+    [vehicles, customers]
   );
 
   const handleDownloadPermit = useCallback((rental: Rental) => {
@@ -585,7 +743,7 @@ const Rentals = () => {
       </div>
 
       <RentalTable
-        rentals={filteredRentals} vehicles={vehicles} customers={customers} onView={setSelectedRental} onEdit={setEditingRental} onDelete={setDeletingRental} onComplete={handleOpenReturnModal} onDownloadAgreement={handleOpenAgreementModal} onDownloadInvoice={handleDownloadInvoice} onRecordPayment={setPayingRental} onApplyDiscount={setDiscountingRental} onDeletePayment={handleDeletePayment} onGenerate90DayAgreement={(rental: Rental) => open90(rental)} onDownloadPermit={(rental) => handleDownloadPermitTrigger(rental)} onSetReturnExpectation={setReturnExpectationRental} onShowNotes={setNotingRental} onExtend={setExtendingRental}
+        rentals={filteredRentals} vehicles={vehicles} customers={customers} onView={setSelectedRental} onEdit={setEditingRental} onDelete={setDeletingRental} onComplete={handleOpenReturnModal} onDownloadAgreement={handleDirectDownloadAgreement} onDownloadInvoice={handleDownloadInvoice} onRecordPayment={setPayingRental} onApplyDiscount={setDiscountingRental} onDeletePayment={handleDeletePayment} onGenerate90DayAgreement={(rental: Rental) => open90(rental)} onDownloadPermit={(rental) => handleDownloadPermitTrigger(rental)} onSetReturnExpectation={setReturnExpectationRental} onShowNotes={setNotingRental} onExtend={setExtendingRental}
       />
 
       {/* --- MODALS --- */}
@@ -756,6 +914,24 @@ const Rentals = () => {
   returnCondition: { ...condition, id: r.returnCondition?.id ?? `return_${Date.now()}`, createdAt: r.returnCondition?.createdAt ?? new Date(), createdBy: r.returnCondition?.createdBy ?? (user as any)?.id },
   endDate: condition.date, status: 'completed', cost: newTotal, remainingAmount: newRemaining, paymentStatus: newPaymentStatus, updatedAt: new Date(), updatedBy: (user as any)?.id
 });
+
+                  // Automatically generate and attach Satisfaction Notice upon completion for Claim Hire
+                  const isClaim = r.type === 'claim' || r.reason === 'credit-hire' || r.reason === 'gta' || r.reason === 'claim';
+                  if (isClaim) {
+                    const cust = customers.find(c => c.id === r.customerId);
+                    if (cust && v) {
+                      const completedRental = { ...r, returnCondition: condition, endDate: condition.date, status: 'completed' as const };
+                      generateRentalDocuments(completedRental, v, cust).then((res) => {
+                        if (res.claimDocuments?.satisfactionNotice) {
+                          uploadRentalDocuments(r.id, {
+                            agreements: {},
+                            claimDocuments: { satisfactionNotice: res.claimDocuments.satisfactionNotice }
+                          }).catch(e => console.warn('Could not upload satisfactionNotice on completion:', e));
+                        }
+                      }).catch(e => console.warn('Could not generate satisfactionNotice on completion:', e));
+                    }
+                  }
+
                   toast.success('Main vehicle return saved. Rental marked as Completed.');
                 }
                 setCompletingRental(null); setReturnTarget(null);
@@ -773,22 +949,6 @@ const Rentals = () => {
 
       <Modal isOpen={!!notingRental} onClose={() => setNotingRental(null)} title="Rental Notes">
         {notingRental && <RentalNotesModal rental={notingRental} onClose={() => setNotingRental(null)} />}
-      </Modal>
-
-      <Modal isOpen={!!agreementRental} onClose={() => setAgreementRental(null)} title="Generate Rental Agreement" size="md">
-        <div className="flex flex-col gap-4">
-          <p className="text-gray-600">How would you like to generate the rental agreement?</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button onClick={() => agreementRental && processAgreementGeneration(agreementRental, true)} className="flex flex-col items-center justify-center p-6 border-2 border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 hover:border-primary transition-all group">
-              <ImageIcon className="w-10 h-10 text-primary mb-3 group-hover:scale-110 transition-transform" />
-              <span className="font-bold text-gray-900">Include Images</span><span className="text-xs text-gray-500 text-center mt-1">Full report with checkout & return photos</span>
-            </button>
-            <button onClick={() => agreementRental && processAgreementGeneration(agreementRental, false)} className="flex flex-col items-center justify-center p-6 border-2 border-gray-200 bg-white rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all group">
-              <FileTextIcon className="w-10 h-10 text-gray-600 mb-3 group-hover:scale-110 transition-transform" />
-              <span className="font-bold text-gray-900">Text Only</span><span className="text-xs text-gray-500 text-center mt-1">Faster generation, cleaner layout</span>
-            </button>
-          </div>
-        </div>
       </Modal>
       
       {permitRental && <ParkingPermitModal isOpen={!!permitRental} onClose={() => setPermitRental(null)} rental={permitRental} mainVehicle={vehicles.find(v => v.id === permitRental.vehicleId)} onSelect={(vehData, label) => handleGeneratePermit(permitRental, vehData, label)} />}
@@ -809,132 +969,6 @@ const Rentals = () => {
           vehicles={vehicles}
         />
       )}
-
-      {/* --- STANDARDIZED LEFT-SIDE SPLIT PREVIEW CANVAS --- */}
-      {previewRentalDoc && (() => {
-        const vehicle = vehicles.find((v) => v.id === previewRentalDoc.rental.vehicleId) || ({
-          id: previewRentalDoc.rental.vehicleId,
-          make: 'Fleet',
-          model: 'Vehicle',
-          registrationNumber: 'REG-PENDING',
-          dailyRentalPrice: 0,
-          weeklyRentalPrice: 0,
-          claimRentalPrice: 0,
-        } as unknown as Vehicle);
-
-        const customer = customers.find((c) => c.id === previewRentalDoc.rental.customerId) || ({
-          id: previewRentalDoc.rental.customerId,
-          name: 'Valued Customer',
-          email: '',
-          mobile: '',
-        } as unknown as Customer);
-
-        const validatedRental: Rental = {
-          ...previewRentalDoc.rental,
-          startDate: ensureValidDate(previewRentalDoc.rental.startDate) || new Date(),
-          endDate: ensureValidDate(previewRentalDoc.rental.endDate) || new Date(),
-          createdAt: ensureValidDate(previewRentalDoc.rental.createdAt) || new Date(),
-          updatedAt: ensureValidDate(previewRentalDoc.rental.updatedAt) || new Date(),
-          hireSubstitutionDetails: previewRentalDoc.rental.hireSubstitutionDetails?.map((sub) => ({
-            ...sub,
-            givenAt: ensureValidDate(sub.givenAt) || new Date(),
-            expectedReturnAt: ensureValidDate(sub.expectedReturnAt) || new Date(),
-          })) || [],
-        };
-
-        const isAgreement = previewRentalDoc.type === 'agreement';
-
-        return (
-          <SplitDocumentPreviewModal
-            isOpen={!!previewRentalDoc}
-            onClose={() => setPreviewRentalDoc(null)}
-            documentType={isAgreement ? 'rental_agreement' : 'rental_invoice'}
-            documentTitle={isAgreement ? 'Rental Agreement Live Preview' : 'Rental Invoice Live Preview'}
-            documentReference={previewRentalDoc.rental.rentalAgreementNumber || previewRentalDoc.rental.id}
-            baseCompanyDetails={companyDetails}
-            initialBankId={previewRentalDoc.rental?.bankAllocation?.id || (previewRentalDoc.rental as any)?.bankAccountId}
-            isGeneratingPDF={isGeneratingRentalPDF}
-            renderDocument={(effectiveCompanyDetails) => {
-              if (isAgreement) {
-                return (
-                  <RentalAgreement
-                    rental={validatedRental}
-                    vehicle={vehicle}
-                    customer={customer}
-                    companyDetails={effectiveCompanyDetails}
-                    includeImages={previewRentalDoc.includeImages ?? true}
-                  />
-                );
-              }
-              return (
-                <RentalInvoice
-                  rental={validatedRental}
-                  vehicle={vehicle}
-                  customer={customer}
-                  companyDetails={effectiveCompanyDetails}
-                />
-              );
-            }}
-            onCommitAndGenerate={async (effectiveCompanyDetails) => {
-              setIsGeneratingRentalPDF(true);
-              try {
-                const docElement = isAgreement ? (
-                  <RentalAgreement
-                    rental={validatedRental}
-                    vehicle={vehicle}
-                    customer={customer}
-                    companyDetails={effectiveCompanyDetails}
-                    includeImages={previewRentalDoc.includeImages ?? true}
-                  />
-                ) : (
-                  <RentalInvoice
-                    rental={validatedRental}
-                    vehicle={vehicle}
-                    customer={customer}
-                    companyDetails={effectiveCompanyDetails}
-                  />
-                );
-
-                const blob = await pdf(docElement).toBlob();
-                const fileName = isAgreement
-                  ? `Rental_Agreement_${previewRentalDoc.rental.rentalAgreementNumber || previewRentalDoc.rental.id}.pdf`
-                  : `Rental_Invoice_${previewRentalDoc.rental.rentalAgreementNumber || previewRentalDoc.rental.id}.pdf`;
-                saveAs(blob, fileName);
-
-                try {
-                  if (isAgreement) {
-                    const ts = (previewRentalDoc.rental as any).originalStartDate
-                      ? new Date((previewRentalDoc.rental as any).originalStartDate as any).getTime()
-                      : new Date(previewRentalDoc.rental.startDate).getTime();
-                    const key = `agreement_${ts}${previewRentalDoc.includeImages ? '' : '_no_img'}`;
-                    await uploadRentalDocuments(previewRentalDoc.rental.id, {
-                      agreements: { [key]: blob },
-                      invoice: new Blob([]),
-                      permit: new Blob([]),
-                    });
-                  } else {
-                    await uploadRentalDocuments(previewRentalDoc.rental.id, {
-                      agreements: {},
-                      invoice: blob,
-                      permit: new Blob([]),
-                    });
-                  }
-                } catch (upErr) {
-                  console.warn('Storage upload notice:', upErr);
-                }
-
-                toast.success(`${isAgreement ? 'Rental agreement' : 'Rental invoice'} generated and saved!`);
-                setPreviewRentalDoc(null);
-              } catch (err: any) {
-                console.error('Error generating rental document:', err);
-                toast.error(`Generation error: ${err.message || err}`);
-              } finally {
-                setIsGeneratingRentalPDF(false);
-              }
-            }}
-          />
-        );
-      })()}
     </div>
   );
 };

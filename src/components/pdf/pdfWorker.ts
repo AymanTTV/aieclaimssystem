@@ -11,7 +11,9 @@ import {
   ConditionOfHire,
   NoticeOfRightToCancel,
   HireAgreement,
-  CreditStorageAndRecovery
+  CreditStorageAndRecovery,
+  CreditHireMitigation,
+  SatisfactionNotice
 } from './claims';
 
 // our worker receives { type, payload } messages
@@ -33,10 +35,17 @@ self.onmessage = async (e: MessageEvent<{ type: string; payload: any }>) => {
         blob = await pdf(createElement(NoticeOfRightToCancel, payload)).toBlob();
         break;
       case 'hireAgreement':
+      case 'creditHireAgreement':
         blob = await pdf(createElement(HireAgreement, payload)).toBlob();
+        break;
+      case 'creditHireMitigation':
+        blob = await pdf(createElement(CreditHireMitigation, payload)).toBlob();
         break;
       case 'creditStorageAndRecovery':
         blob = await pdf(createElement(CreditStorageAndRecovery, payload)).toBlob();
+        break;
+      case 'satisfactionNotice':
+        blob = await pdf(createElement(SatisfactionNotice, payload)).toBlob();
         break;
       default:
         throw new Error(`Unknown PDF type: ${type}`);

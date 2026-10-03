@@ -6,6 +6,7 @@ import { Accident } from '../../../types/accident';
 import { formatGBP } from '../../../utils/driverRiskAnalysis';
 import { calculateReportingTiming, parseDateSafe } from '../../../utils/accidentCalculations';
 import { format } from 'date-fns';
+import SafePdfLogo from '../SafePdfLogo';
 
 const pdfStyles = StyleSheet.create({
   page: {
@@ -392,7 +393,7 @@ export const FleetClaimExperiencePDFDocument: React.FC<FleetClaimExperiencePDFDo
   const renderHeader = (subtitleText: string) => (
     <View style={pdfStyles.header}>
       <View style={pdfStyles.headerLeft}>
-        {companyLogo && <Image src={companyLogo} style={pdfStyles.logo} />}
+        <SafePdfLogo src={companyLogo} companyName={companyName} style={pdfStyles.logo} />
         <View>
           <Text style={pdfStyles.companyName}>{companyName}</Text>
           <Text style={pdfStyles.companyDetail}>{companyAddress}</Text>

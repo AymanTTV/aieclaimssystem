@@ -163,8 +163,12 @@ export function enrichTransactionWithMaintenance(
           ? Number(((netProfit / billed) * 100).toFixed(2))
           : 0;
 
+      const isExpense = txn.type === 'expense' || txn.entryType === 'DEBIT' || String((txn as any).transactionType || '').toUpperCase() === 'EXPENSE';
+      const actualAmount = (isExpense && dealerCost > 0 && Math.abs(billed - dealerCost) >= 0.01) ? dealerCost : amt;
+
       return {
         ...txn,
+        amount: actualAmount,
         linkedMaintenanceRecord: matchingLog,
         linkedInvoiceRef: txn.linkedInvoiceRef || matchingLog.id,
         orderId: txn.orderId || matchingLog.orderNumber || matchingLog.orderId,
@@ -195,8 +199,12 @@ export function enrichTransactionWithMaintenance(
           ? Number(((profit / billed) * 100).toFixed(2))
           : 0;
 
+      const isExpense = txn.type === 'expense' || txn.entryType === 'DEBIT' || String((txn as any).transactionType || '').toUpperCase() === 'EXPENSE';
+      const actualAmount = (isExpense && dCost > 0 && Math.abs(billed - dCost) >= 0.01) ? dCost : amt;
+
       return {
         ...txn,
+        amount: actualAmount,
         linkedMaintenanceRecord: matchingLog,
         linkedInvoiceRef: txn.linkedInvoiceRef || matchingLog.id,
         orderId: txn.orderId || matchingLog.orderNumber || matchingLog.orderId,
@@ -252,8 +260,12 @@ export function enrichTransactionWithMaintenance(
         ? Number(((profit / defaultBilled) * 100).toFixed(2))
         : 0;
 
+    const isExpense = txn.type === 'expense' || txn.entryType === 'DEBIT' || String((txn as any).transactionType || '').toUpperCase() === 'EXPENSE';
+    const actualAmount = (isExpense && dCost > 0 && Math.abs(defaultBilled - dCost) >= 0.01) ? dCost : amt;
+
     return {
       ...txn,
+      amount: actualAmount,
       customerBilled: txn.customerBilled !== undefined ? Number(txn.customerBilled) : defaultBilled,
       dealerCost: dCost,
       subcontractorCost: dCost,

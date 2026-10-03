@@ -43,6 +43,12 @@ import {
   DEFAULT_MANAGER_DOCUMENT_DEFAULTS,
   getPageLayoutOptions,
 } from '../../utils/entityBranding';
+import DynamicTermsManager from './DynamicTermsManager';
+import {
+  DynamicTermTemplate,
+  DEFAULT_DYNAMIC_TERMS_TEMPLATES,
+} from '../../utils/documentTemplateTerms';
+import { removeUndefined } from '../../utils/firestoreSanitize';
 import { fileToBase64, validateImage, uploadImage } from '../../utils/imageUpload';
 
 interface CompanySettings {
@@ -108,6 +114,9 @@ interface CompanySettings {
   privacyPolicy: string;
   dataProtectionPolicy: string;
   disclaimerText: string;
+
+  // Dynamic Terms & Conditions Mapping Engine Templates
+  dynamicTermsTemplates?: DynamicTermTemplate[];
 }
 
 const defaultState: CompanySettings = {
@@ -150,7 +159,8 @@ const defaultState: CompanySettings = {
   generalInvoiceTerms: '', 
   privacyPolicy: '',
   dataProtectionPolicy: '',
-  disclaimerText: ''
+  disclaimerText: '',
+  dynamicTermsTemplates: DEFAULT_DYNAMIC_TERMS_TEMPLATES,
 };
 
 const CompanyDetails = () => {
@@ -175,7 +185,11 @@ const CompanyDetails = () => {
           // ✅ Merge with default state to prevent uncontrolled input warnings for new fields
           setFormData({
             ...defaultState,
-            ...data
+            ...data,
+            dynamicTermsTemplates:
+              Array.isArray(data?.dynamicTermsTemplates)
+                ? data.dynamicTermsTemplates
+                : DEFAULT_DYNAMIC_TERMS_TEMPLATES,
           } as CompanySettings);
           
           if (data.logoUrl) {
@@ -202,6 +216,18 @@ const CompanyDetails = () => {
     }
     return () => clearInterval(interval); 
   }, [editing, borderColors.length]);
+
+  // Smooth scroll to Dynamic T&C Mapping Engine when navigated with hash or scope param
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.hash === '#dynamic-terms-engine' || window.location.search.includes('scope='))) {
+      setTimeout(() => {
+        const el = document.getElementById('dynamic-terms-engine');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 350);
+    }
+  }, []);
 
 
   const [showAddBankModal, setShowAddBankModal] = useState(false);
@@ -458,11 +484,13 @@ const CompanyDetails = () => {
     try {
       const docRef = doc(db, 'companySettings', 'details');
 
-      await setDoc(docRef, {
+      const cleanedData = removeUndefined({
         ...formData,
         updatedAt: new Date(),
         updatedBy: user.id
-      }, { merge: true });
+      });
+
+      await setDoc(docRef, cleanedData, { merge: true });
 
       toast.success('Company details updated successfully');
       setEditing(false);
@@ -1420,313 +1448,80 @@ const CompanyDetails = () => {
           />
         </div>
 
-        {/* Document Terms & Conditions */}
-        <div className="md:col-span-2 lg:col-span-3 space-y-8 p-6 border border-gray-200 rounded-lg shadow-sm">
-          <h3 className="text-2xl font-semibold text-gray-900 border-b pb-4">Document Terms & Conditions</h3>
+        {/* Dynamic Document Terms & Conditions Mapping Engine */}
+        <div id="dynamic-terms-engine" className="md:col-span-2 lg:col-span-3 scroll-mt-6">
+          <DynamicTermsManager
+            templates={formData.dynamicTermsTemplates}
+            onChange={(updatedTemplates) => {
+              setFormData({
+                ...formData,
+                dynamicTermsTemplates: updatedTemplates,
+              });
+            }}
+            onDirectSave={async (updatedTemplates) => {
+              try {
+                const docRef = doc(db, 'companySettings', 'details');
+                const cleanedTemplates = removeUndefined(updatedTemplates);
+                const cleanedData = removeUndefined({
+                  dynamicTermsTemplates: cleanedTemplates,
+                  updatedAt: new Date(),
+                  updatedBy: user?.id || 'manager',
+                });
+                await setDoc(docRef, cleanedData, { merge: true });
+              } catch (err: any) {
+                console.error('Error saving dynamic terms templates:', err);
+                toast.error('Failed to save dynamic terms templates: ' + (err?.message || 'Unknown error'));
+              }
+            }}
+            disabled={!can('settings', 'manageDynamicTerms')}
+          />
+        </div>
 
-          {/* General Terms & Conditions */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <label className="block text-lg font-bold text-gray-800 mb-3">General Terms & Conditions</label>
-            <textarea
-              value={formData.termsAndConditions}
-              onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
-              rows={12}
-              className={getBorderClasses(true)} 
-              disabled={!editing}
-              placeholder="Enter general terms and conditions..."
-            />
-          </div>
-
-          {/* Rental Documents */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Rental Documents Terms</h4>
-            <div className="space-y-6">
-              <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Condition of Hire Terms</label>
-                <textarea
-                  value={formData.conditionOfHireText}
-                  onChange={(e) => setFormData({ ...formData, conditionOfHireText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Condition of Hire document..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Credit Hire Mitigation Terms</label>
-                <textarea
-                  value={formData.creditHireMitigationText}
-                  onChange={(e) => setFormData({ ...formData, creditHireMitigationText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Credit Hire Mitigation document..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Notice of Right to Cancel Terms</label>
-                <textarea
-                  value={formData.noticeOfRightToCancelText}
-                  onChange={(e) => setFormData({ ...formData, noticeOfRightToCancelText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Notice of Right to Cancel document..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Credit Storage and Recovery Terms</label>
-                <textarea
-                  value={formData.creditStorageAndRecoveryText}
-                  onChange={(e) => setFormData({ ...formData, creditStorageAndRecoveryText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Credit Storage and Recovery document..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Hire Agreement Terms</label>
-                <textarea
-                  value={formData.hireAgreementText}
-                  onChange={(e) => setFormData({ ...formData, hireAgreementText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Hire Agreement document..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Rental Invoice Terms</label>
-                <textarea
-                  value={formData.rentalInvoiceTerms}
-                  onChange={(e) => setFormData({ ...formData, rentalInvoiceTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)}
-                  disabled={!editing}
-                  placeholder="Enter terms and conditions for the Rental Invoice..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Satisfaction Notice Terms</label>
-                <textarea
-                  value={formData.satisfactionNoticeText}
-                  onChange={(e) => setFormData({ ...formData, satisfactionNoticeText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Satisfaction Notice document..."
-                />
-              </div>
+        {/* Optional Corporate Policies & Disclaimers */}
+        <div className="md:col-span-2 lg:col-span-3 space-y-4 p-5 border border-slate-200 rounded-xl bg-slate-50/50 shadow-2xs">
+          <h4 className="text-base font-bold text-slate-800 flex items-center justify-between">
+            <span>Corporate Policies &amp; General Disclaimers</span>
+            <span className="text-xs font-normal text-slate-500">GDPR, Privacy &amp; Fleet Notices</span>
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Privacy Policy
+              </label>
+              <textarea
+                value={formData.privacyPolicy}
+                onChange={(e) => setFormData({ ...formData, privacyPolicy: e.target.value })}
+                rows={4}
+                className={getBorderClasses(true)}
+                disabled={!editing}
+                placeholder="Enter privacy policy summary..."
+              />
             </div>
-          </div>
-
-          {/* Vehicle Documents */}
-          {/* Vehicle Documents */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Vehicle Documents Terms</h4>
-            <div className="space-y-6">
-              
-              {/* ✅ NEW: AIE Skyline Terms */}
-               <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Vehicle Terms (AIE Skyline Limited)</label>
-                <textarea
-                  value={formData.vehicleTermsAIESkyline}
-                  onChange={(e) => setFormData({ ...formData, vehicleTermsAIESkyline: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for vehicles owned by AIE Skyline Limited..."
-                />
-              </div>
-
-              {/* ✅ NEW: Other Owners Terms */}
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Vehicle Terms (Other Owners)</label>
-                <textarea
-                  value={formData.vehicleTermsOtherOwners}
-                  onChange={(e) => setFormData({ ...formData, vehicleTermsOtherOwners: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for vehicles owned by other owners..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Maintenance Terms</label>
-                <textarea
-                  value={formData.maintenanceTerms}
-                  onChange={(e) => setFormData({ ...formData, maintenanceTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Maintenance documents..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Accident Terms</label>
-                <textarea
-                  value={formData.accidentTerms}
-                  onChange={(e) => setFormData({ ...formData, accidentTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Accident documents..."
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Data Protection Policy
+              </label>
+              <textarea
+                value={formData.dataProtectionPolicy}
+                onChange={(e) => setFormData({ ...formData, dataProtectionPolicy: e.target.value })}
+                rows={4}
+                className={getBorderClasses(true)}
+                disabled={!editing}
+                placeholder="Enter GDPR data protection text..."
+              />
             </div>
-          </div>
-
-          {/* Claims Documents */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Claims Documents Terms</h4>
-            <div className="space-y-6">
-              <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Personal Injury Terms</label>
-                <textarea
-                  value={formData.personalInjuryTerms}
-                  onChange={(e) => setFormData({ ...formData, personalInjuryTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Personal Injury documents..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">VD Finance Terms</label>
-                <textarea
-                  value={formData.vdFinanceTerms}
-                  onChange={(e) => setFormData({ ...formData, vdFinanceTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for VD Finance documents..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Financial Documents */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Financial Documents Terms</h4>
-            <div className="space-y-6">
-              <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Driver Pay Terms</label>
-                <textarea
-                  value={formData.driverPayTerms}
-                  onChange={(e) => setFormData({ ...formData, driverPayTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Driver Pay documents..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Petty Cash Terms</label>
-                <textarea
-                  value={formData.pettyCashTerms}
-                  onChange={(e) => setFormData({ ...formData, pettyCashTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Petty Cash documents..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">VAT Record Terms</label>
-                <textarea
-                  value={formData.vatRecordTerms}
-                  onChange={(e) => setFormData({ ...formData, vatRecordTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for VAT Record documents..."
-                />
-              </div>
-
-              {/* ✅ NEW FINANCE INVOICE TERMS ADDED HERE */}
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Finance Invoice Terms</label>
-                <textarea
-                  value={formData.generalInvoiceTerms}
-                  onChange={(e) => setFormData({ ...formData, generalInvoiceTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter general finance invoice terms..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Documents */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Customer Documents Terms</h4>
-            <div className="space-y-6">
-              <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Customer Terms</label>
-                <textarea
-                  value={formData.customerTerms}
-                  onChange={(e) => setFormData({ ...formData, customerTerms: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter terms for Customer documents..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Terms */}
-          <div className="border border-gray-200 rounded-md p-5 bg-gray-50">
-            <h4 className="text-xl font-semibold text-gray-800 mb-5 border-b pb-3">Additional Terms</h4>
-            <div className="space-y-6">
-              <div className="pt-4">
-                <label className="block text-base font-medium text-gray-700 mb-2">Privacy Policy</label>
-                <textarea
-                  value={formData.privacyPolicy}
-                  onChange={(e) => setFormData({ ...formData, privacyPolicy: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter privacy policy..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Data Protection Policy</label>
-                <textarea
-                  value={formData.dataProtectionPolicy}
-                  onChange={(e) => setFormData({ ...formData, dataProtectionPolicy: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter data protection policy..."
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <label className="block text-base font-medium text-gray-700 mb-2">Disclaimer</label>
-                <textarea
-                  value={formData.disclaimerText}
-                  onChange={(e) => setFormData({ ...formData, disclaimerText: e.target.value })}
-                  rows={10}
-                  className={getBorderClasses(true)} 
-                  disabled={!editing}
-                  placeholder="Enter disclaimer text..."
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                General Disclaimer
+              </label>
+              <textarea
+                value={formData.disclaimerText}
+                onChange={(e) => setFormData({ ...formData, disclaimerText: e.target.value })}
+                rows={4}
+                className={getBorderClasses(true)}
+                disabled={!editing}
+                placeholder="Enter standard disclaimer text..."
+              />
             </div>
           </div>
         </div>

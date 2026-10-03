@@ -11,16 +11,25 @@ import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import FormField from '../ui/FormField';
 import { addWeeks, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Search, Car, X, AlertTriangle, CheckCircle, Info, User, FileText, PoundSterling, Plus, MessageCircle, Mail, Printer } from 'lucide-react';
+import { Search, Car, X, AlertTriangle, CheckCircle, Info, User, FileText, PoundSterling, Plus, MessageCircle, Mail, Printer, Building2, Landmark, Scale, ChevronDown, ChevronUp, Sparkles, Eye, Check, Lock } from 'lucide-react';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
 import { syncRentalRecord } from '../../services/unifiedSync.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import { CompanyEntity, getAvailableCompanyEntities } from '../../utils/entityBranding';
+import { CompanyBankAccount, getEffectiveBankAccounts } from '../../utils/bankAccountAllocation';
+import {
+  DynamicTermTemplate,
+  getTemplatesForDocumentType,
+  fetchLatestDynamicTermTemplates,
+} from '../../utils/documentTemplateTerms';
 import FileUpload from '../ui/FileUpload';
 import TextArea from '../ui/TextArea';
 import Modal from '../ui/Modal'; 
-import SignaturePad from '../ui/SignaturePad';
 import RentalCommunicationModal from './RentalCommunicationModal';
+import { resolveCustomerOrUserSignature, saveSignatureEverywhere } from '../../utils/signatureStorage';
+import { formatExecutionDateTime } from '../../utils/legalDocumentUtils';
 
 interface RentalFormProps {
   vehicles: Vehicle[];
@@ -120,6 +129,28 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     );
   }, [claims, claimSearchQuery]);
 
+  const { companyDetails } = useCompanyDetails();
+  const availableEntities = useMemo(
+    () => getAvailableCompanyEntities(companyDetails),
+    [companyDetails]
+  );
+  const availableBanks = useMemo(
+    () => getEffectiveBankAccounts(companyDetails),
+    [companyDetails]
+  );
+  const [dynamicTemplates, setDynamicTemplates] = useState<DynamicTermTemplate[]>([]);
+  const [showTermsPreview, setShowTermsPreview] = useState(false);
+
+  useEffect(() => {
+    fetchLatestDynamicTermTemplates()
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          setDynamicTemplates(res);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [formData, setFormData] = useState({
     vehicleId: '', customerId: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -138,8 +169,157 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
     claimRef: '', includeVAT: false,
     deliveryChargeIncludeVAT: false, collectionChargeIncludeVAT: false,
     insurancePerDayIncludeVAT: false, insurancePerWeekIncludeVAT: false,
-    hireSubstitutionDetails: [] as SubForm[]
+    hireSubstitutionDetails: [] as SubForm[],
+
+    // Corporate Entity & Logo Selection
+    corporateEntityKey: 'aie_skyline',
+    corporateEntityName: 'AIE Skyline Limited',
+    corporateEntityLogo: '',
+
+    // Bank Account Selection
+    bankAccountId: '',
+    bankAccountDetails: null as any,
+
+    // Agreement Template & Statutory Terms Selection
+    agreementTemplateId: 'daily_hire_terms',
+    agreementTemplateTitle: 'DAILY VEHICLE HIRE TERMS & CONDITIONS',
+    agreementTemplateContent: '',
   });
+
+  const availableAgreementTemplates = useMemo(() => {
+    return getTemplatesForDocumentType('rental_agreement', companyDetails, {
+      documentScope: 'rental',
+      hireType: formData.type,
+    });
+  }, [companyDetails, formData.type]);
+
+  // Pre-populate Entity, Bank, and Agreement Template automatically based on Hire Type
+  const handleHireTypeChange = (newType: 'daily' | 'weekly' | 'claim') => {
+    // 1. Entity: AIE Claims Ltd for claims, AIE Skyline Limited for daily/weekly
+    const targetEntityKey = newType === 'claim' ? 'aie_claims' : 'aie_skyline';
+    const matchedEntity =
+      availableEntities.find((e) => e.key === targetEntityKey) || availableEntities[0];
+
+    // 2. Bank: NatWest/Claims recovery for claims, Lloyds/Default for daily/weekly
+    let matchedBank = availableBanks[0];
+    if (newType === 'claim') {
+      const claimsBank = availableBanks.find(
+        (b) => b.id.includes('claims') || b.id.includes('natwest')
+      );
+      if (claimsBank) matchedBank = claimsBank;
+    } else {
+      const mainBank = availableBanks.find((b) => b.isDefault || b.id.includes('lloyds'));
+      if (mainBank) matchedBank = mainBank;
+    }
+
+    // 3. Agreement Template
+    let matchedTemplate: { id: string; title: string; content: string } | null = null;
+    if (dynamicTemplates.length > 0) {
+      const found = dynamicTemplates.find(
+        (t) =>
+          t.isActive &&
+          (newType === 'claim'
+            ? t.hireType === 'claim' || t.id.includes('claim')
+            : t.hireType === newType)
+      );
+      if (found) {
+        matchedTemplate = { id: found.id, title: found.title, content: found.content };
+      }
+    }
+    if (!matchedTemplate) {
+      const rentalTemplates = getTemplatesForDocumentType('rental_agreement', companyDetails, {
+        documentScope: 'rental',
+        hireType: newType,
+      });
+      const t =
+        rentalTemplates.find((tmpl) =>
+          newType === 'claim'
+            ? tmpl.category === 'Claims' || tmpl.id.includes('claim')
+            : tmpl.isDefault
+        ) ||
+        rentalTemplates[0];
+      if (t) {
+        matchedTemplate = { id: t.id, title: t.title, content: t.content };
+      } else {
+        matchedTemplate = { id: '', title: '', content: '' };
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      type: newType,
+      corporateEntityKey: matchedEntity?.key || prev.corporateEntityKey,
+      corporateEntityName: matchedEntity?.fullName || prev.corporateEntityName,
+      corporateEntityLogo: matchedEntity?.logoUrl || prev.corporateEntityLogo,
+      bankAccountId: matchedBank?.id || prev.bankAccountId,
+      bankAccountDetails: matchedBank
+        ? {
+            bankName: matchedBank.bankName,
+            accountName: matchedBank.accountName,
+            accountNumber: matchedBank.accountNumber,
+            sortCode: matchedBank.sortCode,
+            iban: matchedBank.iban,
+            bic: matchedBank.bic,
+          }
+        : prev.bankAccountDetails,
+      agreementTemplateId: matchedTemplate?.id || prev.agreementTemplateId,
+      agreementTemplateTitle: matchedTemplate?.title || prev.agreementTemplateTitle,
+      agreementTemplateContent: matchedTemplate?.content || prev.agreementTemplateContent,
+    }));
+  };
+
+  // Initial synchronization of Entity, Bank, and Template on load
+  useEffect(() => {
+    if (availableEntities.length > 0 && !formData.corporateEntityLogo) {
+      const targetEntityKey = formData.type === 'claim' ? 'aie_claims' : 'aie_skyline';
+      const ent = availableEntities.find((e) => e.key === targetEntityKey) || availableEntities[0];
+      if (ent) {
+        setFormData((p) => ({
+          ...p,
+          corporateEntityKey: ent.key,
+          corporateEntityName: ent.fullName,
+          corporateEntityLogo: ent.logoUrl || '',
+        }));
+      }
+    }
+    if (availableBanks.length > 0 && !formData.bankAccountId) {
+      const b =
+        formData.type === 'claim'
+          ? availableBanks.find((x) => x.id.includes('claims') || x.id.includes('natwest')) ||
+            availableBanks[0]
+          : availableBanks.find((x) => x.isDefault || x.id.includes('lloyds')) ||
+            availableBanks[0];
+      if (b) {
+        setFormData((p) => ({
+          ...p,
+          bankAccountId: b.id,
+          bankAccountDetails: {
+            bankName: b.bankName,
+            accountName: b.accountName,
+            accountNumber: b.accountNumber,
+            sortCode: b.sortCode,
+            iban: b.iban,
+            bic: b.bic,
+          },
+        }));
+      }
+    }
+    if (!formData.agreementTemplateContent) {
+      const rentalTemplates = getTemplatesForDocumentType('rental_agreement', companyDetails, {
+        documentScope: 'rental',
+        hireType: formData.type,
+      });
+      const t = rentalTemplates[0];
+      if (t) {
+        setFormData((p) => ({
+          ...p,
+          agreementTemplateId: t.id,
+          agreementTemplateTitle: t.title,
+          agreementTemplateContent: t.content,
+        }));
+      }
+    }
+  }, [availableEntities, availableBanks, companyDetails]);
 
   const [insurancePerDayTouched, setInsurancePerDayTouched] = useState(false);
   const [insurancePerWeekTouched, setInsurancePerWeekTouched] = useState(false);
@@ -388,6 +568,21 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
           }))
         : null;
 
+      // Auto-populate saved signature from Customer Profile / IndexedDB / Active User
+      let effectiveSignature = formData.signature || selectedCustomer?.signature || null;
+      if (!effectiveSignature) {
+        effectiveSignature = await resolveCustomerOrUserSignature({
+          customerId: formData.customerId,
+          customer: selectedCustomer,
+          customerName: selectedCustomer?.name,
+          userId: user?.id,
+          user,
+        });
+      }
+
+      const isLegallySigned = Boolean(effectiveSignature);
+      const backdatedExecutionTimestamp = formatExecutionDateTime(s, 'dd/MM/yyyy HH:mm');
+
       const rentalData: Omit<Rental, 'id' | 'checkOutCondition' | 'checkInCondition' | 'returnCondition'> = {
         rentalAgreementNumber,
         vehicleId: formData.vehicleId, customerId: formData.customerId,
@@ -402,7 +597,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         paidAmount: formData.paidAmount || 0,
         remainingAmount: finalRemainingAmountCalc,
         paymentStatus: finalRemainingAmountCalc <= 0.001 ? 'paid' : formData.paidAmount > 0 ? 'partially_paid' : 'pending',
-        payments, signature: formData.signature || null, claimRef: formData.claimRef || null,
+        payments,
+        signature: effectiveSignature,
+        customerSignature: effectiveSignature,
+        isSigned: isLegallySigned,
+        documentStatus: isLegallySigned ? 'Legally Signed & Verified' : null,
+        signedAt: isLegallySigned ? s : null,
+        customerSignatureDate: isLegallySigned ? s : null,
+        signatureTimestamp: isLegallySigned ? backdatedExecutionTimestamp : null,
+        claimRef: formData.claimRef || null,
 
         deliveryCharge: formData.deliveryCharge, collectionCharge: formData.collectionCharge,
         insurancePerDay: formData.type !== 'weekly' ? formData.insurancePerDay : null,
@@ -437,6 +640,16 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
         
         hireSubstitutionDetails: submitHireSubstitutionDetails,
 
+        // Saved Corporate Entity, Bank Account & Agreement T&C Settings
+        corporateEntityKey: formData.corporateEntityKey || 'aie_skyline',
+        corporateEntityName: formData.corporateEntityName || 'AIE Skyline Limited',
+        corporateEntityLogo: formData.corporateEntityLogo || '',
+        bankAccountId: formData.bankAccountId || '',
+        bankAccountDetails: formData.bankAccountDetails || null,
+        agreementTemplateId: formData.agreementTemplateId || '',
+        agreementTemplateTitle: formData.agreementTemplateTitle || '',
+        agreementTemplateContent: formData.agreementTemplateContent || '',
+
         createdAt: new Date(), createdBy: user.id, updatedAt: new Date(), updatedBy: user.id,
         paymentMethod: formData.paymentMethod
       } as Rental;
@@ -467,6 +680,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
       );
 
       const fullRental = { id: docRef.id, ...rentalData } as Rental;
+      if (effectiveSignature && formData.customerId) {
+        saveSignatureEverywhere(formData.customerId, effectiveSignature, {
+          customerId: formData.customerId,
+          customerName: selectedCustomer?.name,
+          userId: user?.id,
+          autoUpdateFirestore: true,
+        }).catch(() => {});
+      }
       setSavedRentalForShare(fullRental);
       setIsConfirmModalOpen(false);
       setLoading(false);
@@ -503,12 +724,36 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
          
          if (formData.paidAmount > 0) {
             await createFinanceTransaction({
-              type: 'income', category: 'Rental', amount: formData.paidAmount,
+              type: 'income',
+              transactionType: 'INCOME',
+              entryType: 'CREDIT',
+              category: 'Vehicle Rental Income',
+              departmentName: 'Vehicle Rental / Fleet',
+              amount: formData.paidAmount,
+              customerBilled: formData.paidAmount,
+              grossBilling: formData.paidAmount,
+              paid: formData.paidAmount,
+              paidAmount: formData.paidAmount,
               description: `A ${formData.type} Rental payment`,
-              referenceId: docRef.id, paymentMethod: formData.paymentMethod,
-              status: 'completed', paymentStatus: finalRemainingAmountCalc <= 0 ? 'paid' : 'partially_paid',
-              date: new Date(), vehicleId: formData.vehicleId, customerId: formData.customerId,
+              referenceId: docRef.id,
+              sourceReferenceId: docRef.id,
+              linkedInvoiceRef: docRef.id,
+              entityId: docRef.id,
+              entityType: 'RENTAL',
+              paymentReference: rentalAgreementNumber || (docRef.id ? `RA-${docRef.id.slice(-6).toUpperCase()}` : ''),
+              orderNumber: rentalAgreementNumber || undefined,
+              vehicleRegistration: selectedVehicle?.registrationNumber || '',
+              vehicleReg: selectedVehicle?.registrationNumber || '',
+              vehicleName: selectedVehicle?.registrationNumber ? `${selectedVehicle.make || ''} ${selectedVehicle.model || ''} (${selectedVehicle.registrationNumber})`.trim() : undefined,
+              paymentMethod: formData.paymentMethod,
+              status: 'completed',
+              paymentStatus: finalRemainingAmountCalc <= 0 ? 'paid' : 'partially_paid',
+              date: new Date(),
+              vehicleId: formData.vehicleId,
+              customerId: formData.customerId,
               accountTo: selectedVehicle?.owner?.accountId,
+              accountId: selectedVehicle?.owner?.accountId,
+              accountsTo: selectedVehicle?.owner?.accountId ? [selectedVehicle?.owner?.accountId] : undefined,
               groupId: selectedVehicle?.assignedGroupId || undefined // ✅ Attach Group ID
             });
          }
@@ -639,8 +884,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                       <div className="absolute z-20 mt-1 w-full bg-white shadow-2xl max-h-60 rounded-xl py-1 overflow-auto border border-slate-200 custom-scrollbar">
                         {filteredCustomers.map(c => (
                           <div key={c.id} className="px-4 py-3 border-b border-slate-200/60 cursor-pointer hover:bg-slate-50 transition-colors"
-                             onMouseDown={() => { 
-                               setFormData(p => ({...p, customerId: c.id, signature: c.signature || ''})); 
+                             onMouseDown={async () => { 
+                               let sig = c.signature || '';
+                               if (!sig) {
+                                 sig = (await resolveCustomerOrUserSignature({ customerId: c.id, customer: c, customerName: c.name })) || '';
+                               }
+                               setFormData(p => ({...p, customerId: c.id, signature: sig})); 
                                setCustomerSearchQuery(c.name); 
                                setShowCustomerResults(false); 
                              }}
@@ -663,29 +912,202 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                         </div>
                       </div>
                       
-                      {/* Signature Box */}
+                      {/* Locked Down Customer Signature Section */}
                       <div className="border-t border-slate-200 pt-4 mt-2">
                         <div className="flex justify-between items-center mb-2">
-                           <label className="block text-sm font-bold text-slate-900">Customer Signature</label>
-                           {formData.signature ? (
-                             <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300 uppercase tracking-wider">Attached</span>
+                           <div className="flex items-center gap-1.5">
+                             <Lock className="w-4 h-4 text-slate-500" />
+                             <label className="block text-sm font-bold text-slate-900">Customer Digital Signature</label>
+                           </div>
+                           {(formData.signature || selectedCustomer?.signature) ? (
+                             <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300 uppercase tracking-wider">
+                               <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                               Locked &amp; Legally Verified
+                             </span>
                            ) : (
-                             <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-0.5 rounded border border-rose-300 uppercase tracking-wider">Required</span>
+                             <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded border border-amber-300 uppercase tracking-wider">
+                               <Lock className="w-3.5 h-3.5 text-amber-600" />
+                               Signature Required
+                             </span>
                            )}
                         </div>
-                        <SignaturePad
-                          value={formData.signature}
-                          onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
-                          theme="default"
-                        />
-                        <p className="text-xs text-slate-500 mt-2 font-medium">
-                          {formData.signature 
-                            ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
-                            : 'Please have the customer sign above.'}
-                        </p>
+
+                        {(formData.signature || selectedCustomer?.signature) ? (
+                          <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                            <div className="h-24 w-full bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-center p-2 shadow-inner">
+                              <img
+                                src={formData.signature || selectedCustomer?.signature || ''}
+                                alt="Customer Signature"
+                                className="max-h-full max-w-full object-contain pointer-events-none select-none"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500">
+                              <span className="flex items-center gap-1 font-medium text-slate-600">
+                                <Lock className="w-3 h-3 text-slate-400" />
+                                Locked to protect legal contract integrity
+                              </span>
+                              <span className="text-slate-400 font-mono">
+                                Managed via Members / Customers module
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-2">
+                            <p className="font-semibold flex items-center gap-1.5 text-amber-900">
+                              <Lock className="w-3.5 h-3.5 text-amber-600" />
+                              No signature registered under customer profile
+                            </p>
+                            <p className="text-[11px] text-amber-800 leading-relaxed">
+                              To protect legal contract integrity, signatures cannot be hand-drawn, overwritten, or cleared inside active rental records. Please use the official <strong>&quot;Request Signature&quot;</strong> workflow from the Members / Customers module.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
+               </div>
+
+               {/* Assign Corporate Entity / Logo Card */}
+               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Building2 className="text-blue-600" /> Assign Corporate Entity / Logo
+                    </h3>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Header Branding
+                    </span>
+                  </div>
+                  
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Corporate Entity Profile
+                  </label>
+                  <select
+                    value={formData.corporateEntityKey}
+                    onChange={(e) => {
+                      const selectedKey = e.target.value;
+                      const ent = availableEntities.find(x => x.key === selectedKey);
+                      if (ent) {
+                        setFormData(p => ({
+                          ...p,
+                          corporateEntityKey: ent.key,
+                          corporateEntityName: ent.fullName,
+                          corporateEntityLogo: ent.logoUrl || '',
+                        }));
+                      }
+                    }}
+                    className="block w-full px-3 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                  >
+                    {availableEntities.map((ent) => (
+                      <option key={ent.key} value={ent.key}>
+                        {ent.tradingName} — {ent.fullName} {ent.registrationNumber ? `(Co. #${ent.registrationNumber})` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Visual Card Preview of Selected Entity */}
+                  {(() => {
+                    const curEnt = availableEntities.find(x => x.key === formData.corporateEntityKey) || availableEntities[0];
+                    if (!curEnt) return null;
+                    return (
+                      <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                          {curEnt.logoUrl ? (
+                            <img src={curEnt.logoUrl} alt={curEnt.tradingName} className="w-full h-full object-contain" />
+                          ) : (
+                            <Building2 className="w-6 h-6 text-slate-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{curEnt.fullName}</span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                              {curEnt.tradingName}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1 truncate">
+                            {curEnt.officialAddress} • Tel: {curEnt.phone || 'N/A'}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {curEnt.registrationNumber ? `Co. Reg: ${curEnt.registrationNumber}` : ''} 
+                            {curEnt.vatNumber ? ` • VAT: ${curEnt.vatNumber}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+               </div>
+
+               {/* Assign Bank Account for Payments Card */}
+               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Landmark className="text-blue-600" /> Assign Bank Account for Payments
+                    </h3>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Remittance &amp; QR
+                    </span>
+                  </div>
+                  
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Bank Account for Invoices &amp; Agreements
+                  </label>
+                  <select
+                    value={formData.bankAccountId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const b = availableBanks.find(x => x.id === selectedId);
+                      if (b) {
+                        setFormData(p => ({
+                          ...p,
+                          bankAccountId: b.id,
+                          bankAccountDetails: {
+                            bankName: b.bankName,
+                            accountName: b.accountName,
+                            accountNumber: b.accountNumber,
+                            sortCode: b.sortCode,
+                            iban: b.iban,
+                            bic: b.bic,
+                          },
+                        }));
+                      }
+                    }}
+                    className="block w-full px-3 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                  >
+                    {availableBanks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.bankName} — {b.accountName} (A/C: {b.accountNumber} • SC: {b.sortCode})
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Visual Card Preview of Selected Bank */}
+                  {(() => {
+                    const curBank = availableBanks.find(x => x.id === formData.bankAccountId) || availableBanks[0];
+                    if (!curBank) return null;
+                    return (
+                      <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{curBank.bankName}</span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              {curBank.currency || 'GBP (£)'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-600 font-medium mt-1">
+                            Account: <span className="font-bold text-slate-800">{curBank.accountName}</span>
+                          </div>
+                          <div className="text-xs font-mono text-slate-500 mt-0.5">
+                            Sort Code: <span className="font-bold text-slate-700">{curBank.sortCode}</span> • Number: <span className="font-bold text-slate-700">{curBank.accountNumber}</span>
+                          </div>
+                        </div>
+                        {curBank.notes && (
+                          <span className="text-[11px] text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-md max-w-[160px] text-right truncate">
+                            {curBank.notes}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                </div>
 
                {formData.reason === 'h-substitute' && (
@@ -847,9 +1269,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
                <h3 className="col-span-2 text-lg font-bold text-slate-900 border-b border-slate-200 pb-2">Scheduling</h3>
                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Rental Type</label>
-                  <select value={formData.type} onChange={e => setFormData(p => ({ ...p, type: e.target.value as any }))} className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium">
-                    <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="claim">Claim</option>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Rental / Agreement Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => handleHireTypeChange(e.target.value as any)}
+                    className="w-full rounded-lg border border-slate-300 bg-white text-slate-900 p-2.5 shadow-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium cursor-pointer"
+                  >
+                    <option value="daily">Daily Hire</option>
+                    <option value="weekly">Weekly Hire</option>
+                    <option value="claim">Credit Hire / Claim</option>
                   </select>
                </div>
                <div>
@@ -963,6 +1391,66 @@ const RentalForm: React.FC<RentalFormProps> = ({ vehicles, customers, onClose })
                      </div>
                   </div>
                </div>
+            </div>
+
+            {/* Agreement Template & Statutory Terms Selector Card */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="text-blue-600" /> Select Agreement Template &amp; T&amp;Cs
+                </h3>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Pre-populated for {formData.type === 'claim' ? 'Credit Hire / Claim' : formData.type === 'weekly' ? 'Weekly Hire' : 'Daily Hire'}
+                </span>
+              </div>
+
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Standard Agreement Terms &amp; Conditions Template
+              </label>
+              <select
+                value={formData.agreementTemplateId}
+                onChange={(e) => {
+                  const selId = e.target.value;
+                  const tmpl = availableAgreementTemplates.find(t => t.id === selId);
+                  if (tmpl) {
+                    setFormData(p => ({
+                      ...p,
+                      agreementTemplateId: tmpl.id,
+                      agreementTemplateTitle: tmpl.title,
+                      agreementTemplateContent: tmpl.content,
+                    }));
+                  }
+                }}
+                className="block w-full px-3 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+              >
+                {availableAgreementTemplates.map((tmpl) => (
+                  <option key={tmpl.id} value={tmpl.id}>
+                    {tmpl.title} ({tmpl.name})
+                  </option>
+                ))}
+              </select>
+
+              {/* Template Content Preview Box */}
+              {availableAgreementTemplates.length === 0 ? (
+                <div className="mt-4 p-4 bg-red-50 border-2 border-dashed border-red-300 rounded-xl text-center">
+                  <div className="text-xs font-bold text-red-800 uppercase tracking-wide mb-1">
+                    ⚠️ TEMPLATE CONFIGURATION REQUIRED
+                  </div>
+                  <div className="text-xs text-red-700 leading-relaxed font-medium">
+                    TEMPLATE CONFIGURATION REQUIRED: No active T&amp;C template mapped for {formData.type === 'weekly' ? 'Weekly Rental Agreement' : formData.type === 'daily' ? 'Daily Rental Agreement' : 'Credit Hire Agreement'} in Company Settings. Please navigate to Company Settings &gt; Dynamic T&amp;C Mapping Engine to create and activate a template.
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-900">{formData.agreementTemplateTitle}</span>
+                    <span className="text-[11px] text-slate-500 font-mono">Bound to Agreement Page 3</span>
+                  </div>
+                  <div className="text-xs text-slate-600 line-clamp-4 font-mono whitespace-pre-line bg-white p-3 rounded-lg border border-slate-200">
+                    {formData.agreementTemplateContent}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

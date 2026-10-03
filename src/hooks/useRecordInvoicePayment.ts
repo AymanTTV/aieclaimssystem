@@ -321,7 +321,74 @@ export function useRecordInvoicePayment() {
         let action: 'created' | 'updated' = 'created';
         let txId = '';
 
-        if (existingTxDocId) {
+        const isMaintenanceLinked = Boolean(
+          invoice.maintenanceJobId ||
+          invoice.maintenanceOrderId ||
+          invoice.entityType === 'MAINTENANCE' ||
+          (invoice.category && String(invoice.category).toLowerCase() === 'maintenance') ||
+          (rawTargetOrder && (rawTargetOrder.toUpperCase().startsWith('A') || rawTargetOrder.toLowerCase().includes('order'))) ||
+          invoice.skipLedgerIncome ||
+          invoice.preventFinanceSync
+        );
+
+        if (isMaintenanceLinked) {
+          console.log(`[FinanceLedger] Invoice is linked to maintenance; updating existing maintenance ledger entry instead of creating duplicate invoice transaction`);
+          const mCandidateRefs = [
+            targetRefId,
+            rawTargetOrder,
+            rawTargetOrder ? rawTargetOrder.replace(/^#/, '') : null,
+            rawTargetOrder ? `#${rawTargetOrder.replace(/^#/, '')}` : null,
+            invoice.orderNumber,
+            invoice.orderId,
+            invoice.referenceId,
+            invoice.id,
+            invoice.invoiceNumber,
+          ].filter(Boolean) as string[];
+
+          let foundMaintDocId: string | null = existingTxDocId || null;
+          if (!foundMaintDocId) {
+            for (const ref of mCandidateRefs) {
+              try {
+                const qOrd = query(txCol, where('orderId', '==', ref));
+                const snapOrd = await getDocs(qOrd);
+                if (!snapOrd.empty) {
+                  foundMaintDocId = snapOrd.docs[0].id;
+                  break;
+                }
+                const qRef = query(txCol, where('referenceId', '==', ref));
+                const snapRef = await getDocs(qRef);
+                if (!snapRef.empty) {
+                  foundMaintDocId = snapRef.docs[0].id;
+                  break;
+                }
+              } catch {}
+            }
+          }
+
+          if (foundMaintDocId) {
+            txId = foundMaintDocId;
+            action = 'updated';
+            const maintUpdate = {
+              paymentStatus: newStatus,
+              status: newStatus === 'paid' ? 'completed' : newStatus,
+              paid: newPaidAmount,
+              paidAmount: newPaidAmount,
+              owing: newRemaining,
+              remainingAmount: newRemaining,
+              paymentMethod,
+              paymentReference: actualReference,
+              paymentId: newPaymentId,
+              invoiceNumber: resolvedInvoiceNumber,
+              invoiceId: invoice.id,
+              linkedInvoiceRef: invoice.id,
+              updatedAt: new Date(),
+            };
+            await updateDoc(doc(db, 'transactions', foundMaintDocId), maintUpdate);
+            try {
+              await setDoc(doc(db, 'finance_ledger', foundMaintDocId), { id: foundMaintDocId, ...maintUpdate }, { merge: true });
+            } catch {}
+          }
+        } else if (existingTxDocId) {
           // UPDATE in-place
           console.log(`[FinanceLedger UPSERT] Updating existing Income transaction ${existingTxDocId}`);
           await updateDoc(doc(db, 'transactions', existingTxDocId), financePayload);

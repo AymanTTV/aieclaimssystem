@@ -30,9 +30,12 @@ import {
   Inbox,
   X,
   MessageSquare,
+  MessageCircle,
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import toast from 'react-hot-toast';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { Customer } from '../../types/customer';
 import { resolveNameFields, resolveAddressFields, combineFullAddress } from '../../utils/nameAddressUtils';
 import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
@@ -108,6 +111,33 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
     }, 2000);
   };
 
+  const handleRequestSignature = async () => {
+    const custId = customer.id;
+    if (!custId) return;
+    const toastId = toast.loading('Generating secure signature request link...');
+    try {
+      const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await updateDoc(doc(db, 'customers', custId), {
+        signatureRequestToken: token,
+        signatureRequestExpiresAt: expiresAt,
+        updatedAt: new Date(),
+      });
+      const signUrl = `${window.location.origin}/sign/${custId}?token=${token}`;
+      await navigator.clipboard.writeText(signUrl);
+      const phone = customer.mobile || customer.phone;
+      if (phone) {
+        const text = `Hello ${customer.name},\n\nPlease review and electronically sign your account documents using this secure link:\n${signUrl}\n\nKind regards.`;
+        let cleanPhone = phone.replace(/\s+/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = '44' + cleanPhone.substring(1);
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+      }
+      toast.success('Signature request link copied to clipboard & WhatsApp opened!', { id: toastId });
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to generate signature link', { id: toastId });
+    }
+  };
+
   // Expiry states
   const licenseExpiryStatus = getExpiryStatus(customer.licenseExpiry);
   const billExpiryStatus = getExpiryStatus(customer.billExpiry);
@@ -135,6 +165,46 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
     }
     if (customer.documentUrl) {
       list.push({ id: 'generalDoc', title: 'Customer Agreement / General Document', url: customer.documentUrl, category: 'General' });
+    }
+    // Also include pre-generated rental & claim documents attached to customer record
+    if ((customer as any).documents) {
+      const docs = (customer as any).documents;
+      if (docs.agreements && typeof docs.agreements === 'object') {
+        Object.entries(docs.agreements).forEach(([k, url]) => {
+          if (typeof url === 'string' && url) {
+            list.push({
+              id: `cust_agreement_${k}`,
+              title: 'Rental Hire Agreement',
+              url,
+              category: 'Hire Agreement'
+            });
+          }
+        });
+      }
+      if (docs.invoice && typeof docs.invoice === 'string') {
+        list.push({ id: 'cust_invoice', title: 'Rental Invoice', url: docs.invoice, category: 'Invoice' });
+      }
+      if (docs.permit && typeof docs.permit === 'string') {
+        list.push({ id: 'cust_permit', title: 'Parking Permit', url: docs.permit, category: 'Permit' });
+      }
+      const claimDocsMap: Record<string, string> = {
+        hireAgreement: 'Claim Hire Agreement',
+        creditHireMitigation: 'Credit Hire Mitigation',
+        creditStorageAndRecovery: 'Credit Storage & Recovery',
+        noticeOfRightToCancel: 'Notice of Right to Cancel',
+        conditionOfHire: 'Condition of Hire',
+        satisfactionNotice: 'Satisfaction Notice',
+      };
+      Object.entries(claimDocsMap).forEach(([key, title]) => {
+        if (docs[key] && typeof docs[key] === 'string') {
+          list.push({
+            id: `cust_claim_${key}`,
+            title,
+            url: docs[key],
+            category: 'Claim Document'
+          });
+        }
+      });
     }
     return list;
   }, [customer]);
@@ -995,7 +1065,7 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
                 <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-lg p-2.5 text-xs text-emerald-950 font-mono">
                   <span className="font-bold block text-emerald-800 text-[11px] mb-0.5">Verified Signature Record:</span>
                   <p className="font-semibold text-emerald-900">
-                    {customer.signatureTimestamp || (customer.signedAt ? formatSignatureTimestamp(customer.signedAt) : 'Electronically Signed')}
+                    {customer.signatureTimestamp ? (customer.signatureTimestamp.startsWith('Date:') ? customer.signatureTimestamp : `Date: ${customer.signatureTimestamp}`) : (customer.signedAt ? `Date: ${formatSignatureTimestamp(customer.signedAt)}` : 'Legally Signed & Verified')}
                   </p>
                   <p className="text-[10px] text-emerald-700 mt-1 font-sans">
                     ✓ Mandatory Terms &amp; Conditions explicitly agreed and verified
@@ -1009,15 +1079,35 @@ const CustomerDetails: React.FC<CustomerDetailsProps> = ({ customer, onClose }) 
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 This signature serves as binding consent for vehicle lease agreements, deposit acknowledgements, and terms of service.
               </p>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleRequestSignature}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  <PenTool className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Re-request Digital Signature (WhatsApp &amp; Copy Link)</span>
+                </button>
+              </div>
             </div>
           </div>
         ) : (
           <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl">
             <PenTool className="w-8 h-8 text-slate-400 mx-auto mb-2" />
             <p className="text-sm font-semibold text-slate-700">No signature currently registered</p>
-            <p className="text-xs text-slate-500 mt-1">
-              You can send a digital signature request link to this member via SMS or email from the members table.
+            <p className="text-xs text-slate-500 mt-1 mb-4">
+              Send a secure digital signature request link to this member via WhatsApp or copy link.
             </p>
+            <button
+              type="button"
+              onClick={handleRequestSignature}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-all cursor-pointer shadow-xs"
+            >
+              <PenTool className="w-4 h-4" />
+              <MessageCircle className="w-4 h-4" />
+              <span>Request Digital Signature (WhatsApp &amp; Copy Link)</span>
+            </button>
           </div>
         )}
       </div>

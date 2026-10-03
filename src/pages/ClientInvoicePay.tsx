@@ -48,7 +48,7 @@ export const ClientInvoicePay: React.FC = () => {
   const routeParams = useParams<{ id?: string }>();
   const navigate = useNavigate();
 
-  const invoiceIdParam = searchParams.get('id') || searchParams.get('invoiceId') || routeParams.id || '';
+  const targetIdParam = searchParams.get('id') || searchParams.get('invoiceId') || searchParams.get('rentalId') || routeParams.id || '';
 
   const [loading, setLoading] = useState<boolean>(true);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -101,13 +101,13 @@ export const ClientInvoicePay: React.FC = () => {
 
         const effectiveBanks = getEffectiveBankAccounts(loadedCompany);
 
-        // B. Fetch Invoice
-        if (invoiceIdParam) {
+        // B. Fetch Invoice or Rental Record
+        if (targetIdParam) {
           let foundInvoice: Invoice | null = null;
 
-          // Attempt 1: Direct Firestore Doc ID
+          // Attempt 1: Direct Firestore Doc ID in invoices
           try {
-            const invDoc = await getDoc(doc(db, 'invoices', invoiceIdParam));
+            const invDoc = await getDoc(doc(db, 'invoices', targetIdParam));
             if (invDoc.exists()) {
               const d = invDoc.data();
               foundInvoice = {
@@ -118,14 +118,14 @@ export const ClientInvoicePay: React.FC = () => {
               } as Invoice;
             }
           } catch (err) {
-            console.warn('[ClientInvoicePay] Direct doc lookup failed:', err);
+            console.warn('[ClientInvoicePay] Direct invoice doc lookup failed:', err);
           }
 
-          // Attempt 2: Query by invoiceNumber if not found
+          // Attempt 2: Query by invoiceNumber, orderNumber, referenceId, or rentalId
           if (!foundInvoice) {
             try {
-              const q = query(collection(db, 'invoices'), where('invoiceNumber', '==', invoiceIdParam));
-              const snap = await getDocs(q);
+              const qInv = query(collection(db, 'invoices'), where('invoiceNumber', '==', targetIdParam));
+              const snap = await getDocs(qInv);
               if (!snap.empty) {
                 const docSnap = snap.docs[0];
                 const d = docSnap.data();
@@ -141,6 +141,152 @@ export const ClientInvoicePay: React.FC = () => {
             }
           }
 
+          // Attempt 3: Query invoices by rentalId
+          if (!foundInvoice) {
+            try {
+              const qRentInv = query(collection(db, 'invoices'), where('rentalId', '==', targetIdParam));
+              const snap = await getDocs(qRentInv);
+              if (!snap.empty) {
+                const docSnap = snap.docs[0];
+                const d = docSnap.data();
+                foundInvoice = {
+                  id: docSnap.id,
+                  ...d,
+                  date: d.date?.toDate ? d.date.toDate() : new Date(d.date || Date.now()),
+                  dueDate: d.dueDate?.toDate ? d.dueDate.toDate() : new Date(d.dueDate || Date.now()),
+                } as Invoice;
+              }
+            } catch (err) {
+              console.warn('[ClientInvoicePay] Query invoices by rentalId failed:', err);
+            }
+          }
+
+          // Attempt 4: Direct Firestore Doc ID in rentals
+          if (!foundInvoice) {
+            try {
+              const rentDoc = await getDoc(doc(db, 'rentals', targetIdParam));
+              if (rentDoc.exists()) {
+                const rData = rentDoc.data();
+                const rentalCost = Number(rData.cost || 0);
+                const rentalPaid = Number(rData.paidAmount || 0);
+                const rentalRemaining = rData.remainingAmount !== undefined && rData.remainingAmount !== null
+                  ? Number(rData.remainingAmount)
+                  : Math.max(0, rentalCost - rentalPaid);
+
+                foundInvoice = {
+                  id: rentDoc.id,
+                  rentalId: rentDoc.id,
+                  invoiceNumber: rData.rentalAgreementNumber || `RENTAL-${rentDoc.id.slice(-6).toUpperCase()}`,
+                  referenceId: rData.rentalAgreementNumber || rData.claimRef || `REF-${rentDoc.id.slice(-6).toUpperCase()}`,
+                  customerName: rData.customerName || (rData as any)?.customer?.name || 'Valued Customer',
+                  customerId: rData.customerId,
+                  date: rData.startDate?.toDate ? rData.startDate.toDate() : new Date(rData.startDate || Date.now()),
+                  dueDate: rData.endDate?.toDate ? rData.endDate.toDate() : new Date(rData.endDate || Date.now()),
+                  total: rentalCost,
+                  amount: rentalCost,
+                  paidAmount: rentalPaid,
+                  remainingAmount: rentalRemaining,
+                  paymentStatus: rentalRemaining <= 0.001 ? 'paid' : (rentalPaid > 0 ? 'partially_paid' : 'pending'),
+                  payments: Array.isArray(rData.payments) ? rData.payments : [],
+                  lineItems: [
+                    {
+                      id: 'hire-item-1',
+                      description: `Vehicle Hire - ${rData.vehicleMake || ''} ${rData.vehicleModel || ''} (${rData.vehicleRegistration || ''})`,
+                      quantity: 1,
+                      unitPrice: rentalCost,
+                      total: rentalCost,
+                      includeVAT: rData.includeVAT !== false,
+                    }
+                  ],
+                  accountId: rData.bankAccountId,
+                  selectedBank: rData.bankAccountDetails,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                } as any;
+              }
+            } catch (rErr) {
+              console.warn('[ClientInvoicePay] Direct rental doc lookup failed:', rErr);
+            }
+          }
+
+          // Attempt 5: Query rentals by rentalAgreementNumber or claimRef
+          if (!foundInvoice) {
+            try {
+              const qRent = query(collection(db, 'rentals'), where('rentalAgreementNumber', '==', targetIdParam));
+              const snap = await getDocs(qRent);
+              if (!snap.empty) {
+                const rentDoc = snap.docs[0];
+                const rData = rentDoc.data();
+                const rentalCost = Number(rData.cost || 0);
+                const rentalPaid = Number(rData.paidAmount || 0);
+                const rentalRemaining = rData.remainingAmount !== undefined && rData.remainingAmount !== null
+                  ? Number(rData.remainingAmount)
+                  : Math.max(0, rentalCost - rentalPaid);
+
+                foundInvoice = {
+                  id: rentDoc.id,
+                  rentalId: rentDoc.id,
+                  invoiceNumber: rData.rentalAgreementNumber || `RENTAL-${rentDoc.id.slice(-6).toUpperCase()}`,
+                  referenceId: rData.rentalAgreementNumber || rData.claimRef || `REF-${rentDoc.id.slice(-6).toUpperCase()}`,
+                  customerName: rData.customerName || (rData as any)?.customer?.name || 'Valued Customer',
+                  customerId: rData.customerId,
+                  date: rData.startDate?.toDate ? rData.startDate.toDate() : new Date(rData.startDate || Date.now()),
+                  dueDate: rData.endDate?.toDate ? rData.endDate.toDate() : new Date(rData.endDate || Date.now()),
+                  total: rentalCost,
+                  amount: rentalCost,
+                  paidAmount: rentalPaid,
+                  remainingAmount: rentalRemaining,
+                  paymentStatus: rentalRemaining <= 0.001 ? 'paid' : (rentalPaid > 0 ? 'partially_paid' : 'pending'),
+                  payments: Array.isArray(rData.payments) ? rData.payments : [],
+                  lineItems: [
+                    {
+                      id: 'hire-item-1',
+                      description: `Vehicle Hire - ${rData.vehicleMake || ''} ${rData.vehicleModel || ''} (${rData.vehicleRegistration || ''})`,
+                      quantity: 1,
+                      unitPrice: rentalCost,
+                      total: rentalCost,
+                      includeVAT: rData.includeVAT !== false,
+                    }
+                  ],
+                  accountId: rData.bankAccountId,
+                  selectedBank: rData.bankAccountDetails,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                } as any;
+              }
+            } catch (rErr) {
+              console.warn('[ClientInvoicePay] Query rental by agreementNumber failed:', rErr);
+            }
+          }
+
+          // If found in invoices and has rentalId, synchronize live balance with rental record
+          if (foundInvoice && (foundInvoice as any).rentalId) {
+            try {
+              const rSnap = await getDoc(doc(db, 'rentals', (foundInvoice as any).rentalId));
+              if (rSnap.exists()) {
+                const rData = rSnap.data();
+                const rCost = Number(rData.cost || 0);
+                const rPaid = Number(rData.paidAmount || 0);
+                const rRem = rData.remainingAmount !== undefined && rData.remainingAmount !== null
+                  ? Number(rData.remainingAmount)
+                  : Math.max(0, rCost - rPaid);
+
+                // If invoice total was 0, sync from rental cost
+                if ((!foundInvoice.total || foundInvoice.total === 0) && rCost > 0) {
+                  foundInvoice.total = rCost;
+                  foundInvoice.amount = rCost;
+                }
+                // If invoice remaining amount was 0 on draft but rental has balance due
+                if (foundInvoice.remainingAmount === 0 && rRem > 0 && foundInvoice.paidAmount < foundInvoice.total) {
+                  foundInvoice.remainingAmount = rRem;
+                  foundInvoice.paidAmount = rPaid;
+                }
+              }
+            } catch (syncErr) {
+              console.warn('[ClientInvoicePay] Rental sync notice:', syncErr);
+            }
+          }
+
           if (foundInvoice && isMounted) {
             setInvoice(foundInvoice);
 
@@ -153,17 +299,17 @@ export const ClientInvoicePay: React.FC = () => {
             setSelectedPayeeBank(invBank);
 
             // Check if already paid
-            if (
+            const isFullyPaid =
               foundInvoice.paymentStatus === 'paid' ||
-              (foundInvoice.remainingAmount !== undefined && foundInvoice.remainingAmount <= 0)
-            ) {
+              (foundInvoice.remainingAmount !== undefined && foundInvoice.remainingAmount <= 0);
+            if (isFullyPaid) {
               setPaymentCompleted(true);
             }
           }
         }
 
         // Fallback demo/preview invoice if no invoice found
-        if (!invoice && isMounted && !invoiceIdParam) {
+        if (!invoice && isMounted && !targetIdParam) {
           const sample: Invoice = {
             id: 'INV-DEMO-2024',
             invoiceNumber: 'INV-1092',
@@ -213,16 +359,44 @@ export const ClientInvoicePay: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [invoiceIdParam]);
+  }, [targetIdParam]);
 
-  // Financial values
+  // Total Invoiced Amount (Gross total calculated from fields or line items)
+  const totalInvoicedAmount = useMemo(() => {
+    if (!invoice) return 0;
+    let tot = Number(invoice.total ?? invoice.amount ?? 0);
+    if (tot <= 0 && invoice.lineItems && invoice.lineItems.length > 0) {
+      const lineSum = invoice.lineItems.reduce((acc, item) => {
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.unitPrice) || 0;
+        return acc + (Number(item.total) || (qty * price));
+      }, 0);
+      tot = lineSum + (Number(invoice.vatAmount) || 0);
+    }
+    return Math.max(0, tot);
+  }, [invoice]);
+
+  // Accurate Live Outstanding Balance Due (guards against £0.00 draft balance)
   const balanceDue = useMemo(() => {
     if (!invoice) return 0;
-    if (invoice.remainingAmount !== undefined) return Math.max(0, invoice.remainingAmount);
-    const tot = invoice.total ?? invoice.amount ?? 0;
-    const pd = invoice.paidAmount ?? 0;
-    return Math.max(0, tot - pd);
-  }, [invoice]);
+    const tot = totalInvoicedAmount;
+    const recordedPaid = Number(invoice.paidAmount || 0);
+    const paymentsSum = (invoice.payments || []).reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const actualPaid = Math.max(recordedPaid, paymentsSum);
+
+    const calculatedRemaining = Math.max(0, tot - actualPaid);
+
+    if (invoice.remainingAmount !== undefined && invoice.remainingAmount !== null) {
+      const storedRemaining = Number(invoice.remainingAmount);
+      // Guard against £0.00 draft balance where total > 0 and paid < total
+      if (storedRemaining === 0 && tot > 0 && actualPaid < tot) {
+        return calculatedRemaining;
+      }
+      return Math.max(0, storedRemaining);
+    }
+
+    return calculatedRemaining;
+  }, [invoice, totalInvoicedAmount]);
 
   const paymentReference = useMemo(() => {
     if (!invoice) return 'AIE-INVOICE';
@@ -367,6 +541,32 @@ export const ClientInvoicePay: React.FC = () => {
         });
       } catch (fErr) {
         console.warn('[ClientInvoicePay] Firestore update notice:', fErr);
+      }
+
+      // 3. Update associated Rental in Firestore if rental record exists
+      const rentalTargetId = (invoice as any).rentalId || invoice.id;
+      if (rentalTargetId) {
+        try {
+          const rRef = doc(db, 'rentals', rentalTargetId);
+          const rSnap = await getDoc(rRef);
+          if (rSnap.exists()) {
+            const rData = rSnap.data();
+            const prevRPaid = Number(rData.paidAmount || 0);
+            const prevRemaining = Number(rData.remainingAmount !== undefined ? rData.remainingAmount : (rData.cost || 0) - prevRPaid);
+            const newRRemaining = Math.max(0, prevRemaining - balanceDue);
+            const prevRPayments = Array.isArray(rData.payments) ? rData.payments : [];
+
+            await updateDoc(rRef, {
+              paymentStatus: newRRemaining <= 0.001 ? 'paid' : 'partially_paid',
+              paidAmount: prevRPaid + balanceDue,
+              remainingAmount: newRRemaining,
+              payments: [...prevRPayments, newPaymentRecord],
+              updatedAt: new Date(),
+            });
+          }
+        } catch (rUpErr) {
+          console.warn('[ClientInvoicePay] Rental payment update notice:', rUpErr);
+        }
       }
 
       setReceiptData({
@@ -549,7 +749,7 @@ export const ClientInvoicePay: React.FC = () => {
 
                 <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-4 sm:text-right shrink-0">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                    Total Balance Due
+                    Live Outstanding Balance
                   </span>
                   <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white flex items-baseline sm:justify-end gap-1">
                     <span className="text-indigo-400 text-2xl">£</span>
@@ -561,11 +761,14 @@ export const ClientInvoicePay: React.FC = () => {
                     </span>
                     <span className="text-xs font-normal text-slate-400">GBP</span>
                   </div>
-                  {invoice && invoice.paidAmount > 0 && (
-                    <p className="text-[11px] text-emerald-400 mt-1">
-                      (£{invoice.paidAmount.toFixed(2)} already paid of £{invoice.total.toFixed(2)})
-                    </p>
-                  )}
+                  <div className="text-[11px] text-slate-400 mt-1.5 sm:text-right space-y-0.5 font-mono">
+                    <p>Total Invoiced Amount: <strong className="text-white font-bold">£{totalInvoicedAmount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                    {invoice && (invoice.paidAmount > 0 || (totalInvoicedAmount - balanceDue) > 0.01) && (
+                      <p className="text-emerald-400 font-sans">
+                        ✓ £{Math.max(invoice.paidAmount || 0, totalInvoicedAmount - balanceDue).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} credited / paid
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 

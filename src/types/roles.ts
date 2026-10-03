@@ -99,6 +99,9 @@ export interface Permission {
   workshopTv?: boolean;      // Workshop TV Display Mirror
   publicMirror?: boolean;    // Real-Time Live Public Mirror
 
+  // Dynamic T&C Mapping Engine permissions
+  manageDynamicTerms?: boolean; // Manage Dynamic T&Cs (Full access to create, edit, and delete legal templates in T&C Manager)
+
   // Trash specific
   restore?: boolean;
   deletePermanently?: boolean;
@@ -174,7 +177,7 @@ const BASE_COMPANY = { view: false, create: false, update: false, delete: false,
 const BASE_TRASH = { view: false, cards: false, restore: false, deletePermanently: false };
 const BASE_USERS = { view: false, create: false, update: false, delete: false, cards: false, share: false };
 const BASE_TODO = { view: false, create: false, update: false, delete: false, export: false, categories: false, groups: false, assign: false };
-const BASE_SETTINGS = { view: false, update: false };
+const BASE_SETTINGS = { view: false, update: false, manageDynamicTerms: false };
 const BASE_AUTOMATION = { view: false, create: false, update: false, delete: false, mondayAutoEmail: false, scheduler: false, toggleGlobal: false, templateCreate: false, templateEdit: false, templateDelete: false }; 
 const BASE_PORTAL = { view: false, update: false };
 
@@ -211,7 +214,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     trash: { ...BASE_TRASH, view: true, cards: true, restore: true, deletePermanently: true },
     users: { ...BASE_USERS, view: true, create: true, update: true, delete: true, cards: true, share: true },
     todo: { ...BASE_TODO, view: true, create: true, update: true, delete: true, export: true, categories: true, groups: true, assign: true },
-    settings: { ...BASE_SETTINGS, view: true, update: true },
+    settings: { ...BASE_SETTINGS, view: true, update: true, manageDynamicTerms: true },
     automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, delete: true, mondayAutoEmail: true, scheduler: true, toggleGlobal: true, templateCreate: true, templateEdit: true, templateDelete: true }, 
     highRisk: { ...BASE_HIGH_RISK, view: true, create: true, update: true, delete: true, cards: true, export: true, import: true, share: true },
     memberProfile: { view: true, update: true },
@@ -253,7 +256,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     trash: { ...BASE_TRASH, view: true, cards: true, restore: true },
     users: { ...BASE_USERS, view: true, create: true, update: true, cards: true, share: true },
     todo: { ...BASE_TODO, view: true, create: true, update: true, export: true, categories: true, groups: true, assign: true },
-    settings: { ...BASE_SETTINGS, view: true, update: true },
+    settings: { ...BASE_SETTINGS, view: true, update: true, manageDynamicTerms: true },
     automation: { ...BASE_AUTOMATION, view: true, create: true, update: true, mondayAutoEmail: true, scheduler: true, toggleGlobal: true, templateCreate: true, templateEdit: true },
     highRisk: { ...BASE_HIGH_RISK, view: true, create: true, update: true, cards: true, export: true, import: true, share: true },
     memberProfile: { ...BASE_PORTAL, view: true, update: true },
@@ -448,7 +451,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, RolePermissions> = {
     trash: { ...BASE_TRASH },
     users: { ...BASE_USERS },
     todo: { ...BASE_TODO },
-    settings: { ...BASE_SETTINGS },
+    settings: { ...BASE_SETTINGS, view: true, update: true, manageDynamicTerms: true },
     automation: { ...BASE_AUTOMATION },
     highRisk: { ...BASE_HIGH_RISK, view: false },
     memberProfile: { ...BASE_PORTAL },
@@ -737,7 +740,7 @@ export const MODULE_ACTION_BAR_CATALOG: Record<keyof RolePermissions, Array<keyo
   trash: ['view', 'cards', 'restore', 'deletePermanently'],
   users: ['view', 'create', 'update', 'delete', 'cards', 'share'],
   todo: ['view', 'create', 'update', 'delete', 'export', 'categories', 'groups', 'assign'],
-  settings: ['view', 'update'],
+  settings: ['view', 'update', 'manageDynamicTerms'],
   automation: [
     'view', 'create', 'update', 'delete', 'mondayAutoEmail', 'scheduler',
     'toggleGlobal', 'templateCreate', 'templateEdit', 'templateDelete'

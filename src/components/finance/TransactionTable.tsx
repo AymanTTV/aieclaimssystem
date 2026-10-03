@@ -2,12 +2,11 @@
 import React, { useMemo } from 'react';
 import { DataTable } from '../DataTable/DataTable';
 import { Transaction, Vehicle, Account } from '../../types';
-import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw, Briefcase } from 'lucide-react';
-import StatusBadge from '../ui/StatusBadge';
-import { derivePaymentStatus } from '../../utils/paymentStatusHelper';
+import { Eye, Edit, Trash2, FileText, Printer, Tag, Link2, RefreshCw, Briefcase, MessageCircle, Mail } from 'lucide-react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { format, isValid } from 'date-fns';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
+import { getTransactionAssignedAccountName } from '../../hooks/useFinanceFilters';
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -21,6 +20,8 @@ interface TransactionTableProps {
   onPrintReceipt?: (transaction: Transaction) => void;
   onAssign: (transaction: Transaction) => void;
   onAssignDepartment: (transaction: Transaction) => void;
+  onWhatsApp?: (transaction: Transaction) => void;
+  onEmail?: (transaction: Transaction) => void;
   groups: { id: string; name: string }[];
   isManager: boolean;
   selectedIds: Set<string>;
@@ -31,6 +32,7 @@ interface TransactionTableProps {
 const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions = [], vehicles = [], accounts = [], groups = [],
   onView, onEdit, onDelete, onGenerateDocument, onViewDocument, onPrintReceipt, onAssign, onAssignDepartment,
+  onWhatsApp, onEmail,
   isManager, selectedIds, onToggleAll, onToggleOne,
 }) => {
   const { can } = usePermissions();
@@ -107,31 +109,31 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         ),
       },
       {
-        header: 'Type & Status',
+        header: 'Type',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          let resolvedPaymentStatus = row.original.paymentStatus;
-          if (resolvedPaymentStatus && resolvedPaymentStatus !== 'expense') {
-            resolvedPaymentStatus = derivePaymentStatus({
-              amount: row.original.amount,
-              paidAmount: row.original.paidAmount,
-              remainingAmount: row.original.remainingAmount,
-              paymentStatus: row.original.paymentStatus
-            });
-          }
-          const bits = [row.original.type, resolvedPaymentStatus].filter(Boolean) as string[];
+          const isDebit = row.original.entryType === 'DEBIT' || String(row.original.type || '').toLowerCase() === 'expense' || String((row.original as any).transactionType || '').toUpperCase() === 'EXPENSE';
+          const isCredit = !isDebit;
           const isMultiOrLinked = (row.original.accountsFrom && row.original.accountsFrom.length > 1) || (row.original.accountsTo && row.original.accountsTo.length > 1) || !!row.original.referenceId;
           const isLatestRecurring = row.original.isRecurring && !!row.original.nextRecurringDate;
 
           return (
-            <div className="flex flex-col gap-1 items-start leading-tight min-w-[100px]">
-              {isMultiOrLinked && (<div className="flex items-center gap-1 text-xs text-blue-600 whitespace-nowrap" title="Multi-Account / Linked"><Link2 className="h-3 w-3" /><span>Split/Linked</span></div>)}
+            <div className="flex flex-col gap-1 items-start leading-tight min-w-[90px]">
+              {isCredit ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-[#059669] border border-emerald-200">
+                  Income
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-rose-50 text-[#dc2626] border border-rose-200">
+                  Expense
+                </span>
+              )}
+              {isMultiOrLinked && (<div className="flex items-center gap-1 text-[10px] text-blue-600 whitespace-nowrap" title="Multi-Account / Linked"><Link2 className="h-3 w-3" /><span>Split/Linked</span></div>)}
               {row.original.isRecurring && (
-                 <div className={`flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${isLatestRecurring ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : 'text-gray-500 bg-gray-50 border-gray-200' }`}>
+                 <div className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${isLatestRecurring ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : 'text-gray-500 bg-gray-50 border-gray-200' }`}>
                    <RefreshCw className="h-3 w-3" />
                    <span className="capitalize">{row.original.recurringFrequency}{isLatestRecurring && <span className="ml-1 font-bold">(Latest)</span>}</span>
                  </div>
               )}
-              {bits.map((s, i) => (<StatusBadge key={i} status={s} />))}
             </div>
           );
         },
@@ -142,10 +144,25 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           const group = row.original.groupId ? groups.find(g => g.id === row.original.groupId) : null;
           // Fall back gracefully to `groupName` if group mapping isn't cleanly established
           const displayGroupName = group ? group.name : row.original.groupName;
+          const isPassThrough = Boolean(
+            row.original.isPassThrough ||
+            row.original.passThrough ||
+            row.original.isPassThroughMaintenance ||
+            row.original.category === 'Pass-Through Maintenance' ||
+            (row.original as any).customCategory === 'Pass-Through Maintenance' ||
+            (row.original as any).passThroughTag ||
+            (Number(row.original.dealerCost || row.original.subcontractorCost || 0) > 0 &&
+             Math.abs(Number(row.original.customerBilled || row.original.amount || 0) - Number(row.original.dealerCost || row.original.subcontractorCost || 0)) < 0.01)
+          );
           
           return (
              <div className="flex flex-col gap-1 items-start">
                 <span className="text-sm text-gray-900 font-medium">{row.original.category}</span>
+                {isPassThrough && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    Pass-Through (£0.00 Profit)
+                  </span>
+                )}
                 {displayGroupName && <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">Grp: {displayGroupName}</span>}
                 {row.original.departmentName && <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100 w-fit">Dept: {row.original.departmentName}</span>}
              </div>
@@ -155,12 +172,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       {
         header: 'Vehicle & Account',
         cell: ({ row }: { row: { original: Transaction } }) => {
-          const vehicle = vehicles.find(v => v.id === row.original.vehicleId);
+          const vehicle = vehicles.find(v => v.id === row.original.vehicleId || (row.original.vehicleName && v.registrationNumber === row.original.vehicleName));
           const reg = vehicle ? vehicle.registrationNumber : row.original.vehicleName;
           
-          const accId = row.original.accountFrom || row.original.accountTo || vehicle?.owner?.accountId;
-          const assignedAccount = accounts.find(a => a.id === accId);
-          const accountName = assignedAccount?.name || row.original.vehicleOwner?.name;
+          const accountName = getTransactionAssignedAccountName(row.original, vehicles, accounts);
           const groupName = row.original.groupName || (row.original.groupId ? groups.find(g => g.id === row.original.groupId)?.name : undefined) || vehicle?.assignedGroupName;
           const deptName = row.original.departmentName || vehicle?.assignedDepartmentName;
 
@@ -247,7 +262,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             : (row.original.subcontractorCost !== undefined ? Number(row.original.subcontractorCost) : undefined);
           const hasExplicitDealer = rawDealerCost !== undefined && rawDealerCost > 0;
           const isSubcontractorMode = (row.original.isProfitEdited === true || row.original.isEdited === true) && hasExplicitDealer;
-          const sub = isSubcontractorMode ? rawDealerCost! : billed;
+          const sub = hasExplicitDealer ? rawDealerCost! : 0;
 
           // CASH-BASIS / REALIZED PROFIT MODEL
           const paid = Number(
@@ -266,25 +281,41 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
           const isDebit = row.original.entryType === 'DEBIT' || String(row.original.type || '').toLowerCase() === 'expense' || String((row.original as any).transactionType || '').toUpperCase() === 'EXPENSE';
           const isCredit = !isDebit && (row.original.entryType === 'CREDIT' || (String(row.original.type || '').toLowerCase() === 'income' && row.original.entryType !== 'DEBIT'));
 
+          const isPassThrough = Boolean(
+            row.original.isPassThrough ||
+            row.original.passThrough ||
+            row.original.isPassThroughMaintenance ||
+            row.original.category === 'Pass-Through Maintenance' ||
+            (row.original as any).customCategory === 'Pass-Through Maintenance' ||
+            (row.original as any).passThroughTag ||
+            (hasExplicitDealer && sub > 0 && Math.abs(billed - sub) < 0.01)
+          );
+
+          // Subcontractor-Only Profit Trigger:
+          // Only execute Net Profit and Profit Margin calculations when Dealer Cost > 0.
           let profit = 0;
           let margin = 0;
 
-          if (isUnpaid) {
+          if (isPassThrough) {
             profit = 0;
             margin = 0;
-          } else {
-            // Formula strictly equal: Collected Amount (Paid) - Dealer Cost
-            profit = Number((paid - sub).toFixed(2));
-            margin = paid > 0 ? Number(((profit / paid) * 100).toFixed(1)) : 0;
+          } else if (hasExplicitDealer && sub > 0) {
+            if (row.original.netProfit !== undefined && row.original.netProfit !== null) {
+              profit = Number(row.original.netProfit);
+              margin = Number(row.original.profitMarginPercent ?? (billed > 0 ? (profit / billed) * 100 : 0));
+            } else {
+              profit = Number((billed - sub).toFixed(2));
+              margin = billed > 0 ? Number(((profit / billed) * 100).toFixed(1)) : 0;
+            }
           }
 
-          const showProfitBreakdown = isSubcontractorMode && sub > 0 && (sub !== billed || isSubcontractorMode);
+          const showProfitBreakdown = isPassThrough || (hasExplicitDealer && sub > 0);
 
           return isCredit ? (
             <div className="flex flex-col">
               <span className="text-[#059669] font-bold text-base font-mono">{formatCurrency(row.original.amount)}</span>
               {(row.original.vatAmount! > 0 || row.original.netAmount! > 0) && (
-                <span className="text-[10px] text-[#2563eb] font-medium mt-0.5 leading-tight font-mono">
+                <span className="text-[10px] text-emerald-700 font-medium mt-0.5 leading-tight font-mono">
                   Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}
                 </span>
               )}
@@ -296,25 +327,23 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-500 font-medium">
                     <span>Dealer Cost:</span>
-                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub || billed)}</span>
                   </div>
                   <div className="flex items-center justify-between font-bold">
-                    <span className={isUnpaid ? 'text-slate-500' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-500'}>
-                      {isUnpaid ? 'Realized Profit:' : 'Net Profit:'}
+                    <span className={isPassThrough ? 'text-amber-800' : 'text-[#059669]'}>
+                      Net Profit:
                     </span>
-                    <span className={`font-mono ${isUnpaid ? 'text-slate-600' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-600'}`}>
+                    <span className={`font-mono ${isPassThrough ? 'text-amber-800' : 'text-[#059669]'}`}>
                       {profit > 0 ? '+' : ''}{formatCurrency(profit)}
                     </span>
                   </div>
                   <div className="flex justify-end pt-0.5">
                     <span className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
-                      isUnpaid
-                        ? 'bg-slate-50 text-slate-500 border-slate-200'
-                        : margin >= 0
-                        ? 'bg-emerald-50 text-[#059669] border-emerald-200'
-                        : 'bg-rose-50 text-[#dc2626] border-rose-200'
+                      isPassThrough
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-emerald-50 text-[#059669] border-emerald-200 font-bold'
                     }`}>
-                      {isUnpaid ? '0.0% Margin (Unpaid)' : `${margin.toFixed(1)}% Margin`}
+                      {isPassThrough ? 'Pass-Through (£0.00 Profit)' : `${margin.toFixed(1)}% Margin`}
                     </span>
                   </div>
                 </div>
@@ -332,7 +361,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             : (row.original.subcontractorCost !== undefined ? Number(row.original.subcontractorCost) : undefined);
           const hasExplicitDealer = rawDealerCost !== undefined && rawDealerCost > 0;
           const isSubcontractorMode = (row.original.isProfitEdited === true || row.original.isEdited === true) && hasExplicitDealer;
-          const sub = isSubcontractorMode ? rawDealerCost! : billed;
+          const sub = hasExplicitDealer ? rawDealerCost! : 0;
 
           // CASH-BASIS / REALIZED PROFIT MODEL
           const paid = Number(
@@ -350,25 +379,45 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
           const isDebit = row.original.entryType === 'DEBIT' || String(row.original.type || '').toLowerCase() === 'expense' || String((row.original as any).transactionType || '').toUpperCase() === 'EXPENSE';
 
+          const isPassThrough = Boolean(
+            row.original.isPassThrough ||
+            row.original.passThrough ||
+            row.original.isPassThroughMaintenance ||
+            row.original.category === 'Pass-Through Maintenance' ||
+            (row.original as any).customCategory === 'Pass-Through Maintenance' ||
+            (row.original as any).passThroughTag ||
+            (hasExplicitDealer && sub > 0 && Math.abs(billed - sub) < 0.01)
+          );
+
+          // Subcontractor-Only Profit Trigger:
+          // Assign Dealer/Subcontractor Cost & Profit Tracking block at parent job level
+          // so both the Income line and Expense line reflect the identical Net Profit margin
           let profit = 0;
           let margin = 0;
 
-          if (isUnpaid) {
+          if (isPassThrough) {
             profit = 0;
             margin = 0;
-          } else {
-            // Formula strictly equal: Collected Amount (Paid) - Dealer Cost
-            profit = Number((paid - sub).toFixed(2));
-            margin = paid > 0 ? Number(((profit / paid) * 100).toFixed(1)) : 0;
+          } else if (hasExplicitDealer && sub > 0) {
+            if (row.original.netProfit !== undefined && row.original.netProfit !== null) {
+              profit = Number(row.original.netProfit);
+              margin = Number(row.original.profitMarginPercent ?? (billed > 0 ? (profit / billed) * 100 : 0));
+            } else {
+              profit = Number((billed - sub).toFixed(2));
+              margin = billed > 0 ? Number(((profit / billed) * 100).toFixed(1)) : 0;
+            }
           }
 
-          const showProfitBreakdown = (isSubcontractorMode && sub > 0) || (row.original.dealerCost !== undefined && row.original.customerBilled !== undefined) || (sub !== billed && sub > 0);
+          const showProfitBreakdown = isPassThrough || (hasExplicitDealer && sub > 0);
+          const debitAmount = (hasExplicitDealer && sub > 0 && !isPassThrough)
+            ? sub
+            : row.original.amount;
 
           return isDebit ? (
             <div className="flex flex-col">
-              <span className="text-[#dc2626] font-bold text-base font-mono">{formatCurrency(row.original.amount)}</span>
+              <span className="text-[#dc2626] font-bold text-base font-mono">{formatCurrency(debitAmount)}</span>
               {(row.original.vatAmount! > 0 || row.original.netAmount! > 0) && (
-                <span className="text-[10px] text-[#2563eb] font-medium mt-0.5 leading-tight font-mono">
+                <span className="text-[10px] text-rose-700 font-medium mt-0.5 leading-tight font-mono">
                   Net: {formatCurrency(row.original.netAmount || 0)}<br/>VAT: {formatCurrency(row.original.vatAmount || 0)}
                 </span>
               )}
@@ -380,25 +429,23 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-500 font-medium">
                     <span>Dealer Cost:</span>
-                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub)}</span>
+                    <span className="font-mono font-bold text-slate-700">{formatCurrency(sub || billed)}</span>
                   </div>
                   <div className="flex items-center justify-between font-bold">
-                    <span className={isUnpaid ? 'text-slate-500' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-500'}>
-                      {isUnpaid ? 'Realized Profit:' : 'Net Profit:'}
+                    <span className={isPassThrough ? 'text-amber-800' : 'text-[#059669]'}>
+                      Net Profit:
                     </span>
-                    <span className={`font-mono ${isUnpaid ? 'text-slate-600' : profit > 0 ? 'text-[#059669]' : profit < 0 ? 'text-[#dc2626]' : 'text-slate-600'}`}>
+                    <span className={`font-mono ${isPassThrough ? 'text-amber-800' : 'text-[#059669]'}`}>
                       {profit > 0 ? '+' : ''}{formatCurrency(profit)}
                     </span>
                   </div>
                   <div className="flex justify-end pt-0.5">
                     <span className={`inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border ${
-                      isUnpaid
-                        ? 'bg-slate-50 text-slate-500 border-slate-200'
-                        : margin >= 0
-                        ? 'bg-emerald-50 text-[#059669] border-emerald-200'
-                        : 'bg-rose-50 text-[#dc2626] border-rose-200'
+                      isPassThrough
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-emerald-50 text-[#059669] border-emerald-200 font-bold'
                     }`}>
-                      {isUnpaid ? '0.0% Margin (Unpaid)' : `${margin.toFixed(1)}% Margin`}
+                      {isPassThrough ? 'Pass-Through (£0.00 Profit)' : `${margin.toFixed(1)}% Margin`}
                     </span>
                   </div>
                 </div>
@@ -438,6 +485,22 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             <div className="flex flex-wrap justify-center gap-1">
               {can('finance', 'view') && <ActionBtn onClick={() => onView(row.original)} icon={Eye} colorClass="text-blue-600" title="View Details" />}
               {can('finance', 'update') && <ActionBtn onClick={() => onEdit(row.original)} icon={Edit} colorClass="text-indigo-600" title="Edit Transaction" />}
+              {onWhatsApp && (
+                <ActionBtn
+                  onClick={() => onWhatsApp(row.original)}
+                  icon={MessageCircle}
+                  colorClass="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  title="WhatsApp Communication (Automation Templates)"
+                />
+              )}
+              {onEmail && (
+                <ActionBtn
+                  onClick={() => onEmail(row.original)}
+                  icon={Mail}
+                  colorClass="text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                  title="Email Communication (Automation Templates)"
+                />
+              )}
               {can('finance', 'assign') && <ActionBtn onClick={() => onAssign(row.original)} icon={Tag} colorClass="text-purple-600" title="Assign Group/Category" />}
               {can('finance', 'assign') && <ActionBtn onClick={() => onAssignDepartment(row.original)} icon={Briefcase} colorClass="text-teal-600" title="Assign Department" />}
             </div>
@@ -466,7 +529,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       return cols.filter(c => c.id !== 'select');
     }
     return cols;
-  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, groups, accounts, vehicles, onPrintReceipt, can, formatCurrency, isManager, transactionBalances]);
+  }, [allSelected, someSelected, selectedIds, onToggleAll, onToggleOne, groups, accounts, vehicles, onPrintReceipt, onWhatsApp, onEmail, can, formatCurrency, isManager, transactionBalances]);
 
   const uniqueTransactions = useMemo(() => {
     const seen = new Set<string>();
@@ -484,19 +547,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
       columns={columns as any} 
       onRowClick={transaction => can('finance', 'view') && onView(transaction)} 
       rowClassName={({ original }) => {
-        const dynamicStatus = derivePaymentStatus({
-          amount: original.amount,
-          paidAmount: original.paidAmount,
-          remainingAmount: original.remainingAmount,
-          paymentStatus: original.paymentStatus
-        });
-        const isPaid = original.paymentStatus === 'paid' || dynamicStatus === 'paid';
-        const isOwing = (original.paymentStatus === 'unpaid' || (original.remainingAmount ?? 0) > 0.001) && !isPaid;
-        return isPaid 
-          ? 'table-row border-l-4 border-l-[#059669]' 
-          : isOwing 
+        const isDebit = original.entryType === 'DEBIT' || String(original.type || '').toLowerCase() === 'expense' || String((original as any).transactionType || '').toUpperCase() === 'EXPENSE';
+        return isDebit 
           ? 'table-row border-l-4 border-l-[#dc2626]' 
-          : 'table-row border-l-4 border-l-slate-300';
+          : 'table-row border-l-4 border-l-[#059669]';
       }}
     />
   );

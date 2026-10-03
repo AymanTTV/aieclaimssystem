@@ -35,21 +35,25 @@ export function derivePaymentStatus(params?: {
     )
   );
 
-  const paid = Math.max(
-    0,
-    Number(
-      params.paidAmount ??
-      params.paid ??
-      (Array.isArray(params.payments) && params.payments.length > 0
-        ? params.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-        : 0)
-    )
-  );
+  const hasPaymentsArray = Array.isArray(params.payments);
+  const paymentsSum = hasPaymentsArray
+    ? params.payments!.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    : 0;
+
+  // When payments history is present and empty ("No payments"), paid is strictly 0
+  const paid = hasPaymentsArray
+    ? paymentsSum
+    : Math.max(
+        0,
+        Number(params.paidAmount ?? params.paid ?? 0)
+      );
 
   // If paid >= billed total (e.g. Paid = Billed and Owing = £0.00), owing MUST be 0
   let owing: number;
   if (total > 0 && paid >= total - 0.001) {
     owing = 0;
+  } else if (hasPaymentsArray) {
+    owing = Math.max(0, Number((total - paid).toFixed(2)));
   } else if (params.owing !== undefined && params.owing !== null) {
     owing = Number(params.owing);
   } else if (params.remainingAmount !== undefined && params.remainingAmount !== null) {

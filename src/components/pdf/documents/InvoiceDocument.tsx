@@ -13,6 +13,10 @@ import { Invoice, Vehicle, Customer } from '../../../types';
 import { styles as globalStyles } from '../styles';
 import { format } from 'date-fns';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
+import { getResolvedTermsContent } from '../../../utils/documentTemplateTerms';
+import SafePdfLogo from '../SafePdfLogo';
+import PdfTermsWarningNotice from '../claims/PdfTermsWarningNotice';
+import { getAvailableCompanyEntities, buildEffectiveDocumentCompanyDetails } from '../../../utils/entityBranding';
 
 // Extended interface to accept the full customer object for the address
 interface InvoiceWithVehicleAndCustomer extends Invoice {
@@ -135,6 +139,19 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
   // Splits by comma or new lines to print line-by-line
   const addressParts = customerDisplayAddress ? customerDisplayAddress.split(/,|\n/).map(s => s.trim()).filter(Boolean) : [];
 
+  // Dynamically resolve corporate entity branding based on selected companyId / issuingEntity / corporateEntityKey
+  const availableEntities = getAvailableCompanyEntities(companyDetails);
+  const targetKey =
+    data.corporateEntityKey ||
+    data.issuingEntity ||
+    (data.companyId ? availableEntities.find(e => e.id === data.companyId || e.key === data.companyId)?.key : undefined) ||
+    companyDetails?.corporateEntityKey ||
+    'aie_skyline';
+  const chosenEntity = availableEntities.find(e => e.key === targetKey || e.id === targetKey) || availableEntities[0];
+  const effectiveDetails = buildEffectiveDocumentCompanyDetails(companyDetails, chosenEntity, {
+    selectedBank: (data as any).bankAllocation || companyDetails?.selectedBank,
+  });
+
   return (
     <Document>
       <Page size="A4" style={globalStyles.page}>
@@ -142,20 +159,28 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         {/* HEADER */}
         <View style={globalStyles.header} fixed>
           <View style={globalStyles.headerLeft}>
-            {isValidPdfImageSrc(companyDetails?.logoUrl) && (
-              <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
-            )}
+            <SafePdfLogo
+              src={effectiveDetails?.logoUrl}
+              companyName={effectiveDetails?.fullName || 'AIE SKYLINE LIMITED'}
+              tradingName={effectiveDetails?.tradingName}
+              entityKey={effectiveDetails?.key || targetKey}
+              entityDetails={effectiveDetails}
+              style={globalStyles.logo}
+            />
           </View>
           <View style={globalStyles.headerRight}>
-            <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-            {Boolean(companyDetails?.customHeaderText) && (
+            <Text style={globalStyles.companyName}>{effectiveDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+            {Boolean(effectiveDetails?.customHeaderText) && (
               <Text style={[globalStyles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
-                {companyDetails.customHeaderText}
+                {effectiveDetails.customHeaderText}
               </Text>
             )}
-            <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-            <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
-            <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>{effectiveDetails?.officialAddress || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {effectiveDetails?.phone || 'N/A'}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {effectiveDetails?.email || 'N/A'}</Text>
+            {Boolean(effectiveDetails?.vatNumber) && (
+              <Text style={globalStyles.companyDetail}>VAT No: {effectiveDetails.vatNumber}</Text>
+            )}
           </View>
         </View>
 
@@ -223,19 +248,19 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
           {/* Card 1: Payment Details */}
           {(() => {
             const activeBank =
-              companyDetails?.selectedBank ||
+              effectiveDetails?.selectedBank ||
               (data as any).bankAllocation || {
-                bankName: (data as any).bankName || companyDetails?.bankName,
-                accountName: (data as any).accountName || companyDetails?.accountName || companyDetails?.fullName,
-                accountNumber: (data as any).accountNumber || companyDetails?.accountNumber,
-                sortCode: (data as any).sortCode || companyDetails?.sortCode,
-                iban: (data as any).iban || companyDetails?.iban,
+                bankName: (data as any).bankName || effectiveDetails?.bankName,
+                accountName: (data as any).accountName || effectiveDetails?.accountName || effectiveDetails?.fullName,
+                accountNumber: (data as any).accountNumber || effectiveDetails?.accountNumber,
+                sortCode: (data as any).sortCode || effectiveDetails?.sortCode,
+                iban: (data as any).iban || effectiveDetails?.iban,
               };
 
             const qrCodeUrl =
-              companyDetails?.paymentQrCodeDataUrl ||
+              effectiveDetails?.paymentQrCodeDataUrl ||
               (data as any)?.paymentQrCodeDataUrl;
-            const showQr = companyDetails?.includePaymentQr !== false && Boolean(qrCodeUrl);
+            const showQr = effectiveDetails?.includePaymentQr !== false && Boolean(qrCodeUrl);
 
             return (
               <View style={[localStyles.cardBox, { width: '48%' }]}>
@@ -259,7 +284,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                     <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
                       <Text style={[localStyles.label, { textTransform: 'none' }]}>Account Name:</Text>
                       <Text style={localStyles.value}>
-                        {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                        {activeBank.accountName || effectiveDetails?.fullName || 'AIE SKYLINE LIMITED'}
                       </Text>
                     </View>
                     <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
@@ -274,11 +299,11 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
                         {activeBank.sortCode || '30-99-50'}
                       </Text>
                     </View>
-                    {(activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban) && (
+                    {(activeBank.iban || (data as any).bankAllocation?.iban || effectiveDetails?.iban) && (
                       <View style={[localStyles.spaceBetweenRow, { marginBottom: 3 }]}>
                         <Text style={[localStyles.label, { textTransform: 'none' }]}>IBAN:</Text>
                         <Text style={localStyles.value}>
-                          {activeBank.iban || (data as any).bankAllocation?.iban || companyDetails?.iban}
+                          {activeBank.iban || (data as any).bankAllocation?.iban || effectiveDetails?.iban}
                         </Text>
                       </View>
                     )}
@@ -354,7 +379,7 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
         {/* FOOTER */}
         <View style={globalStyles.footer} fixed>
           <Text style={globalStyles.footerText}>
-            {formatInlineCompanyFooter(companyDetails)}
+            {formatInlineCompanyFooter(effectiveDetails)}
           </Text>
           <Text
             style={globalStyles.pageNumber}
@@ -364,41 +389,66 @@ const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({
       </Page>
 
       {/* --- PAGE 2: Terms & Conditions --- */}
-      {companyDetails?.includeTrailingTC !== false && (
+      {effectiveDetails?.includeTrailingTC !== false && (
         <Page size="A4" style={globalStyles.page}>
           <View style={globalStyles.header} fixed>
             <View style={globalStyles.headerLeft}>
-              {isValidPdfImageSrc(companyDetails?.logoUrl) && (
-                <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
-              )}
+              <SafePdfLogo
+                src={effectiveDetails?.logoUrl}
+                companyName={effectiveDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                tradingName={effectiveDetails?.tradingName}
+                entityKey={effectiveDetails?.key || targetKey}
+                entityDetails={effectiveDetails}
+                style={globalStyles.logo}
+              />
             </View>
             <View style={globalStyles.headerRight}>
-              <Text style={globalStyles.companyName}>{companyDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
-              {Boolean(companyDetails?.customHeaderText) && (
+              <Text style={globalStyles.companyName}>{effectiveDetails?.fullName || 'AIE SKYLINE LIMITED'}</Text>
+              {Boolean(effectiveDetails?.customHeaderText) && (
                 <Text style={[globalStyles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
-                  {companyDetails.customHeaderText}
+                  {effectiveDetails.customHeaderText}
                 </Text>
               )}
-              <Text style={globalStyles.companyDetail}>{companyDetails?.officialAddress || 'N/A'}</Text>
-              <Text style={globalStyles.companyDetail}>Tel: {companyDetails?.phone || 'N/A'}</Text>
-              <Text style={globalStyles.companyDetail}>Email: {companyDetails?.email || 'N/A'}</Text>
+              <Text style={globalStyles.companyDetail}>{effectiveDetails?.officialAddress || 'N/A'}</Text>
+              <Text style={globalStyles.companyDetail}>Tel: {effectiveDetails?.phone || 'N/A'}</Text>
+              <Text style={globalStyles.companyDetail}>Email: {effectiveDetails?.email || 'N/A'}</Text>
             </View>
           </View>
 
           <View style={{ marginTop: 20 }}>
-            <Text style={tcStyles.termTitle}>
-              {companyDetails?.customTermsTitle || 'Terms & Conditions'}
-            </Text>
-
-            <View style={tcStyles.termSection}>
-              {(companyDetails?.customTermsText || companyDetails?.generalInvoiceTerms || companyDetails?.termsAndConditions || 'Standard terms and conditions apply. Payment is due within the period stated on this invoice.')
-                .split(/\r?\n+/)
-                .map((paragraph: string, idx: number) => (
-                  <Text key={idx} style={tcStyles.termText}>
-                    {paragraph.trim()}
+            {(() => {
+              const resolvedTermsData = getResolvedTermsContent(
+                {
+                  documentScope: 'invoice',
+                  hireType: (data as any)?.hireType || (data as any)?.type || 'commercial_invoice',
+                  customerType: data?.customer?.type || (data as any)?.customerType,
+                  paymentStatus: data.paymentStatus,
+                  targetPagePosition: 'trailing_before_signatures',
+                },
+                companyDetails
+              );
+              return (
+                <>
+                  <Text style={tcStyles.termTitle}>
+                    {resolvedTermsData.isConfigured
+                      ? resolvedTermsData.title
+                      : 'TERMS AND CONDITIONS'}
                   </Text>
-                ))}
-            </View>
+
+                  <View style={tcStyles.termSection}>
+                    {resolvedTermsData.isConfigured && resolvedTermsData.paragraphs.length > 0 ? (
+                      resolvedTermsData.paragraphs.map((paragraph: string, idx: number) => (
+                        <Text key={idx} style={tcStyles.termText}>
+                          {paragraph.trim()}
+                        </Text>
+                      ))
+                    ) : (
+                      <PdfTermsWarningNotice message={resolvedTermsData.warningMessage} />
+                    )}
+                  </View>
+                </>
+              );
+            })()}
           </View>
 
           <View style={globalStyles.footer} fixed>

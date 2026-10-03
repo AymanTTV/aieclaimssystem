@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer } from '../../../types';
 import { styles } from '../styles'; // Ensure this path is correct
+import SafePdfLogo from '../SafePdfLogo';
 import { formatDate } from '../../../utils/dateHelpers';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
@@ -59,9 +60,7 @@ const RentalBulkDocument: React.FC<RentalBulkDocumentProps> = ({
           {/* Header - Standardized header */}
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {companyDetails?.logoUrl && (
-                <Image src={companyDetails.logoUrl} style={styles.logo} />
-              )}
+              <SafePdfLogo src={companyDetails?.logoUrl} companyName={companyDetails?.fullName} style={styles.logo} />
             </View>
             <View style={styles.headerRight}>
               <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>

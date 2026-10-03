@@ -11,6 +11,7 @@ import {
   Car,
   Repeat,
   FileText,
+  AlertCircle,
 } from 'lucide-react';
 import {
   format,
@@ -61,9 +62,16 @@ interface FinanceFiltersProps {
   profitTrackingFilter?: 'all' | 'has_profit' | 'legacy';
   onProfitTrackingFilterChange?: (value: 'all' | 'has_profit' | 'legacy') => void;
   onOpenStatementModal?: (customRange?: { start: Date | null; end: Date | null }) => void;
+  hasActiveFilter?: boolean;
+  onResetAll?: () => void;
+  needsAttentionFilter?: boolean;
+  onNeedsAttentionChange?: (value: boolean) => void;
+  needsAttentionCount?: number;
 }
 
 const FinanceFilters: React.FC<FinanceFiltersProps> = ({
+  searchQuery,
+  onSearchChange,
   dateRange,
   onDateRangeChange,
   type,
@@ -100,6 +108,11 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   profitTrackingFilter = 'all',
   onProfitTrackingFilterChange,
   onOpenStatementModal,
+  hasActiveFilter = false,
+  onResetAll,
+  needsAttentionFilter = true,
+  onNeedsAttentionChange,
+  needsAttentionCount = 0,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -165,8 +178,8 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
   };
 
   const isAccountDefault = (val: string | string[]) => {
-    if (Array.isArray(val)) return val.length === 0 || (val.length === 1 && val[0] === 'all');
-    return !val || val === '' || val === 'all';
+    if (Array.isArray(val)) return val.length === 0;
+    return !val || val === '';
   };
 
   const createMultiHandler = (onChange: (val: string | string[]) => void) => (val: any) => {
@@ -305,8 +318,12 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     if (!isAccountDefault(accountFilter)) {
       const raw = Array.isArray(accountFilter) ? accountFilter : [accountFilter];
       const names = raw
-        .map((id) => accountOptions.find((o) => o.id === id)?.label || id)
-        .filter((n) => n && n !== 'All Accounts');
+        .map((id) => {
+          if (id === 'all') return 'All Accounts';
+          if (id === 'no_account_assigned') return 'No Account Assigned';
+          return accountOptions.find((o) => o.id === id)?.label || id;
+        })
+        .filter(Boolean);
       if (names.length > 0) {
         chips.push({
           id: 'account',
@@ -472,6 +489,8 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     onRecurringFilterChange,
     onRecurringFrequencyChange,
     onProfitTrackingFilterChange,
+    needsAttentionFilter,
+    onNeedsAttentionChange,
   ]);
 
   const handleClearAll = () => {
@@ -489,6 +508,9 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
     onRecurringFilterChange('all');
     onRecurringFrequencyChange('all');
     onProfitTrackingFilterChange?.('all');
+    onSearchChange?.('');
+    onNeedsAttentionChange?.(true);
+    onResetAll?.();
   };
 
   return (
@@ -499,6 +521,38 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         {/* Left Side: Core High-Frequency Filters */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Default View State Pill: Unassigned & Reversals */}
+          <button
+            type="button"
+            onClick={() => {
+              if (hasActiveFilter) {
+                handleClearAll();
+              }
+            }}
+            className={`h-9 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-2xs shrink-0 ${
+              !hasActiveFilter
+                ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-300/60 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400 cursor-pointer'
+            }`}
+            title={
+              !hasActiveFilter
+                ? 'Initial Default View active: showing only transactions with no account assigned.'
+                : 'Click to return to Default View (Unassigned Accounts only).'
+            }
+          >
+            <AlertCircle className={`w-3.5 h-3.5 ${!hasActiveFilter ? 'text-white' : 'text-amber-500'}`} />
+            <span>Unassigned Accounts</span>
+            <span
+              className={`inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-black rounded-full min-w-4 text-center ${
+                !hasActiveFilter
+                  ? 'bg-amber-700 text-white'
+                  : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {needsAttentionCount}
+            </span>
+          </button>
+
           {/* A. Type Segmented Toggle */}
           <div className="inline-flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200">
             <button
@@ -564,7 +618,82 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             )}
           </div>
 
-          {/* C. Payment Status Dropdown */}
+          {/* C. Account Selector */}
+          <div className="relative">
+            <select
+              value={
+                Array.isArray(accountFilter)
+                  ? accountFilter.length === 0
+                    ? ''
+                    : accountFilter.includes('all')
+                    ? 'all'
+                    : accountFilter[0]
+                  : accountFilter || ''
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) {
+                  onAccountFilterChange([]);
+                } else if (val === 'all') {
+                  onAccountFilterChange(['all']);
+                } else {
+                  onAccountFilterChange([val]);
+                }
+              }}
+              className={`h-9 px-3 py-1.5 text-xs font-bold border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer shadow-2xs max-w-[210px] truncate ${
+                !isAccountDefault(accountFilter)
+                  ? 'border-blue-500 text-blue-900 bg-blue-50/70 ring-1 ring-blue-200'
+                  : 'border-slate-300 text-slate-700 hover:border-slate-400'
+              }`}
+              title="Filter by Finance Account"
+            >
+              <option value="">Account: Select Account...</option>
+              <option value="all">All Accounts (Full Ledger)</option>
+              <option value="no_account_assigned">No Account Assigned</option>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* D. Vehicle Selector */}
+          <div className="relative">
+            <select
+              value={
+                Array.isArray(vehicleFilter)
+                  ? vehicleFilter.length === 0 || vehicleFilter.includes('all')
+                    ? 'all'
+                    : vehicleFilter[0]
+                  : vehicleFilter || 'all'
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'all' || !val) {
+                  onVehicleFilterChange('all');
+                } else {
+                  onVehicleFilterChange([val]);
+                }
+              }}
+              className={`h-9 px-3 py-1.5 text-xs font-bold border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer shadow-2xs max-w-[210px] truncate ${
+                !isAll(vehicleFilter)
+                  ? 'border-blue-500 text-blue-900 bg-blue-50/70 ring-1 ring-blue-200'
+                  : 'border-slate-300 text-slate-700 hover:border-slate-400'
+              }`}
+              title="Filter by Vehicle"
+            >
+              <option value="all">Vehicle: All Vehicles</option>
+              <option value="no_vehicle_assigned">No Vehicle Assigned</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.registrationNumber} - {v.make} {v.model}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* E. Payment Status Dropdown */}
           <div className="relative">
             <select
               value={statusFilter}
@@ -582,7 +711,7 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
             </select>
           </div>
 
-          {/* D. Profit Tracking Dropdown */}
+          {/* F. Profit Tracking Dropdown */}
           <div className="relative">
             <select
               value={profitTrackingFilter}
@@ -603,14 +732,14 @@ const FinanceFilters: React.FC<FinanceFiltersProps> = ({
 
         {/* Right Side: Expand/Collapse & Reset Controls */}
         <div className="flex items-center gap-2">
-          {activeChips.length > 0 && (
+          {(activeChips.length > 0 || hasActiveFilter) && (
             <button
               type="button"
               onClick={handleClearAll}
-              className="h-9 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-              title="Reset all 14 filters to default"
+              className="h-9 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:text-rose-900 border border-rose-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+              title="Reset view to default unassigned transactions only"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
               <span>Reset All</span>
             </button>
           )}

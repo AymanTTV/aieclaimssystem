@@ -614,8 +614,8 @@ const RentalTable: React.FC<RentalTableProps> = ({
                 {can('rentals', 'singleDoc') && (
                   <>
                     <ActionBtn onClick={() => onGenerate90DayAgreement?.(r)} icon={CalendarClock} colorClass="text-fuchsia-600 hover:bg-fuchsia-50" title="Generate 90-day Agreement" />
-                    <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Generate/Regenerate Agreement" />
-                    <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Generate/Regenerate Invoice" />
+                    <ActionBtn onClick={() => onDownloadAgreement(r)} icon={FileSignature} colorClass={hasAgreement ? "text-blue-700 bg-blue-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"} title="Download Agreement" />
+                    <ActionBtn onClick={() => onDownloadInvoice(r)} icon={Receipt} colorClass={hasInvoice ? "text-green-700 bg-green-50" : "text-gray-400 hover:text-green-600 hover:bg-green-50"} title="Download Invoice" />
                     <ActionBtn onClick={() => onDownloadPermit?.(r)} icon={FileText} colorClass="text-purple-700 hover:bg-purple-50" title="Parking Permit" />
                   </>
                 )}

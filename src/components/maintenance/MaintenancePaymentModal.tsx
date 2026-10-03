@@ -476,8 +476,6 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
               skipLedgerIncome: true,
               preventFinanceSync: true,
               entityType: 'MAINTENANCE',
-              maintenanceJobId: log.id,
-              maintenanceOrderId: log.orderNumber || log.id,
               updatedAt: new Date(),
             };
 
@@ -550,12 +548,17 @@ const MaintenancePaymentModal: React.FC<MaintenancePaymentModalProps> = ({
           const paymentVatAmount = paymentAmount * vatRatio;
           const paymentNetAmount = paymentAmount * netRatio;
 
+          const isPassThroughLog = profitMetrics.subcontractorCost > 0 && Math.abs(profitMetrics.subcontractorCost - billedAmount) < 0.01;
+          const actualExpenseDebit = (!isPassThroughLog && profitMetrics.subcontractorCost > 0)
+            ? profitMetrics.subcontractorCost
+            : paymentAmount;
+
           await createFinanceTransaction({
             type: 'expense',
             transactionType: 'EXPENSE',
             entryType: 'DEBIT',
             category: log.type || 'Maintenance',
-            amount: paymentAmount,
+            amount: actualExpenseDebit,
             netAmount: parseFloat(paymentNetAmount.toFixed(2)),
             vatAmount: parseFloat(paymentVatAmount.toFixed(2)),
             description: `Maintenance Expense | Order: ${log.orderNumber || 'N/A'} | Inv: ${targetInvoiceNum}${formData.notes ? ` - ${formData.notes}` : ''}`,

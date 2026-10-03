@@ -1,7 +1,7 @@
 // src/components/claims/ClaimDetailsModal.tsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Claim } from '../../types';
-import { format, differenceInDays } from 'date-fns';
+import { Claim, LegalHandler } from '../../types';
+import { format, differenceInDays, isValid } from 'date-fns';
 import StatusBadge from '../ui/StatusBadge';
 import {
   FileText,
@@ -16,8 +16,6 @@ import {
   MessageCircle,
   Scale,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Shield,
   Clock,
   Paperclip,
@@ -29,46 +27,75 @@ import {
   AlertCircle,
   ExternalLink,
   MessageSquare,
+  Edit2,
+  Save,
+  Eye,
+  Plus,
+  Trash2,
+  Loader2,
+  Upload,
+  Check,
+  X
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, or, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { isLegacyClaimProgress, deriveDisplayStatus } from '../../utils/claimProgress';
-import clsx from 'clsx';
-import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+import { isLegacyClaimProgress, deriveDisplayStatus, PROGRESS_OPTIONS } from '../../utils/claimProgress';
+import {
+  resolveNameFields,
+  resolveAddressFields,
+  combineFullName,
+  combineFullAddress,
+  splitFullName,
+  splitFullAddress
+} from '../../utils/nameAddressUtils';
 import { resolveLegalHandlerDetails } from '../../utils/claimCommunication';
 import ClaimCommunicationModal from './ClaimCommunicationModal';
 import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
+import { uploadFile } from '../../utils/uploadFile';
+import { uploadAllFiles } from '../../utils/uploadAllFiles';
+import { generateClaimProgressDocument } from '../../utils/documentGenerator';
+import { ensureValidDate } from '../../utils/dateHelpers';
 
 interface ClaimDetailsProps {
   claim: Claim;
+  initialEditMode?: boolean;
+  onClose?: () => void;
   onDownloadDocument?: (url: string) => void;
   onWhatsApp?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
   onEmail?: (claim: Claim, recipient?: 'client' | 'legalHandler') => void;
 }
 
-function toJsDate(v?: Date | { toDate(): Date } | null): Date | null {
+function toJsDate(v?: any): Date | null {
   if (!v) return null;
-  if (typeof (v as any).toDate === 'function') {
+  if (typeof v.toDate === 'function') {
     try {
-      return (v as any).toDate();
-    } catch (e) {
+      return v.toDate();
+    } catch {
       return null;
     }
   }
   if (v instanceof Date && !isNaN(v.getTime())) return v;
-  const date = new Date(v as any);
-  if (!isNaN(date.getTime())) return date;
+  const d = new Date(v);
+  if (!isNaN(d.getTime())) return d;
   return null;
 }
 
-const formatDate = (date: Date | null | undefined): string => {
+const formatDate = (date: any): string => {
   const jsDate = toJsDate(date);
   if (!jsDate) return 'N/A';
   return format(jsDate, 'dd/MM/yyyy');
 };
 
-const formatDateTime = (date: Date | null | undefined): string => {
+const formatDateForInput = (date: any): string => {
+  const jsDate = toJsDate(date);
+  if (!jsDate) return '';
+  return format(jsDate, 'yyyy-MM-dd');
+};
+
+const formatDateTime = (date: any): string => {
   const jsDate = toJsDate(date);
   if (!jsDate) return 'N/A';
   return format(jsDate, 'dd/MM/yyyy HH:mm');
@@ -83,24 +110,45 @@ const checkIsExpiring = (dateVal: any) => {
   return differenceInDays(d, now) <= 7;
 };
 
-const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
-  claim,
+export const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
+  claim: initialClaim,
+  initialEditMode = false,
+  onClose,
   onDownloadDocument,
   onWhatsApp,
   onEmail,
 }) => {
+  const { user } = useAuth();
+  const { formatCurrency } = useFormattedDisplay();
+
+  const [currentClaim, setCurrentClaim] = useState<Claim>(initialClaim);
+  const [isEditMode, setIsEditMode] = useState<boolean>(initialEditMode);
+  const [saving, setSaving] = useState(false);
   const [createdByName, setCreatedByName] = useState<string | null>(null);
+
+  // Active top tab state
+  type TabId = 'client_vehicle' | 'incident' | 'third_party' | 'evidence' | 'progress';
+  const [activeTab, setActiveTab] = useState<TabId>('client_vehicle');
+
+  // Communication modal state
   const [commModalOpen, setCommModalOpen] = useState(false);
   const [commChannel, setCommChannel] = useState<'whatsapp' | 'email'>('whatsapp');
   const [commCategory, setCommCategory] = useState<'general' | 'progress' | 'legal_handler' | 'custom'>('general');
   const [commRecipient, setCommRecipient] = useState<'client' | 'legalHandler'>('client');
-  const [activeTab, setActiveTab] = useState<
-    'client_vehicle' | 'vehicle_docs' | 'incident' | 'third_party' | 'evidence' | 'progress' | 'communication'
-  >('client_vehicle');
-
   const [activeCommDropdown, setActiveCommDropdown] = useState<'whatsapp' | 'email' | null>(null);
   const commDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Sync initial claim updates
+  useEffect(() => {
+    setCurrentClaim(initialClaim);
+  }, [initialClaim]);
+
+  // Sync initial edit mode changes
+  useEffect(() => {
+    setIsEditMode(!!initialEditMode);
+  }, [initialEditMode]);
+
+  // Close dropdown on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (commDropdownRef.current && !commDropdownRef.current.contains(e.target as Node)) {
@@ -115,20 +163,441 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     };
   }, [activeCommDropdown]);
 
-  const legalDetails = useMemo(() => resolveLegalHandlerDetails(claim), [claim]);
+  // Fetch creator name
+  useEffect(() => {
+    const fetchCreatedByName = async () => {
+      if (currentClaim.createdBy) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentClaim.createdBy));
+          if (userDoc.exists()) setCreatedByName(userDoc.data().name);
+          else setCreatedByName('Unknown User');
+        } catch {
+          setCreatedByName('Unknown User');
+        }
+      } else {
+        setCreatedByName(null);
+      }
+    };
+    fetchCreatedByName();
+  }, [currentClaim.createdBy]);
 
+  // ==========================================
+  // EDIT FORM STATE INITIALIZATION
+  // ==========================================
+  // 1. Client fields (Granular)
+  const initialClientName = useMemo(() => resolveNameFields(currentClaim.clientInfo), [currentClaim]);
+  const initialClientAddr = useMemo(() => resolveAddressFields(currentClaim.clientInfo), [currentClaim]);
+
+  const [clientFirstName, setClientFirstName] = useState(initialClientName.firstName || '');
+  const [clientMiddleName, setClientMiddleName] = useState(initialClientName.middleName || '');
+  const [clientLastName, setClientLastName] = useState(initialClientName.lastName || '');
+  const [clientPhone, setClientPhone] = useState(currentClaim.clientInfo?.phone || '');
+  const [clientEmail, setClientEmail] = useState(currentClaim.clientInfo?.email || '');
+  const [clientDOB, setClientDOB] = useState(formatDateForInput(currentClaim.clientInfo?.dateOfBirth));
+  const [clientNI, setClientNI] = useState(currentClaim.clientInfo?.nationalInsuranceNumber || '');
+  const [clientDriverLicense, setClientDriverLicense] = useState(currentClaim.clientInfo?.driverLicenseNumber || '');
+  const [clientLicenseExpiry, setClientLicenseExpiry] = useState(formatDateForInput(currentClaim.clientInfo?.licenseExpiry));
+  const [clientOccupation, setClientOccupation] = useState(currentClaim.clientInfo?.occupation || '');
+  const [clientInjuryDetails, setClientInjuryDetails] = useState(currentClaim.clientInfo?.injuryDetails || '');
+
+  // Address inputs (Granular)
+  const [clientBuildingFlat, setClientBuildingFlat] = useState(initialClientAddr.buildingFlat || '');
+  const [clientStreetName, setClientStreetName] = useState(initialClientAddr.streetName || '');
+  const [clientTownCity, setClientTownCity] = useState(initialClientAddr.townCity || '');
+  const [clientPostcode, setClientPostcode] = useState(initialClientAddr.postcode || '');
+  const [clientCountry, setClientCountry] = useState(initialClientAddr.country || 'United Kingdom');
+
+  // Registered Keeper
+  const initialRkName = useMemo(() => resolveNameFields(currentClaim.registerKeeper), [currentClaim]);
+  const initialRkAddr = useMemo(() => resolveAddressFields(currentClaim.registerKeeper), [currentClaim]);
+
+  const [rkEnabled, setRkEnabled] = useState(!!currentClaim.registerKeeper?.enabled);
+  const [rkFirstName, setRkFirstName] = useState(initialRkName.firstName || '');
+  const [rkMiddleName, setRkMiddleName] = useState(initialRkName.middleName || '');
+  const [rkLastName, setRkLastName] = useState(initialRkName.lastName || '');
+  const [rkBuildingFlat, setRkBuildingFlat] = useState(initialRkAddr.buildingFlat || '');
+  const [rkStreetName, setRkStreetName] = useState(initialRkAddr.streetName || '');
+  const [rkTownCity, setRkTownCity] = useState(initialRkAddr.townCity || '');
+  const [rkPostcode, setRkPostcode] = useState(initialRkAddr.postcode || '');
+  const [rkCountry, setRkCountry] = useState(initialRkAddr.country || 'United Kingdom');
+  const [rkPhone, setRkPhone] = useState(currentClaim.registerKeeper?.phone || '');
+  const [rkEmail, setRkEmail] = useState(currentClaim.registerKeeper?.email || '');
+  const [rkDOB, setRkDOB] = useState(formatDateForInput(currentClaim.registerKeeper?.dateOfBirth));
+
+  // Client Vehicle
+  const [vehicleReg, setVehicleReg] = useState(currentClaim.clientVehicle?.registration || '');
+  const [vehicleMake, setVehicleMake] = useState(currentClaim.clientVehicle?.make || '');
+  const [vehicleModel, setVehicleModel] = useState(currentClaim.clientVehicle?.model || '');
+  const [vehicleYear, setVehicleYear] = useState(currentClaim.clientVehicle?.year || '');
+  const [vehicleColor, setVehicleColor] = useState(currentClaim.clientVehicle?.color || '');
+  const [motExpiry, setMotExpiry] = useState(formatDateForInput(currentClaim.clientVehicle?.motExpiry));
+  const [roadTaxExpiry, setRoadTaxExpiry] = useState(formatDateForInput(currentClaim.clientVehicle?.roadTaxExpiry));
+  const [nslExpiry, setNslExpiry] = useState(formatDateForInput(currentClaim.clientVehicle?.nslExpiry));
+  const [insuranceExpiry, setInsuranceExpiry] = useState(formatDateForInput(currentClaim.clientVehicle?.insuranceExpiry));
+
+  // Submitter & Reference
+  const [submitterType, setSubmitterType] = useState(currentClaim.submitterType || 'client');
+  const [clientRef, setClientRef] = useState(currentClaim.clientRef || '');
+  const [claimType, setClaimType] = useState(currentClaim.claimType || 'Standard');
+  const [claimReason, setClaimReason] = useState<string[]>(Array.isArray(currentClaim.claimReason) ? currentClaim.claimReason : ['VD']);
+
+  // Incident Details
+  const [incidentDate, setIncidentDate] = useState(formatDateForInput(currentClaim.incidentDetails?.date));
+  const [incidentTime, setIncidentTime] = useState(currentClaim.incidentDetails?.time || '');
+  const [incidentLocation, setIncidentLocation] = useState(currentClaim.incidentDetails?.location || '');
+  const [incidentDescription, setIncidentDescription] = useState(currentClaim.incidentDetails?.description || '');
+  const [incidentDamage, setIncidentDamage] = useState(currentClaim.incidentDetails?.damageDetails || '');
+  const [incidentWeather, setIncidentWeather] = useState(currentClaim.incidentDetails?.weather || '');
+  const [incidentRoadConditions, setIncidentRoadConditions] = useState(currentClaim.incidentDetails?.roadConditions || '');
+  const [incidentSpeed, setIncidentSpeed] = useState(currentClaim.incidentDetails?.speed || '');
+
+  // Police Involvement
+  const [policeOfficerName, setPoliceOfficerName] = useState(currentClaim.policeOfficerName || '');
+  const [policeBadgeNumber, setPoliceBadgeNumber] = useState(currentClaim.policeBadgeNumber || '');
+  const [policeStation, setPoliceStation] = useState(currentClaim.policeStation || '');
+  const [policeIncidentNumber, setPoliceIncidentNumber] = useState(currentClaim.policeIncidentNumber || '');
+  const [policeContactInfo, setPoliceContactInfo] = useState(currentClaim.policeContactInfo || '');
+
+  // Paramedics & Ambulance
+  const [paramedicNames, setParamedicNames] = useState(currentClaim.paramedicNames || '');
+  const [ambulanceService, setAmbulanceService] = useState(currentClaim.ambulanceService || '');
+  const [ambulanceReference, setAmbulanceReference] = useState(currentClaim.ambulanceReference || '');
+
+  // Hire / Storage / Recovery
+  const [hireEnabled, setHireEnabled] = useState(!!currentClaim.hireDetails?.enabled);
+  const [hireCompany, setHireCompany] = useState(currentClaim.hireDetails?.hireCompany || '');
+  const [hireRate, setHireRate] = useState(String(currentClaim.hireDetails?.dailyRate || ''));
+  const [hireStartDate, setHireStartDate] = useState(formatDateForInput(currentClaim.hireDetails?.startDate));
+  const [hireEndDate, setHireEndDate] = useState(formatDateForInput(currentClaim.hireDetails?.endDate));
+
+  const [storageEnabled, setStorageEnabled] = useState(!!currentClaim.storage?.enabled);
+  const [storageGarage, setStorageGarage] = useState(currentClaim.storage?.garage || '');
+  const [storageRate, setStorageRate] = useState(String(currentClaim.storage?.dailyRate || ''));
+
+  const [recoveryEnabled, setRecoveryEnabled] = useState(!!currentClaim.recovery?.enabled);
+  const [recoveryOperator, setRecoveryOperator] = useState(currentClaim.recovery?.operator || '');
+  const [recoveryCost, setRecoveryCost] = useState(String(currentClaim.recovery?.cost || ''));
+
+  // Medical (GP & Hospital)
+  const [gpVisited, setGpVisited] = useState(!!currentClaim.gpInformation?.visited);
+  const [gpName, setGpName] = useState(currentClaim.gpInformation?.gpName || '');
+  const [gpDoctorName, setGpDoctorName] = useState(currentClaim.gpInformation?.gpDoctorName || '');
+  const [gpAddress, setGpAddress] = useState(currentClaim.gpInformation?.gpAddress || '');
+  const [gpContactNumber, setGpContactNumber] = useState(currentClaim.gpInformation?.gpContactNumber || '');
+  const [gpNotes, setGpNotes] = useState(currentClaim.gpInformation?.gpNotes || '');
+
+  const [hospitalVisited, setHospitalVisited] = useState(!!currentClaim.hospitalInformation?.visited);
+  const [hospitalName, setHospitalName] = useState(currentClaim.hospitalInformation?.hospitalName || '');
+  const [hospitalDoctorName, setHospitalDoctorName] = useState(currentClaim.hospitalInformation?.hospitalDoctorName || '');
+  const [hospitalAddress, setHospitalAddress] = useState(currentClaim.hospitalInformation?.hospitalAddress || '');
+  const [hospitalContactNumber, setHospitalContactNumber] = useState(currentClaim.hospitalInformation?.hospitalContactNumber || '');
+  const [hospitalNotes, setHospitalNotes] = useState(currentClaim.hospitalInformation?.hospitalNotes || '');
+
+  // Third Party (Granular)
+  const initialTpName = useMemo(() => resolveNameFields(currentClaim.thirdParty), [currentClaim]);
+  const initialTpAddr = useMemo(() => resolveAddressFields(currentClaim.thirdParty), [currentClaim]);
+
+  const [tpFirstName, setTpFirstName] = useState(initialTpName.firstName || '');
+  const [tpMiddleName, setTpMiddleName] = useState(initialTpName.middleName || '');
+  const [tpLastName, setTpLastName] = useState(initialTpName.lastName || '');
+  const [tpBuildingFlat, setTpBuildingFlat] = useState(initialTpAddr.buildingFlat || '');
+  const [tpStreetName, setTpStreetName] = useState(initialTpAddr.streetName || '');
+  const [tpTownCity, setTpTownCity] = useState(initialTpAddr.townCity || '');
+  const [tpPostcode, setTpPostcode] = useState(initialTpAddr.postcode || '');
+  const [tpCountry, setTpCountry] = useState(initialTpAddr.country || 'United Kingdom');
+  const [tpPhone, setTpPhone] = useState(currentClaim.thirdParty?.phone || '');
+  const [tpEmail, setTpEmail] = useState(currentClaim.thirdParty?.email || '');
+  const [tpRegistration, setTpRegistration] = useState(currentClaim.thirdParty?.registration || '');
+  const [tpMake, setTpMake] = useState(currentClaim.thirdParty?.make || '');
+  const [tpModel, setTpModel] = useState(currentClaim.thirdParty?.model || '');
+  const [tpInsurer, setTpInsurer] = useState(currentClaim.thirdParty?.insurer || '');
+  const [tpPolicyNumber, setTpPolicyNumber] = useState(currentClaim.thirdParty?.policyNumber || '');
+
+  // Passengers & Witnesses
+  const [passengers, setPassengers] = useState<any[]>(currentClaim.passengers || []);
+  const [witnesses, setWitnesses] = useState<any[]>(currentClaim.witnesses || []);
+
+  // Evidence Staging & Management (Existing URLs + New staged Files)
+  const [existingEvidence, setExistingEvidence] = useState<{
+    images: string[];
+    videos: string[];
+    clientVehiclePhotos: string[];
+    engineerReport: string[];
+    bankStatement: string[];
+    adminDocuments: string[];
+  }>({
+    images: initialClaim.evidence?.images || [],
+    videos: initialClaim.evidence?.videos || [],
+    clientVehiclePhotos: initialClaim.evidence?.clientVehiclePhotos || [],
+    engineerReport: initialClaim.evidence?.engineerReport || [],
+    bankStatement: initialClaim.evidence?.bankStatement || [],
+    adminDocuments: initialClaim.evidence?.adminDocuments || [],
+  });
+
+  const [stagedFiles, setStagedFiles] = useState<{
+    images: File[];
+    videos: File[];
+    clientVehiclePhotos: File[];
+    engineerReport: File[];
+    bankStatement: File[];
+    adminDocuments: File[];
+  }>({
+    images: [],
+    videos: [],
+    clientVehiclePhotos: [],
+    engineerReport: [],
+    bankStatement: [],
+    adminDocuments: [],
+  });
+
+  // Customer Profile Synchronization helper
+  const upsertCustomerFromClaimData = async (clientInfo: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    dateOfBirth?: Date | null;
+    nationalInsuranceNumber?: string;
+    signature?: string;
+  }) => {
+    if (!clientInfo.email && !clientInfo.phone) return;
+    try {
+      const customersRef = collection(db, 'customers');
+      const conditions: any[] = [];
+      if (clientInfo.email) conditions.push(where('email', '==', clientInfo.email));
+      if (clientInfo.phone) conditions.push(where('mobile', '==', clientInfo.phone));
+
+      const q = query(customersRef, or(...conditions));
+      const existingCustomerSnapshot = await getDocs(q);
+
+      if (existingCustomerSnapshot.empty) {
+        await addDoc(customersRef, {
+          type: 'claim',
+          name: clientInfo.name || '',
+          mobile: clientInfo.phone || '',
+          email: clientInfo.email || '',
+          address: clientInfo.address || '',
+          dateOfBirth: clientInfo.dateOfBirth || null,
+          nationalInsuranceNumber: clientInfo.nationalInsuranceNumber || '',
+          signature: clientInfo.signature || '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        toast.success('Customer profile synced from claim details.');
+      }
+    } catch (error) {
+      console.warn('Customer upsert notification:', error);
+    }
+  };
+
+  // Progress & Handlers
+  const [caseProgress, setCaseProgress] = useState(currentClaim.caseProgress || 'Your Claim Has Started');
+  const [aieHandler, setAieHandler] = useState(
+    typeof currentClaim.fileHandlers === 'string'
+      ? currentClaim.fileHandlers
+      : currentClaim.fileHandlers?.aieHandler || ''
+  );
+
+  const initialLegalHandler = typeof currentClaim.fileHandlers === 'object' ? currentClaim.fileHandlers?.legalHandler : null;
+  const [legalHandlerFirm, setLegalHandlerFirm] = useState(initialLegalHandler?.firm || '');
+  const [legalHandlerName, setLegalHandlerName] = useState(initialLegalHandler?.handlerName || '');
+  const [legalHandlerEmail, setLegalHandlerEmail] = useState(initialLegalHandler?.email || '');
+  const [legalHandlerPhone, setLegalHandlerPhone] = useState(initialLegalHandler?.phone || '');
+  const [legalHandlerAddress, setLegalHandlerAddress] = useState(initialLegalHandler?.address || '');
+
+  // Re-sync form inputs when currentClaim changes
+  useEffect(() => {
+    const cn = resolveNameFields(currentClaim.clientInfo);
+    const ca = resolveAddressFields(currentClaim.clientInfo);
+    setClientFirstName(cn.firstName);
+    setClientMiddleName(cn.middleName);
+    setClientLastName(cn.lastName);
+    setClientBuildingFlat(ca.buildingFlat);
+    setClientStreetName(ca.streetName);
+    setClientTownCity(ca.townCity);
+    setClientPostcode(ca.postcode);
+    setClientCountry(ca.country || 'United Kingdom');
+    setClientPhone(currentClaim.clientInfo?.phone || '');
+    setClientEmail(currentClaim.clientInfo?.email || '');
+    setClientDOB(formatDateForInput(currentClaim.clientInfo?.dateOfBirth));
+    setClientNI(currentClaim.clientInfo?.nationalInsuranceNumber || '');
+    setClientDriverLicense(currentClaim.clientInfo?.driverLicenseNumber || '');
+    setClientLicenseExpiry(formatDateForInput(currentClaim.clientInfo?.licenseExpiry));
+    setClientOccupation(currentClaim.clientInfo?.occupation || '');
+    setClientInjuryDetails(currentClaim.clientInfo?.injuryDetails || '');
+
+    const rn = resolveNameFields(currentClaim.registerKeeper);
+    const ra = resolveAddressFields(currentClaim.registerKeeper);
+    setRkEnabled(!!currentClaim.registerKeeper?.enabled);
+    setRkFirstName(rn.firstName);
+    setRkMiddleName(rn.middleName);
+    setRkLastName(rn.lastName);
+    setRkBuildingFlat(ra.buildingFlat);
+    setRkStreetName(ra.streetName);
+    setRkTownCity(ra.townCity);
+    setRkPostcode(ra.postcode);
+    setRkCountry(ra.country || 'United Kingdom');
+    setRkPhone(currentClaim.registerKeeper?.phone || '');
+    setRkEmail(currentClaim.registerKeeper?.email || '');
+    setRkDOB(formatDateForInput(currentClaim.registerKeeper?.dateOfBirth));
+
+    const tn = resolveNameFields(currentClaim.thirdParty);
+    const ta = resolveAddressFields(currentClaim.thirdParty);
+    setTpFirstName(tn.firstName);
+    setTpMiddleName(tn.middleName);
+    setTpLastName(tn.lastName);
+    setTpBuildingFlat(ta.buildingFlat);
+    setTpStreetName(ta.streetName);
+    setTpTownCity(ta.townCity);
+    setTpPostcode(ta.postcode);
+    setTpCountry(ta.country || 'United Kingdom');
+    setTpPhone(currentClaim.thirdParty?.phone || '');
+    setTpEmail(currentClaim.thirdParty?.email || '');
+    setTpRegistration(currentClaim.thirdParty?.registration || '');
+    setTpMake(currentClaim.thirdParty?.make || '');
+    setTpModel(currentClaim.thirdParty?.model || '');
+    setTpInsurer(currentClaim.thirdParty?.insurer || '');
+    setTpPolicyNumber(currentClaim.thirdParty?.policyNumber || '');
+
+    setVehicleReg(currentClaim.clientVehicle?.registration || '');
+    setVehicleMake(currentClaim.clientVehicle?.make || '');
+    setVehicleModel(currentClaim.clientVehicle?.model || '');
+    setVehicleYear(currentClaim.clientVehicle?.year || '');
+    setVehicleColor(currentClaim.clientVehicle?.color || '');
+    setMotExpiry(formatDateForInput(currentClaim.clientVehicle?.motExpiry));
+    setRoadTaxExpiry(formatDateForInput(currentClaim.clientVehicle?.roadTaxExpiry));
+    setNslExpiry(formatDateForInput(currentClaim.clientVehicle?.nslExpiry));
+    setInsuranceExpiry(formatDateForInput(currentClaim.clientVehicle?.insuranceExpiry));
+
+    setSubmitterType(currentClaim.submitterType || 'client');
+    setClientRef(currentClaim.clientRef || '');
+    setClaimType(currentClaim.claimType || 'Standard');
+    setClaimReason(Array.isArray(currentClaim.claimReason) ? currentClaim.claimReason : ['VD']);
+
+    setIncidentDate(formatDateForInput(currentClaim.incidentDetails?.date));
+    setIncidentTime(currentClaim.incidentDetails?.time || '');
+    setIncidentLocation(currentClaim.incidentDetails?.location || '');
+    setIncidentDescription(currentClaim.incidentDetails?.description || '');
+    setIncidentDamage(currentClaim.incidentDetails?.damageDetails || '');
+
+    setPoliceOfficerName(currentClaim.policeOfficerName || '');
+    setPoliceBadgeNumber(currentClaim.policeBadgeNumber || '');
+    setPoliceStation(currentClaim.policeStation || '');
+    setPoliceIncidentNumber(currentClaim.policeIncidentNumber || '');
+    setPoliceContactInfo(currentClaim.policeContactInfo || '');
+
+    setParamedicNames(currentClaim.paramedicNames || '');
+    setAmbulanceService(currentClaim.ambulanceService || '');
+    setAmbulanceReference(currentClaim.ambulanceReference || '');
+
+    setHireEnabled(!!currentClaim.hireDetails?.enabled);
+    setHireCompany(currentClaim.hireDetails?.hireCompany || '');
+    setHireRate(String(currentClaim.hireDetails?.dailyRate || ''));
+    setHireStartDate(formatDateForInput(currentClaim.hireDetails?.startDate));
+    setHireEndDate(formatDateForInput(currentClaim.hireDetails?.endDate));
+
+    setStorageEnabled(!!currentClaim.storage?.enabled);
+    setStorageGarage(currentClaim.storage?.garage || '');
+    setStorageRate(String(currentClaim.storage?.dailyRate || ''));
+
+    setRecoveryEnabled(!!currentClaim.recovery?.enabled);
+    setRecoveryOperator(currentClaim.recovery?.operator || '');
+    setRecoveryCost(String(currentClaim.recovery?.cost || ''));
+
+    setGpVisited(!!currentClaim.gpInformation?.visited);
+    setGpName(currentClaim.gpInformation?.gpName || '');
+    setGpDoctorName(currentClaim.gpInformation?.gpDoctorName || '');
+    setGpAddress(currentClaim.gpInformation?.gpAddress || '');
+    setGpContactNumber(currentClaim.gpInformation?.gpContactNumber || '');
+    setGpNotes(currentClaim.gpInformation?.gpNotes || '');
+
+    setHospitalVisited(!!currentClaim.hospitalInformation?.visited);
+    setHospitalName(currentClaim.hospitalInformation?.hospitalName || '');
+    setHospitalDoctorName(currentClaim.hospitalInformation?.hospitalDoctorName || '');
+    setHospitalAddress(currentClaim.hospitalInformation?.hospitalAddress || '');
+    setHospitalContactNumber(currentClaim.hospitalInformation?.hospitalContactNumber || '');
+    setHospitalNotes(currentClaim.hospitalInformation?.hospitalNotes || '');
+
+    setExistingEvidence({
+      images: currentClaim.evidence?.images || [],
+      videos: currentClaim.evidence?.videos || [],
+      clientVehiclePhotos: currentClaim.evidence?.clientVehiclePhotos || [],
+      engineerReport: currentClaim.evidence?.engineerReport || [],
+      bankStatement: currentClaim.evidence?.bankStatement || [],
+      adminDocuments: currentClaim.evidence?.adminDocuments || [],
+    });
+    setStagedFiles({
+      images: [],
+      videos: [],
+      clientVehiclePhotos: [],
+      engineerReport: [],
+      bankStatement: [],
+      adminDocuments: [],
+    });
+
+    setCaseProgress(currentClaim.caseProgress || 'Your Claim Has Started');
+    setPassengers(currentClaim.passengers || []);
+    setWitnesses(currentClaim.witnesses || []);
+  }, [currentClaim]);
+
+  // Derived values for view
+  const legalDetails = useMemo(() => resolveLegalHandlerDetails(currentClaim), [currentClaim]);
+  const legacy = useMemo(() => isLegacyClaimProgress(currentClaim), [currentClaim]);
+  const displayStatus = useMemo(() => deriveDisplayStatus(currentClaim) ?? 'N/A', [currentClaim]);
+  const historyToShow = currentClaim.progressHistory || [];
+
+  // ==========================================
+  // TOP TAB DEFINITION (Standardized 5 Tabs)
+  // ==========================================
+  const tabs = useMemo(
+    () => [
+      {
+        id: 'client_vehicle' as const,
+        number: '1',
+        title: 'Client & Vehicle',
+        icon: User,
+      },
+      {
+        id: 'incident' as const,
+        number: '2',
+        title: 'Incident',
+        icon: Calendar,
+      },
+      {
+        id: 'third_party' as const,
+        number: '3',
+        title: 'Third Party',
+        icon: Users,
+      },
+      {
+        id: 'evidence' as const,
+        number: '4',
+        title: 'Evidence',
+        icon: Camera,
+      },
+      {
+        id: 'progress' as const,
+        number: '5',
+        title: 'Progress & Notes',
+        icon: Activity,
+      },
+    ],
+    []
+  );
+
+  // Communication Handler
   const handleOpenComm = (
     channel: 'whatsapp' | 'email',
-    category: 'general' | 'progress' | 'legal_handler' | 'custom' = 'general',
-    recipient: 'client' | 'legalHandler' = 'client'
+    category: 'general' | 'progress' | 'legal_handler' | 'custom',
+    recipient: 'client' | 'legalHandler'
   ) => {
     setActiveCommDropdown(null);
     if (channel === 'whatsapp' && onWhatsApp) {
-      onWhatsApp(claim, recipient);
+      onWhatsApp(currentClaim, recipient);
       return;
     }
     if (channel === 'email' && onEmail) {
-      onEmail(claim, recipient);
+      onEmail(currentClaim, recipient);
       return;
     }
     setCommChannel(channel);
@@ -137,97 +606,267 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     setCommModalOpen(true);
   };
 
-  const { formatCurrency } = useFormattedDisplay();
-  const legacy = useMemo(() => isLegacyClaimProgress(claim), [claim]);
-  const displayStatus = useMemo(() => deriveDisplayStatus(claim) ?? 'N/A', [claim]);
-  const [serverHistory, setServerHistory] = useState(claim.progressHistory || []);
-  const historyToShow = serverHistory?.length ? serverHistory : (claim.progressHistory || []);
-
-  const tabs = useMemo(() => [
-    {
-      id: 'client_vehicle' as const,
-      title: 'Client',
-      icon: User,
-    },
-    {
-      id: 'vehicle_docs' as const,
-      title: 'Vehicle',
-      icon: FileText,
-    },
-    {
-      id: 'incident' as const,
-      title: 'Incident',
-      icon: Calendar,
-    },
-    {
-      id: 'third_party' as const,
-      title: 'Third Party',
-      icon: Users,
-    },
-    {
-      id: 'evidence' as const,
-      title: 'Evidence',
-      icon: Camera,
-    },
-    {
-      id: 'progress' as const,
-      title: 'Progress',
-      icon: Activity,
-    },
-    {
-      id: 'communication' as const,
-      title: 'Communications',
-      icon: MessageSquare,
-    },
-  ], []);
-
-  const currentTabIndex = tabs.findIndex((t) => t.id === activeTab);
-  const handlePrevTab = () => {
-    if (currentTabIndex > 0) {
-      setActiveTab(tabs[currentTabIndex - 1].id);
+  // ==========================================
+  // SAVE CLAIM FUNCTION (Updates Granular + Combined)
+  // ==========================================
+  const handleSaveClaim = async () => {
+    if (!user) {
+      toast.error('You must be logged in to save claim changes');
+      return;
     }
-  };
-  const handleNextTab = () => {
-    if (currentTabIndex < tabs.length - 1) {
-      setActiveTab(tabs[currentTabIndex + 1].id);
-    }
-  };
 
-  useEffect(() => {
-    (async () => {
+    setSaving(true);
+    const toastId = toast.loading('Saving claim changes...');
+
+    try {
+      // Upload any newly staged evidence files
+      const uploadedImages = await uploadAllFiles(stagedFiles.images, 'claims/images');
+      const uploadedVideos = await uploadAllFiles(stagedFiles.videos, 'claims/videos');
+      const uploadedVehiclePhotos = await uploadAllFiles(stagedFiles.clientVehiclePhotos, 'claims/vehicle-photos');
+      const uploadedReports = await uploadAllFiles(stagedFiles.engineerReport, 'claims/engineer-reports');
+      const uploadedStatements = await uploadAllFiles(stagedFiles.bankStatement, 'claims/bank-statements');
+      const uploadedAdminDocs = await uploadAllFiles(stagedFiles.adminDocuments, 'claims/admin-documents');
+
+      const finalEvidence = {
+        images: [...(existingEvidence.images || []), ...uploadedImages],
+        videos: [...(existingEvidence.videos || []), ...uploadedVideos],
+        clientVehiclePhotos: [...(existingEvidence.clientVehiclePhotos || []), ...uploadedVehiclePhotos],
+        engineerReport: [...(existingEvidence.engineerReport || []), ...uploadedReports],
+        bankStatement: [...(existingEvidence.bankStatement || []), ...uploadedStatements],
+        adminDocuments: [...(existingEvidence.adminDocuments || []), ...uploadedAdminDocs],
+      };
+
+      // Recombine Names
+      const combinedClientName = combineFullName(clientFirstName, clientMiddleName, clientLastName);
+      const combinedClientAddress = combineFullAddress(
+        clientBuildingFlat,
+        clientStreetName,
+        clientTownCity,
+        clientPostcode,
+        clientCountry
+      );
+
+      const combinedRkName = rkEnabled ? combineFullName(rkFirstName, rkMiddleName, rkLastName) : '';
+      const combinedRkAddress = rkEnabled
+        ? combineFullAddress(rkBuildingFlat, rkStreetName, rkTownCity, rkPostcode, rkCountry)
+        : '';
+
+      const combinedTpName = combineFullName(tpFirstName, tpMiddleName, tpLastName);
+      const combinedTpAddress = combineFullAddress(
+        tpBuildingFlat,
+        tpStreetName,
+        tpTownCity,
+        tpPostcode,
+        tpCountry
+      );
+
+      const payload: any = {
+        submitterType,
+        clientRef: clientRef.trim(),
+        claimType,
+        claimReason,
+        caseProgress,
+        updatedAt: new Date(),
+        updatedBy: user.id,
+
+        clientInfo: {
+          ...currentClaim.clientInfo,
+          firstName: clientFirstName.trim(),
+          middleName: clientMiddleName.trim(),
+          lastName: clientLastName.trim(),
+          name: combinedClientName || clientFirstName.trim(),
+          fullName: combinedClientName || clientFirstName.trim(),
+          phone: clientPhone.trim(),
+          email: clientEmail.trim(),
+          dateOfBirth: clientDOB ? new Date(clientDOB) : null,
+          nationalInsuranceNumber: clientNI.trim(),
+          driverLicenseNumber: clientDriverLicense.trim(),
+          licenseExpiry: clientLicenseExpiry ? new Date(clientLicenseExpiry) : null,
+          occupation: clientOccupation.trim(),
+          injuryDetails: clientInjuryDetails.trim(),
+          buildingFlat: clientBuildingFlat.trim(),
+          streetName: clientStreetName.trim(),
+          townCity: clientTownCity.trim(),
+          postcode: clientPostcode.trim(),
+          country: clientCountry.trim() || 'United Kingdom',
+          address: combinedClientAddress,
+        },
+
+        registerKeeper: rkEnabled
+          ? {
+              enabled: true,
+              firstName: rkFirstName.trim(),
+              middleName: rkMiddleName.trim(),
+              lastName: rkLastName.trim(),
+              name: combinedRkName,
+              phone: rkPhone.trim(),
+              email: rkEmail.trim(),
+              dateOfBirth: rkDOB ? new Date(rkDOB) : null,
+              buildingFlat: rkBuildingFlat.trim(),
+              streetName: rkStreetName.trim(),
+              townCity: rkTownCity.trim(),
+              postcode: rkPostcode.trim(),
+              country: rkCountry.trim() || 'United Kingdom',
+              address: combinedRkAddress,
+            }
+          : { enabled: false },
+
+        clientVehicle: {
+          ...currentClaim.clientVehicle,
+          registration: vehicleReg.trim().toUpperCase(),
+          make: vehicleMake.trim(),
+          model: vehicleModel.trim(),
+          year: vehicleYear.trim(),
+          color: vehicleColor.trim(),
+          motExpiry: motExpiry ? new Date(motExpiry) : null,
+          roadTaxExpiry: roadTaxExpiry ? new Date(roadTaxExpiry) : null,
+          nslExpiry: nslExpiry ? new Date(nslExpiry) : null,
+          insuranceExpiry: insuranceExpiry ? new Date(insuranceExpiry) : null,
+        },
+
+        incidentDetails: {
+          ...currentClaim.incidentDetails,
+          date: incidentDate ? new Date(incidentDate) : new Date(),
+          time: incidentTime.trim(),
+          location: incidentLocation.trim(),
+          description: incidentDescription.trim(),
+          damageDetails: incidentDamage.trim(),
+          weather: incidentWeather.trim(),
+          roadConditions: incidentRoadConditions.trim(),
+          speed: incidentSpeed.trim(),
+        },
+
+        policeOfficerName: policeOfficerName.trim(),
+        policeBadgeNumber: policeBadgeNumber.trim(),
+        policeStation: policeStation.trim(),
+        policeIncidentNumber: policeIncidentNumber.trim(),
+        policeContactInfo: policeContactInfo.trim(),
+
+        paramedicNames: paramedicNames.trim(),
+        ambulanceService: ambulanceService.trim(),
+        ambulanceReference: ambulanceReference.trim(),
+
+        hireDetails: hireEnabled
+          ? {
+              enabled: true,
+              hireCompany: hireCompany.trim(),
+              dailyRate: parseFloat(hireRate) || 0,
+              startDate: hireStartDate ? new Date(hireStartDate) : null,
+              endDate: hireEndDate ? new Date(hireEndDate) : null,
+            }
+          : { enabled: false },
+
+        storage: storageEnabled
+          ? {
+              enabled: true,
+              garage: storageGarage.trim(),
+              dailyRate: parseFloat(storageRate) || 0,
+            }
+          : { enabled: false },
+
+        recovery: recoveryEnabled
+          ? {
+              enabled: true,
+              operator: recoveryOperator.trim(),
+              cost: parseFloat(recoveryCost) || 0,
+            }
+          : { enabled: false },
+
+        gpInformation: gpVisited
+          ? {
+              visited: true,
+              gpName: gpName.trim(),
+              gpDoctorName: gpDoctorName.trim(),
+              gpAddress: gpAddress.trim(),
+              gpContactNumber: gpContactNumber.trim(),
+              gpNotes: gpNotes.trim(),
+            }
+          : { visited: false },
+
+        hospitalInformation: hospitalVisited
+          ? {
+              visited: true,
+              hospitalName: hospitalName.trim(),
+              hospitalDoctorName: hospitalDoctorName.trim(),
+              hospitalAddress: hospitalAddress.trim(),
+              hospitalContactNumber: hospitalContactNumber.trim(),
+              hospitalNotes: hospitalNotes.trim(),
+            }
+          : { visited: false },
+
+        thirdParty: {
+          ...currentClaim.thirdParty,
+          firstName: tpFirstName.trim(),
+          middleName: tpMiddleName.trim(),
+          lastName: tpLastName.trim(),
+          name: combinedTpName,
+          phone: tpPhone.trim(),
+          email: tpEmail.trim(),
+          buildingFlat: tpBuildingFlat.trim(),
+          streetName: tpStreetName.trim(),
+          townCity: tpTownCity.trim(),
+          postcode: tpPostcode.trim(),
+          country: tpCountry.trim() || 'United Kingdom',
+          address: combinedTpAddress,
+          registration: tpRegistration.trim().toUpperCase(),
+          make: tpMake.trim(),
+          model: tpModel.trim(),
+          insurer: tpInsurer.trim(),
+          policyNumber: tpPolicyNumber.trim(),
+        },
+
+        passengers,
+        witnesses,
+
+        fileHandlers: {
+          aieHandler: aieHandler.trim(),
+          legalHandler: legalHandlerFirm || legalHandlerName ? {
+            firm: legalHandlerFirm.trim(),
+            handlerName: legalHandlerName.trim(),
+            email: legalHandlerEmail.trim(),
+            phone: legalHandlerPhone.trim(),
+            address: legalHandlerAddress.trim(),
+          } : null,
+        },
+
+        evidence: finalEvidence,
+      };
+
+      // Ensure customer profile is synchronized
+      await upsertCustomerFromClaimData(payload.clientInfo);
+
+      const claimRef = doc(db, 'claims', currentClaim.id);
+      await updateDoc(claimRef, payload);
+
+      const updated = { ...currentClaim, ...payload };
+      setCurrentClaim(updated);
+      setExistingEvidence(finalEvidence);
+      setStagedFiles({
+        images: [],
+        videos: [],
+        clientVehiclePhotos: [],
+        engineerReport: [],
+        bankStatement: [],
+        adminDocuments: [],
+      });
+
       try {
-        const snap = await getDoc(doc(db, 'claims', claim.id));
-        if (!snap.exists()) return;
-        const data = snap.data() as any;
-        const hist = (data.progressHistory || []).map((h: any) => ({
-          ...h,
-          date: h?.date?.toDate ? h.date.toDate() : new Date(h.date),
-        }));
-        setServerHistory(hist);
-      } catch (e) {
-        console.warn('Failed to refresh progress history:', e);
+        await generateClaimProgressDocument(updated);
+      } catch (docErr) {
+        console.warn('PDF document regeneration notice:', docErr);
       }
-    })();
-  }, [claim.id]);
 
-  useEffect(() => {
-    const fetchCreatedByName = async () => {
-      if (claim.createdBy) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', claim.createdBy));
-          if (userDoc.exists()) setCreatedByName(userDoc.data().name);
-          else setCreatedByName('Unknown User');
-        } catch (error) {
-          setCreatedByName('Unknown User');
-        }
-      } else {
-        setCreatedByName(null);
-      }
-    };
-    fetchCreatedByName();
-  }, [claim.createdBy]);
+      toast.success('Claim updated successfully!', { id: toastId });
+      setIsEditMode(false);
+    } catch (err: any) {
+      console.error('Save Claim error:', err);
+      toast.error(`Failed to update claim: ${err.message || 'Unknown error'}`, { id: toastId });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // Formal Visual Card Section Component
+  // Section Card Component
   const FormalSectionCard: React.FC<{
     sectionId?: string;
     sectionNumber?: string;
@@ -237,36 +876,20 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     action?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
-  }> = ({
-    sectionId,
-    sectionNumber,
-    title,
-    icon: Icon,
-    badge,
-    action,
-    children,
-    className = '',
-  }) => (
-    <div
-      id={sectionId}
-      className={`rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs ${className}`}
-    >
+  }> = ({ sectionId, sectionNumber, title, icon: Icon, badge, action, children, className = '' }) => (
+    <div id={sectionId} className={`rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs ${className}`}>
       <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
-            <Icon className="w-4 h-4 text-blue-600" />
+          <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200">
+            <Icon className="w-4 h-4 text-indigo-600" />
           </div>
           <div className="flex items-center gap-2">
             {sectionNumber && (
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
                 {sectionNumber}
               </span>
             )}
-            <h3
-              className="text-base font-bold text-slate-900 tracking-wide"
-            >
-              {title}
-            </h3>
+            <h3 className="text-base font-bold text-slate-900 tracking-wide">{title}</h3>
           </div>
           {badge}
         </div>
@@ -276,7 +899,6 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     </div>
   );
 
-  // Sub-section divider within cards
   const SubSection = ({
     title,
     icon: SubIcon,
@@ -288,27 +910,17 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
   }) => (
     <div>
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
-        {SubIcon && <SubIcon className="w-4 h-4 text-sky-600" />}
-        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-          {title}
-        </h4>
+        {SubIcon && <SubIcon className="w-4 h-4 text-indigo-600" />}
+        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{title}</h4>
       </div>
       {children}
     </div>
   );
 
-  const Field = ({
-    label,
-    value,
-  }: {
-    label: string;
-    value: string | number | React.ReactNode | null | undefined;
-  }) => (
+  const Field = ({ label, value }: { label: string; value: string | number | React.ReactNode | null | undefined }) => (
     <div className="mb-2">
       <dt className="text-xs font-medium text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm font-semibold text-slate-900 break-words">
-        {value ?? 'N/A'}
-      </dd>
+      <dd className="mt-1 text-sm font-semibold text-slate-900 break-words">{value ?? 'N/A'}</dd>
     </div>
   );
 
@@ -317,10 +929,10 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
       <button
         type="button"
         onClick={() => (onDownloadDocument ? onDownloadDocument(url) : window.open(url, '_blank'))}
-        className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-sky-600 transition-colors text-left group w-full shadow-xs cursor-pointer"
+        className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-indigo-600 transition-colors text-left group w-full shadow-xs cursor-pointer"
         title={`View ${label}`}
       >
-        <FileText className="w-4 h-4 flex-shrink-0 text-sky-600 group-hover:scale-110 transition-transform" />
+        <FileText className="w-4 h-4 flex-shrink-0 text-indigo-600 group-hover:scale-110 transition-transform" />
         <span className="text-xs font-semibold truncate capitalize text-slate-800 group-hover:text-slate-900">
           {label}
         </span>
@@ -333,24 +945,35 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
     );
 
   return (
-    <div className="space-y-6 text-slate-900 claim-details-modal">
-      {/* Top Header Bar with Claim Reference & Fast Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-200">
+    <div className="space-y-6 text-slate-900 claim-details-modal text-left">
+      {/* ========================================================================= */}
+      {/* TOP HEADER BAR: Claim Ref, Status Pills, Fast Actions, Edit Mode Toggle    */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-wide">
-              Claim #{claim.id.slice(-8).toUpperCase()}
+            <h2 className="text-2xl font-bold text-slate-900 tracking-wide flex items-center gap-2">
+              <span>Claim #{currentClaim.id.slice(-8).toUpperCase()}</span>
+              {isEditMode ? (
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  Editing Mode
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                  View Mode
+                </span>
+              )}
             </h2>
+
+            {/* Quick Action Bar (WhatsApp / Email) - VISIBLE IN BOTH MODES */}
             <div className="flex items-center gap-2 relative" ref={commDropdownRef}>
-              {/* WhatsApp Button with Recipient Selector */}
+              {/* WhatsApp Dropdown */}
               <div className="relative inline-block text-left">
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveCommDropdown(activeCommDropdown === 'whatsapp' ? null : 'whatsapp')
-                  }
-                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs gap-1 cursor-pointer"
-                  title="Send WhatsApp message"
+                  onClick={() => setActiveCommDropdown(activeCommDropdown === 'whatsapp' ? null : 'whatsapp')}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition shadow-xs gap-1 cursor-pointer"
+                  title="WhatsApp Communication"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                   <span>WhatsApp</span>
@@ -358,40 +981,34 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                 </button>
 
                 {activeCommDropdown === 'whatsapp' && (
-                  <div className="absolute left-0 mt-1 w-56 rounded-xl shadow-xl bg-white border-[1.5px] border-[#CBD5E1] z-50 py-1 text-xs divide-y divide-slate-100">
+                  <div className="absolute left-0 mt-1 w-64 rounded-xl shadow-xl bg-white border border-slate-200 z-50 py-1 text-xs divide-y divide-slate-100 animate-in fade-in">
                     <div className="px-3 py-1.5 text-[11px] font-bold text-slate-700 uppercase tracking-wider bg-slate-50">
                       Send WhatsApp To:
                     </div>
                     <button
                       type="button"
                       onClick={() => handleOpenComm('whatsapp', 'general', 'client')}
-                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-emerald-50 transition-colors text-slate-700 cursor-pointer"
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-emerald-50 transition text-slate-700 cursor-pointer"
                     >
                       <User className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                       <div className="truncate">
                         <div className="font-semibold text-slate-900">Send to Client</div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          {claim.clientInfo?.name || 'Client'} ({claim.clientInfo?.phone || 'No phone'})
+                          {currentClaim.clientInfo?.name || 'Client'} ({currentClaim.clientInfo?.phone || 'No phone'})
                         </div>
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenComm('whatsapp', 'legal_handler', 'legalHandler')}
-                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-purple-50 transition-colors text-slate-700 cursor-pointer"
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-emerald-50 transition text-slate-700 cursor-pointer"
                     >
                       <Scale className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                       <div className="truncate">
-                        <div className="font-semibold text-purple-700">
-                          Send to Legal Handler
-                        </div>
+                        <div className="font-semibold text-purple-700">Send to Legal Handler</div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          {legalDetails.legal_handler_name ||
-                            legalDetails.legal_handler_firm ||
-                            'Legal Handler'}{' '}
-                          {legalDetails.legal_handler_phone
-                            ? `(${legalDetails.legal_handler_phone})`
-                            : '(Directory / Manual)'}
+                          {legalDetails.legal_handler_name || legalDetails.legal_handler_firm || 'Legal Handler'}{' '}
+                          {legalDetails.legal_handler_phone ? `(${legalDetails.legal_handler_phone})` : ''}
                         </div>
                       </div>
                     </button>
@@ -399,15 +1016,13 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                 )}
               </div>
 
-              {/* Email Button with Recipient Selector */}
+              {/* Email Dropdown */}
               <div className="relative inline-block text-left">
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveCommDropdown(activeCommDropdown === 'email' ? null : 'email')
-                  }
-                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors shadow-xs gap-1 cursor-pointer"
-                  title="Send email"
+                  onClick={() => setActiveCommDropdown(activeCommDropdown === 'email' ? null : 'email')}
+                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition shadow-xs gap-1 cursor-pointer"
+                  title="Send Email"
                 >
                   <Mail className="w-3.5 h-3.5" />
                   <span>Email</span>
@@ -415,43 +1030,34 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
                 </button>
 
                 {activeCommDropdown === 'email' && (
-                  <div className="absolute left-0 mt-1 w-64 rounded-xl shadow-xl bg-white border-[1.5px] border-[#CBD5E1] z-50 py-1 text-xs divide-y divide-slate-100">
+                  <div className="absolute left-0 mt-1 w-64 rounded-xl shadow-xl bg-white border border-slate-200 z-50 py-1 text-xs divide-y divide-slate-100 animate-in fade-in">
                     <div className="px-3 py-1.5 text-[11px] font-bold text-slate-700 uppercase tracking-wider bg-slate-50">
                       Send Email To:
                     </div>
                     <button
                       type="button"
                       onClick={() => handleOpenComm('email', 'general', 'client')}
-                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-indigo-50 transition-colors text-slate-700 cursor-pointer"
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-indigo-50 transition text-slate-700 cursor-pointer"
                     >
                       <User className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
                       <div className="truncate">
                         <div className="font-semibold text-slate-900">Send to Client</div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          {claim.clientInfo?.name || 'Client'} ({claim.clientInfo?.email || 'No email'})
+                          {currentClaim.clientInfo?.name || 'Client'} ({currentClaim.clientInfo?.email || 'No email'})
                         </div>
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenComm('email', 'legal_handler', 'legalHandler')}
-                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-purple-50 transition-colors text-slate-700 cursor-pointer"
+                      className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-purple-50 transition text-slate-700 cursor-pointer"
                     >
                       <Scale className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                       <div className="truncate">
-                        <div className="flex items-center gap-1 font-semibold text-purple-700">
-                          <span>Send to Legal Handler</span>
-                          <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-normal">
-                            + Claim Card
-                          </span>
-                        </div>
+                        <div className="font-semibold text-purple-700">Send to Legal Handler</div>
                         <div className="text-[11px] text-slate-500 truncate">
-                          {legalDetails.legal_handler_name ||
-                            legalDetails.legal_handler_firm ||
-                            'Legal Handler'}{' '}
-                          {legalDetails.legal_handler_email
-                            ? `(${legalDetails.legal_handler_email})`
-                            : '(Directory / Manual)'}
+                          {legalDetails.legal_handler_name || legalDetails.legal_handler_firm || 'Legal Handler'}{' '}
+                          {legalDetails.legal_handler_email ? `(${legalDetails.legal_handler_email})` : ''}
                         </div>
                       </div>
                     </button>
@@ -460,33 +1066,94 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
               </div>
             </div>
           </div>
-          <div className="mt-1 space-y-1">
-            {claim.clientRef && (
-              <p className="text-sm text-slate-500">
-                Client Ref: <span className="text-slate-900 font-semibold">{claim.clientRef}</span>
+
+          <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+            {currentClaim.clientRef && (
+              <p>
+                Client Ref: <span className="text-slate-900 font-semibold">{currentClaim.clientRef}</span>
+              </p>
+            )}
+            {createdByName && (
+              <p>
+                Created by: <span className="text-slate-700 font-medium">{createdByName}</span>
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-          <StatusBadge status={claim.claimType} />
-          {Array.isArray(claim.claimReason) &&
-            claim.claimReason.map((reason) => <StatusBadge key={reason} status={reason} />)}
-          <StatusBadge status={claim.caseProgress} />
-          <div className="flex items-center gap-1.5">
+        {/* Right side: Status Pills & Edit Mode Toggle Button */}
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {/* Status Badges - VISIBLE IN BOTH MODES */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={currentClaim.claimType} />
+            {Array.isArray(currentClaim.claimReason) &&
+              currentClaim.claimReason.map((reason) => <StatusBadge key={reason} status={reason} />)}
+            <StatusBadge status={currentClaim.caseProgress} />
             <StatusBadge status={displayStatus} />
-            {legacy && (
-              <span className="text-xs px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-medium">
-                Legacy
-              </span>
+          </div>
+
+          {/* Edit Mode Toggle & Save Buttons */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <button
+              type="button"
+              onClick={() => setIsEditMode(!isEditMode)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shadow-xs ${
+                isEditMode
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
+              }`}
+              title={isEditMode ? 'Switch to View Mode' : 'Switch to Edit Mode'}
+            >
+              {isEditMode ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-amber-700" />
+                  <span>View Mode</span>
+                </>
+              ) : (
+                <>
+                  <Edit2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Edit Claim</span>
+                </>
+              )}
+            </button>
+
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={handleSaveClaim}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer border border-slate-200"
+                title="Close Modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. MODAL NAVIGATION BAR (PINNED AT THE TOP)                               */}
+      {/* STANDARDIZED 5-TAB NAVIGATION BAR (PINNED AT THE TOP FOR BOTH MODES)       */}
       {/* ========================================================================= */}
       <div className="flex flex-nowrap items-stretch w-full border border-slate-200 shrink-0 bg-slate-100/90 select-none divide-x divide-slate-200 rounded-xl overflow-x-auto no-scrollbar shadow-2xs h-13 min-h-[52px]">
         {tabs.map((tab) => {
@@ -496,1217 +1163,2039 @@ const ClaimDetailsModal: React.FC<ClaimDetailsProps> = ({
           return (
             <button
               key={tab.id}
-              id={`claim-tab-${tab.id}`}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              title={tab.title}
-              className={`group flex-1 flex items-center justify-center gap-2 py-3 px-3 transition-all cursor-pointer whitespace-nowrap shrink-0 border-b-2 ${
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition text-xs font-bold whitespace-nowrap min-w-[130px] ${
                 isActive
-                  ? 'border-blue-600 text-blue-700 font-extrabold bg-white shadow-xs'
-                  : 'border-transparent text-slate-600 font-semibold hover:text-slate-900 hover:bg-slate-200/60'
+                  ? 'bg-white text-indigo-700 border-b-2 border-b-indigo-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
-              <span className="text-xs sm:text-sm font-bold tracking-tight whitespace-nowrap">
-                {tab.title}
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {tab.number}
               </span>
+              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <span>{tab.title}</span>
             </button>
           );
         })}
       </div>
 
       {/* ========================================================================= */}
-      {/* Client Information & Vehicle Details */}
+      {/* TAB 1: CLIENT & VEHICLE                                                  */}
       {/* ========================================================================= */}
       {activeTab === 'client_vehicle' && (
-      <FormalSectionCard
-        sectionId="section-client-vehicle"
-        title="Client & Vehicle Details"
-        icon={User}
-      >
-        {/* Subsection: Client Information */}
-        <SubSection title="Client Information" icon={User}>
-          {(() => {
-            const clientName = resolveNameFields((claim as any).clientInfo);
-            const clientAddress = resolveAddressFields((claim as any).clientInfo);
-            return (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Field label="First Name" value={clientName.firstName || 'N/A'} />
-                <Field label="Middle Name" value={clientName.middleName || 'N/A'} />
-                <Field label="Last Name" value={clientName.lastName || 'N/A'} />
-                <Field
-                  label="Date of Birth"
-                  value={formatDate((claim as any).clientInfo?.dateOfBirth)}
-                />
+        <FormalSectionCard
+          sectionId="section-client-vehicle"
+          sectionNumber="1"
+          title="Client & Vehicle Details"
+          icon={User}
+        >
+          {isEditMode ? (
+            /* ── EDIT MODE: CLIENT & VEHICLE ── */
+            <div className="space-y-6">
+              {/* Submitter & Client Ref */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                 <div>
-                  <dt className="text-xs font-medium text-slate-300">Phone</dt>
-                  <dd className="mt-1 text-sm font-semibold text-white">
-                    {(claim as any).clientInfo?.phone ? (
-                      <a
-                        href={`tel:${(claim as any).clientInfo?.phone}`}
-                        className="text-sky-400 hover:text-sky-300 hover:underline"
-                      >
-                        {(claim as any).clientInfo?.phone}
-                      </a>
-                    ) : (
-                      'N/A'
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-slate-300">Email</dt>
-                  <dd className="mt-1 text-sm font-semibold text-white">
-                    {(claim as any).clientInfo?.email ? (
-                      <a
-                        href={`mailto:${(claim as any).clientInfo?.email}`}
-                        className="text-sky-400 hover:text-sky-300 hover:underline"
-                      >
-                        {(claim as any).clientInfo?.email}
-                      </a>
-                    ) : (
-                      'N/A'
-                    )}
-                  </dd>
-                </div>
-                <Field
-                  label="Building Name / Flat Number"
-                  value={clientAddress.buildingFlat || 'N/A'}
-                />
-                <Field label="Street Name" value={clientAddress.streetName || 'N/A'} />
-                <Field label="Town / City" value={clientAddress.townCity || 'N/A'} />
-                <Field label="Postcode" value={clientAddress.postcode || 'N/A'} />
-                <Field label="Country" value={clientAddress.country || 'N/A'} />
-                <Field
-                  label="Driving License"
-                  value={(claim as any).clientInfo?.driverLicenseNumber ?? 'N/A'}
-                />
-                <Field
-                  label="License Expiry"
-                  value={formatDate((claim as any).clientInfo?.licenseExpiry)}
-                />
-                {Array.isArray(claim.claimReason) && claim.claimReason.includes('PI') && (
-                  <>
-                    <div className="col-span-2 md:col-span-3">
-                      <Field
-                        label="Occupation"
-                        value={(claim as any).clientInfo?.occupation ?? 'N/A'}
-                      />
-                    </div>
-                    <div className="col-span-2 md:col-span-3">
-                      <dt className="text-xs font-medium text-slate-500">
-                        Injury Details
-                      </dt>
-                      <dd className="mt-1 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        {(claim as any).clientInfo?.injuryDetails ?? 'N/A'}
-                      </dd>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-        </SubSection>
-
-        {/* Subsection: Vehicle Details */}
-        {Array.isArray(claim.claimReason) && claim.claimReason.includes('VD') && (
-          <SubSection title="Vehicle Details" icon={Car}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs font-medium text-slate-300">Registration</p>
-                <p className="font-semibold text-base text-white mt-1">
-                  {claim.clientVehicle?.registration ?? 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-300">MOT Expiry</p>
-                <p
-                  className={`font-semibold text-sm mt-1 ${
-                    checkIsExpiring(claim.clientVehicle?.motExpiry)
-                      ? 'text-red-400 font-bold'
-                      : 'text-white'
-                  }`}
-                >
-                  {formatDate(claim.clientVehicle?.motExpiry)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-300">Road Tax Expiry</p>
-                <p
-                  className={`font-semibold text-sm mt-1 ${
-                    checkIsExpiring(claim.clientVehicle?.roadTaxExpiry)
-                      ? 'text-red-400 font-bold'
-                      : 'text-white'
-                  }`}
-                >
-                  {formatDate(claim.clientVehicle?.roadTaxExpiry)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-300">
-                  Vehicle License (NSL)
-                </p>
-                <p
-                  className={`font-semibold text-sm mt-1 ${
-                    checkIsExpiring(claim.clientVehicle?.nslExpiry)
-                      ? 'text-red-400 font-bold'
-                      : 'text-white'
-                  }`}
-                >
-                  {formatDate(claim.clientVehicle?.nslExpiry)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-300">Insurance Expiry</p>
-                <p
-                  className={`font-semibold text-sm mt-1 ${
-                    checkIsExpiring(claim.clientVehicle?.insuranceExpiry)
-                      ? 'text-red-400 font-bold'
-                      : 'text-white'
-                  }`}
-                >
-                  {formatDate(claim.clientVehicle?.insuranceExpiry)}
-                </p>
-              </div>
-            </div>
-          </SubSection>
-        )}
-
-        {/* Subsection: Registered Keeper (if enabled) */}
-        {(claim as any).registerKeeper?.enabled && (
-          <SubSection title="Registered Keeper" icon={Shield}>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Name" value={(claim as any).registerKeeper.name} />
-              <Field label="Address" value={(claim as any).registerKeeper.address} />
-              <div>
-                <dt className="text-xs font-medium text-slate-300">Phone</dt>
-                <dd className="mt-1 text-sm font-semibold text-white">
-                  {(claim as any).registerKeeper.phone ? (
-                    <a
-                      href={`tel:${(claim as any).registerKeeper.phone}`}
-                      className="text-sky-400 hover:text-sky-300 hover:underline font-semibold"
-                    >
-                      {(claim as any).registerKeeper.phone}
-                    </a>
-                  ) : (
-                    'N/A'
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-slate-300">Email</dt>
-                <dd className="mt-1 text-sm font-semibold text-white">
-                  {(claim as any).registerKeeper.email ? (
-                    <a
-                      href={`mailto:${(claim as any).registerKeeper.email}`}
-                      className="text-sky-400 hover:text-sky-300 hover:underline font-semibold"
-                    >
-                      {(claim as any).registerKeeper.email}
-                    </a>
-                  ) : (
-                    'N/A'
-                  )}
-                </dd>
-              </div>
-              <Field
-                label="DOB / Est. Date"
-                value={formatDate((claim as any).registerKeeper.dateOfBirth)}
-              />
-            </div>
-            {(claim as any).registerKeeper.signature && (
-              <div className="mt-3">
-                <p className="text-xs font-medium text-slate-500 mb-1">
-                  Signature
-                </p>
-                <img
-                  src={(claim as any).registerKeeper.signature}
-                  alt="Signature"
-                  className="h-20 object-contain bg-white rounded-lg border border-slate-200 p-1.5"
-                />
-              </div>
-            )}
-          </SubSection>
-        )}
-
-        {/* Hire Details (if enabled) */}
-        {claim.hireDetails?.enabled &&
-          Array.isArray(claim.claimReason) &&
-          claim.claimReason.includes('H') && (
-            <SubSection title="Hire Details" icon={Clock}>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Start Date & Time</div>
-                  <div className="text-sm font-semibold text-slate-900 mt-1">
-                    {formatDate(claim.hireDetails.startDate)}{' '}
-                    {(claim.hireDetails as any).startTime ?? 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">End Date & Time</div>
-                  <div className="text-sm font-semibold text-slate-900 mt-1">
-                    {formatDate(claim.hireDetails.endDate)}{' '}
-                    {(claim.hireDetails as any).endTime ?? 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Days of Hire</div>
-                  <div className="text-sm font-semibold text-slate-900 mt-1">
-                    {(claim.hireDetails as any).daysOfHire || 0} days
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Claim Rate</div>
-                  <div className="text-sm font-semibold text-slate-900 mt-1">
-                    {formatCurrency(claim.hireDetails.claimRate || 0)}/day
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Total Cost</div>
-                  <div className="text-sm font-semibold text-blue-700 mt-1">
-                    {formatCurrency(claim.hireDetails.totalCost || 0)}
-                  </div>
-                </div>
-                {claim.hireDetails.vehicle && (
-                  <div className="col-span-2 sm:col-span-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                    <div className="text-xs font-semibold text-slate-800 mb-2">
-                      Vehicle on Hire
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <p>
-                        <span className="text-slate-500">Make:</span> <span className="text-slate-800 font-medium">{claim.hireDetails.vehicle.make}</span>
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Model:</span> <span className="text-slate-800 font-medium">{claim.hireDetails.vehicle.model}</span>
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Registration:</span>{' '}
-                        <span className="text-slate-900 font-semibold">{claim.hireDetails.vehicle.registration}</span>
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Claim Rate:</span>{' '}
-                        <span className="text-blue-700 font-semibold">{formatCurrency(claim.hireDetails.vehicle.claimRate)}/day</span>
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </SubSection>
-          )}
-
-        {/* Recovery Details (if enabled) */}
-        {claim.recovery?.enabled &&
-          Array.isArray(claim.claimReason) &&
-          (claim.claimReason.includes('S') || claim.claimReason.includes('VD')) && (
-            <SubSection title="Recovery Details" icon={Car}>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Date</div>
-                  <div className="font-semibold text-white text-sm mt-1">
-                    {formatDate(claim.recovery.date)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Cost</div>
-                  <div className="font-semibold text-cyan-300 text-sm mt-1">
-                    {formatCurrency(claim.recovery.cost || 0)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Pickup Location</div>
-                  <div className="text-sm font-semibold text-white mt-1">{claim.recovery.locationPickup ?? 'N/A'}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Dropoff Location</div>
-                  <div className="text-sm font-semibold text-white mt-1">{claim.recovery.locationDropoff ?? 'N/A'}</div>
-                </div>
-              </div>
-            </SubSection>
-          )}
-
-        {/* Storage Details (if enabled) */}
-        {claim.storage?.enabled &&
-          Array.isArray(claim.claimReason) &&
-          claim.claimReason.includes('S') && (
-            <SubSection title="Storage Details" icon={Building}>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Start Date</div>
-                  <div className="font-semibold text-white text-sm mt-1">
-                    {formatDate(claim.storage.startDate)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">End Date</div>
-                  <div className="font-semibold text-white text-sm mt-1">
-                    {formatDate(claim.storage.endDate)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Cost per Day</div>
-                  <div className="font-semibold text-white text-sm mt-1">
-                    {formatCurrency(claim.storage.costPerDay || 0)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-300">Total Cost</div>
-                  <div className="font-semibold text-cyan-300 text-sm mt-1">
-                    {formatCurrency(claim.storage.totalCost || 0)}
-                  </div>
-                </div>
-              </div>
-            </SubSection>
-          )}
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 2: Vehicle Documents */}
-      {/* ========================================================================= */}
-      {activeTab === 'vehicle_docs' && (
-      <FormalSectionCard
-        sectionId="section-vehicle-documents"
-        title="Vehicle Documents"
-        icon={FileText}
-      >
-        {Object.entries(claim.clientVehicle?.documents || {}).length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {Object.entries(claim.clientVehicle?.documents || {}).map(([key, url]) => (
-              <DocumentLink
-                key={key}
-                url={typeof url === 'string' ? url : undefined}
-                label={key}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="py-6 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
-            <FileText className="w-8 h-8 text-slate-400 mx-auto mb-1.5" />
-            <p className="text-sm font-medium text-slate-500">
-              No vehicle documents uploaded
-            </p>
-          </div>
-        )}
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 3: Incident Details */}
-      {/* ========================================================================= */}
-      {activeTab === 'incident' && (
-      <FormalSectionCard
-        sectionId="section-incident-details"
-        title="Incident Details"
-        icon={Calendar}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-start gap-2.5">
-            <Calendar className="h-5 w-5 text-sky-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-medium text-slate-500">Date & Time</p>
-              <p className="font-semibold text-sm text-slate-900 mt-0.5">
-                {formatDate(claim.incidentDetails?.date)}{' '}
-                {claim.incidentDetails?.time ? `at ${claim.incidentDetails?.time}` : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2.5">
-            <MapPin className="h-5 w-5 text-sky-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-medium text-slate-500">Location</p>
-              <p className="font-semibold text-sm text-slate-900 mt-0.5">
-                {claim.incidentDetails?.location ?? 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          <div className="col-span-1 md:col-span-2 pt-2 border-t border-slate-200">
-            <p className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-1.5">
-              Description
-            </p>
-            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              {claim.incidentDetails?.description ?? 'N/A'}
-            </p>
-          </div>
-
-          <div className="col-span-1 md:col-span-2">
-            <p className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-1.5">
-              Damage Details
-            </p>
-            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              {claim.incidentDetails?.damageDetails ?? 'N/A'}
-            </p>
-          </div>
-        </div>
-
-        {/* Police Information (if present) */}
-        {(claim.policeOfficerName ||
-          claim.policeBadgeNumber ||
-          claim.policeStation ||
-          claim.policeIncidentNumber ||
-          claim.policeContactInfo) && (
-          <SubSection title="Police Information" icon={Shield}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Field label="Officer Name" value={claim.policeOfficerName} />
-              <Field label="Badge Number" value={claim.policeBadgeNumber} />
-              <Field label="Police Station" value={claim.policeStation} />
-              <Field label="Incident Number" value={claim.policeIncidentNumber} />
-              {claim.policeContactInfo && (
-                <div className="col-span-2 md:col-span-4">
-                  <Field label="Additional Contact Info" value={claim.policeContactInfo} />
-                </div>
-              )}
-            </div>
-          </SubSection>
-        )}
-
-        {/* Paramedic Information (if present) */}
-        {(claim.paramedicNames || claim.ambulanceReference || claim.ambulanceService) && (
-          <SubSection title="Paramedic Information" icon={Activity}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Paramedic Names" value={claim.paramedicNames} />
-              <Field label="Ambulance Reference" value={claim.ambulanceReference} />
-              <Field label="Ambulance Service" value={claim.ambulanceService} />
-            </div>
-          </SubSection>
-        )}
-
-        {/* GP Information (if PI reason) */}
-        {claim.gpInformation &&
-          Array.isArray(claim.claimReason) &&
-          claim.claimReason.includes('PI') && (
-            <SubSection title="GP Information" icon={Activity}>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      claim.gpInformation.visited
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Submitter Type</label>
+                  <select
+                    value={submitterType}
+                    onChange={(e) => setSubmitterType(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
                   >
-                    {claim.gpInformation.visited ? 'GP Visited' : 'No GP Visit'}
-                  </span>
-                </div>
-                {claim.gpInformation.visited && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {claim.gpInformation.gpName && (
-                      <Field label="GP Practice" value={claim.gpInformation.gpName} />
-                    )}
-                    {claim.gpInformation.gpDoctorName && (
-                      <Field label="Doctor Name" value={claim.gpInformation.gpDoctorName} />
-                    )}
-                    {claim.gpInformation.gpDate && (
-                      <Field
-                        label="Visit Date"
-                        value={formatDate(claim.gpInformation.gpDate)}
-                      />
-                    )}
-                    {claim.gpInformation.gpContactNumber && (
-                      <div>
-                        <dt className="text-xs font-medium text-slate-500">
-                          Contact Number
-                        </dt>
-                        <dd className="mt-1 text-sm font-semibold text-slate-900">
-                          <a
-                            href={`tel:${claim.gpInformation.gpContactNumber}`}
-                            className="text-blue-600 hover:text-blue-700 hover:underline font-semibold"
-                          >
-                            {claim.gpInformation.gpContactNumber}
-                          </a>
-                        </dd>
-                      </div>
-                    )}
-                    {claim.gpInformation.gpAddress && (
-                      <div className="col-span-2">
-                        <Field label="Address" value={claim.gpInformation.gpAddress} />
-                      </div>
-                    )}
-                    {(claim.gpInformation as any).gpNotes && (
-                      <div className="col-span-2 md:col-span-3">
-                        <Field
-                          label="Notes"
-                          value={(claim.gpInformation as any).gpNotes}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </SubSection>
-          )}
-
-        {/* Hospital Information (if PI reason) */}
-        {claim.hospitalInformation &&
-          Array.isArray(claim.claimReason) &&
-          claim.claimReason.includes('PI') && (
-            <SubSection title="Hospital Information" icon={Building}>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      claim.hospitalInformation.visited
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    {claim.hospitalInformation.visited
-                      ? 'Hospital Visited'
-                      : 'No Hospital Visit'}
-                  </span>
-                </div>
-                {claim.hospitalInformation.visited && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {claim.hospitalInformation.hospitalName && (
-                      <Field
-                        label="Hospital Name"
-                        value={claim.hospitalInformation.hospitalName}
-                      />
-                    )}
-                    {claim.hospitalInformation.hospitalDoctorName && (
-                      <Field
-                        label="Doctor Name"
-                        value={claim.hospitalInformation.hospitalDoctorName}
-                      />
-                    )}
-                    {claim.hospitalInformation.hospitalDate && (
-                      <Field
-                        label="Visit Date"
-                        value={formatDate(claim.hospitalInformation.hospitalDate)}
-                      />
-                    )}
-                    {claim.hospitalInformation.hospitalContactNumber && (
-                      <div>
-                        <dt className="text-xs font-medium text-slate-500">
-                          Contact Number
-                        </dt>
-                        <dd className="mt-1 text-sm font-semibold text-slate-900">
-                          <a
-                            href={`tel:${claim.hospitalInformation.hospitalContactNumber}`}
-                            className="text-blue-600 hover:text-blue-700 hover:underline font-semibold"
-                          >
-                            {claim.hospitalInformation.hospitalContactNumber}
-                          </a>
-                        </dd>
-                      </div>
-                    )}
-                    {claim.hospitalInformation.hospitalAddress && (
-                      <div className="col-span-2">
-                        <Field
-                          label="Address"
-                          value={claim.hospitalInformation.hospitalAddress}
-                        />
-                      </div>
-                    )}
-                    {(claim.hospitalInformation as any).hospitalNotes && (
-                      <div className="col-span-2 md:col-span-3">
-                        <Field
-                          label="Notes"
-                          value={(claim.hospitalInformation as any).hospitalNotes}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </SubSection>
-          )}
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 4: Third Party Details */}
-      {/* ========================================================================= */}
-      {activeTab === 'third_party' && (
-      <FormalSectionCard
-        sectionId="section-third-party"
-        title="Third Party Details"
-        icon={Users}
-      >
-        <SubSection title="Third Party Information" icon={User}>
-          {(() => {
-            const tpName = resolveNameFields((claim as any).thirdParty);
-            const tpAddress = resolveAddressFields((claim as any).thirdParty);
-            return (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Field label="First Name" value={tpName.firstName || 'N/A'} />
-                <Field label="Middle Name" value={tpName.middleName || 'N/A'} />
-                <Field label="Last Name" value={tpName.lastName || 'N/A'} />
-                <div>
-                  <dt className="text-xs font-medium text-slate-300">Phone</dt>
-                  <dd className="mt-1 text-sm font-semibold text-white">
-                    {claim.thirdParty?.phone ? (
-                      <a
-                        href={`tel:${claim.thirdParty.phone}`}
-                        className="text-sky-400 hover:text-sky-300 hover:underline font-semibold"
-                      >
-                        {claim.thirdParty.phone}
-                      </a>
-                    ) : (
-                      'N/A'
-                    )}
-                  </dd>
+                    <option value="client">Client</option>
+                    <option value="company">Company</option>
+                  </select>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-slate-300">Email</dt>
-                  <dd className="mt-1 text-sm font-semibold text-white">
-                    {claim.thirdParty?.email ? (
-                      <a
-                        href={`mailto:${claim.thirdParty.email}`}
-                        className="text-sky-400 hover:text-sky-300 hover:underline font-semibold"
-                      >
-                        {claim.thirdParty.email}
-                      </a>
-                    ) : (
-                      'N/A'
-                    )}
-                  </dd>
-                </div>
-                <Field
-                  label="Registration"
-                  value={claim.thirdParty?.registration ?? 'N/A'}
-                />
-                <Field
-                  label="Building Name / Flat Number"
-                  value={tpAddress.buildingFlat || 'N/A'}
-                />
-                <Field label="Street Name" value={tpAddress.streetName || 'N/A'} />
-                <Field label="Town / City" value={tpAddress.townCity || 'N/A'} />
-                <Field label="Postcode" value={tpAddress.postcode || 'N/A'} />
-                <Field label="Country" value={tpAddress.country || 'N/A'} />
-              </div>
-            );
-          })()}
-        </SubSection>
-
-        {/* Passenger Details (if present) */}
-        {claim.passengers && claim.passengers.length > 0 && (
-          <SubSection title="Passenger Details" icon={Users}>
-            <div className="space-y-3">
-              {claim.passengers.map((passenger, index) => (
-                <div
-                  key={index}
-                  className="bg-slate-50 p-4 rounded-xl border border-slate-200"
-                >
-                  <h4 className="font-semibold text-sm mb-2 text-slate-800">
-                    Passenger {index + 1}
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <Field label="Name" value={passenger.fullName} />
-                    <Field label="Contact" value={passenger.contactNumber} />
-                    <Field label="Address" value={(passenger as any).address} />
-                    <Field label="Post Code" value={(passenger as any).postCode} />
-                    <Field label="Date of Birth" value={(passenger as any).dob} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SubSection>
-        )}
-
-        {/* Witness Details (if present) */}
-        {claim.witnesses && claim.witnesses.length > 0 && (
-          <SubSection title="Witness Details" icon={Users}>
-            <div className="space-y-3">
-              {claim.witnesses.map((witness, index) => {
-                const wName = resolveNameFields(witness);
-                const wAddress = resolveAddressFields(witness);
-                return (
-                  <div
-                    key={index}
-                    className="bg-slate-50 p-4 rounded-xl border border-slate-200"
-                  >
-                    <h4 className="font-semibold text-sm mb-2 text-slate-800">
-                      Witness {index + 1}
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      <Field label="First Name" value={wName.firstName || 'N/A'} />
-                      <Field label="Middle Name" value={wName.middleName || 'N/A'} />
-                      <Field label="Last Name" value={wName.lastName || 'N/A'} />
-                      <Field label="Contact" value={witness.contactNumber || 'N/A'} />
-                      <Field label="Date of Birth" value={(witness as any).dob || 'N/A'} />
-                      <Field
-                        label="Building Name / Flat Number"
-                        value={wAddress.buildingFlat || 'N/A'}
-                      />
-                      <Field label="Street Name" value={wAddress.streetName || 'N/A'} />
-                      <Field label="Town / City" value={wAddress.townCity || 'N/A'} />
-                      <Field
-                        label="Postcode"
-                        value={wAddress.postcode || (witness as any).postCode || 'N/A'}
-                      />
-                      <Field label="Country" value={wAddress.country || 'N/A'} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </SubSection>
-        )}
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 5: Evidence */}
-      {/* ========================================================================= */}
-      {activeTab === 'evidence' && (
-      <FormalSectionCard
-        sectionId="section-evidence"
-        title="Evidence"
-        icon={Camera}
-      >
-        {/* Images */}
-        {(claim as any).evidence?.images?.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-              Images ({(claim as any).evidence.images.length})
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {(claim as any).evidence.images.map((url: string, index: number) => (
-                <div
-                  key={index}
-                  className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 aspect-video cursor-pointer"
-                  onClick={() => onDownloadDocument?.(url)}
-                >
-                  <img
-                    src={url}
-                    alt={`Evidence ${index + 1}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Client Reference</label>
+                  <input
+                    type="text"
+                    value={clientRef}
+                    onChange={(e) => setClientRef(e.target.value)}
+                    placeholder="e.g. REF-2026-001"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
                   />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Download className="w-5 h-5 text-white" />
+                </div>
+              </div>
+
+              {/* Client Information: Granular Name & Granular Address */}
+              <SubSection title="Client Personal Details (Granular Inputs)" icon={User}>
+                <div className="space-y-4">
+                  {/* Name Fields: First, Middle, Last */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        First Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={clientFirstName}
+                        onChange={(e) => setClientFirstName(e.target.value)}
+                        placeholder="First Name"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Middle Name</label>
+                      <input
+                        type="text"
+                        value={clientMiddleName}
+                        onChange={(e) => setClientMiddleName(e.target.value)}
+                        placeholder="Middle Name (Optional)"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        value={clientLastName}
+                        onChange={(e) => setClientLastName(e.target.value)}
+                        placeholder="Last Name"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Videos */}
-        {(claim as any).evidence?.videos?.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-              Videos ({(claim as any).evidence.videos.length})
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {(claim as any).evidence.videos.map((url: string, index: number) => (
-                <div
-                  key={index}
-                  className="relative aspect-video bg-slate-50 rounded-xl overflow-hidden border border-slate-200"
-                >
-                  <video src={url} className="w-full h-full object-cover" controls />
-                  <button
-                    type="button"
-                    onClick={() => onDownloadDocument?.(url)}
-                    className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full shadow hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
-                    title="Download video"
-                  >
-                    <Download className="h-3.5 w-3.5 text-slate-700" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Vehicle Photos */}
-        {(claim as any).evidence?.clientVehiclePhotos?.length > 0 && (
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-              Vehicle Photos ({(claim as any).evidence.clientVehiclePhotos.length})
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {(claim as any).evidence.clientVehiclePhotos.map((url: string, index: number) => (
-                <div
-                  key={index}
-                  className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 aspect-video cursor-pointer"
-                  onClick={() => onDownloadDocument?.(url)}
-                >
-                  <img
-                    src={url}
-                    alt={`Vehicle photo ${index + 1}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Download className="w-5 h-5 text-white" />
+                  {/* Contact & Verification */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Phone Number <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        placeholder="07123 456789"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Email Address <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        placeholder="customer@example.com"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={clientDOB}
+                        onChange={(e) => setClientDOB(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Uploaded Document Reports */}
-        <div>
-          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-            Document Reports & Certificates
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-            {(claim as any).evidence?.engineerReport?.map((url: string, index: number) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onDownloadDocument?.(url)}
-                className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sky-600 text-left transition-colors shadow-xs group cursor-pointer"
-              >
-                <FileText className="h-4 w-4 flex-shrink-0 text-sky-600 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-semibold truncate text-slate-800">
-                  Engineer Report {index + 1}
-                </span>
-              </button>
-            ))}
-            {(claim as any).evidence?.bankStatement?.map((url: string, index: number) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onDownloadDocument?.(url)}
-                className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sky-600 text-left transition-colors shadow-xs group cursor-pointer"
-              >
-                <FileText className="h-4 w-4 flex-shrink-0 text-sky-600 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-semibold truncate text-slate-800">
-                  Bank Statement {index + 1}
-                </span>
-              </button>
-            ))}
-            {(claim as any).evidence?.adminDocuments?.map((url: string, index: number) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onDownloadDocument?.(url)}
-                className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sky-600 text-left transition-colors shadow-xs group cursor-pointer"
-              >
-                <FileText className="h-4 w-4 flex-shrink-0 text-sky-600 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-semibold truncate text-slate-800">
-                  Admin Document {index + 1}
-                </span>
-              </button>
-            ))}
-          </div>
+                  {/* National Insurance & License */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">National Insurance</label>
+                      <input
+                        type="text"
+                        value={clientNI}
+                        onChange={(e) => setClientNI(e.target.value)}
+                        placeholder="QQ 12 34 56 A"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Driving License Number</label>
+                      <input
+                        type="text"
+                        value={clientDriverLicense}
+                        onChange={(e) => setClientDriverLicense(e.target.value)}
+                        placeholder="SMITH902148..."
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">License Expiry Date</label>
+                      <input
+                        type="date"
+                        value={clientLicenseExpiry}
+                        onChange={(e) => setClientLicenseExpiry(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                  </div>
 
-          {!((claim as any).evidence?.engineerReport?.length > 0 ||
-            (claim as any).evidence?.bankStatement?.length > 0 ||
-            (claim as any).evidence?.adminDocuments?.length > 0 ||
-            (claim as any).evidence?.images?.length > 0 ||
-            (claim as any).evidence?.videos?.length > 0 ||
-            (claim as any).evidence?.clientVehiclePhotos?.length > 0) && (
-            <div className="py-6 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
-              <Camera className="w-8 h-8 text-slate-400 mx-auto mb-1.5" />
-              <p className="text-sm font-medium text-slate-500">
-                No evidence files or photos uploaded
-              </p>
-            </div>
-          )}
-        </div>
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 6: Claim Progress History */}
-      {/* ========================================================================= */}
-      {activeTab === 'progress' && (
-      <FormalSectionCard
-        sectionId="section-progress-history"
-        title={legacy ? 'Legacy Progress History' : 'Claim Progress History'}
-        icon={Activity}
-        badge={
-          legacy ? (
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
-              Read-only
-            </span>
-          ) : undefined
-        }
-        action={
-          (claim as any).progressDocumentUrl ? (
-            <button
-              type="button"
-              onClick={() => onDownloadDocument?.((claim as any).progressDocumentUrl)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-800 hover:underline bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>View Progress Record</span>
-            </button>
-          ) : undefined
-        }
-      >
-        <div className="space-y-4">
-          {historyToShow.length > 0 ? (
-            historyToShow.map((h: any, i: number) => {
-              const historyDate = toJsDate(h.date);
-              if (!historyDate) return null;
-              return (
-                <div
-                  key={i}
-                  className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-2xs"
-                >
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                    <StatusBadge status={h.status} />
-                    <span className="text-xs text-slate-500 font-medium">
-                      {formatDateTime(historyDate)}
+                  {/* Structured Address Fields */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                      Client Residential Address (Structured Fields)
                     </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Building / Flat Number</label>
+                        <input
+                          type="text"
+                          value={clientBuildingFlat}
+                          onChange={(e) => setClientBuildingFlat(e.target.value)}
+                          placeholder="Flat 4B / Unit 12"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Street Name</label>
+                        <input
+                          type="text"
+                          value={clientStreetName}
+                          onChange={(e) => setClientStreetName(e.target.value)}
+                          placeholder="High Street / North Road"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Town / City</label>
+                        <input
+                          type="text"
+                          value={clientTownCity}
+                          onChange={(e) => setClientTownCity(e.target.value)}
+                          placeholder="London"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Postcode</label>
+                        <input
+                          type="text"
+                          value={clientPostcode}
+                          onChange={(e) => setClientPostcode(e.target.value)}
+                          placeholder="N7 9DP"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3">
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                      {h.note ?? 'N/A'}
-                    </p>
+
+                  {/* Personal Injury Extra Details */}
+                  {claimReason.includes('PI') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Occupation</label>
+                        <input
+                          type="text"
+                          value={clientOccupation}
+                          onChange={(e) => setClientOccupation(e.target.value)}
+                          placeholder="e.g. Delivery Driver"
+                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Injury Details</label>
+                        <textarea
+                          rows={2}
+                          value={clientInjuryDetails}
+                          onChange={(e) => setClientInjuryDetails(e.target.value)}
+                          placeholder="Whiplash, soft tissue damage..."
+                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SubSection>
+
+              {/* Registered Keeper (If enabled) */}
+              <SubSection title="Registered Keeper Details" icon={Building}>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={rkEnabled}
+                      onChange={(e) => setRkEnabled(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Registered Keeper is different from Client/Driver</span>
+                  </label>
+
+                  {rkEnabled && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">First Name</label>
+                          <input
+                            type="text"
+                            value={rkFirstName}
+                            onChange={(e) => setRkFirstName(e.target.value)}
+                            placeholder="First Name"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Middle Name</label>
+                          <input
+                            type="text"
+                            value={rkMiddleName}
+                            onChange={(e) => setRkMiddleName(e.target.value)}
+                            placeholder="Middle Name"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Last Name</label>
+                          <input
+                            type="text"
+                            value={rkLastName}
+                            onChange={(e) => setRkLastName(e.target.value)}
+                            placeholder="Last Name"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Building / Flat</label>
+                          <input
+                            type="text"
+                            value={rkBuildingFlat}
+                            onChange={(e) => setRkBuildingFlat(e.target.value)}
+                            placeholder="Flat / Building"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Street</label>
+                          <input
+                            type="text"
+                            value={rkStreetName}
+                            onChange={(e) => setRkStreetName(e.target.value)}
+                            placeholder="Street Name"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Town / City</label>
+                          <input
+                            type="text"
+                            value={rkTownCity}
+                            onChange={(e) => setRkTownCity(e.target.value)}
+                            placeholder="Town / City"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Postcode</label>
+                          <input
+                            type="text"
+                            value={rkPostcode}
+                            onChange={(e) => setRkPostcode(e.target.value)}
+                            placeholder="Postcode"
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl font-mono uppercase"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SubSection>
+
+              {/* Vehicle Specifications */}
+              <SubSection title="Vehicle Specifications & Regulatory Dates" icon={Car}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Registration</label>
+                      <input
+                        type="text"
+                        value={vehicleReg}
+                        onChange={(e) => setVehicleReg(e.target.value)}
+                        placeholder="BD18 XYZ"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono font-bold uppercase focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Make</label>
+                      <input
+                        type="text"
+                        value={vehicleMake}
+                        onChange={(e) => setVehicleMake(e.target.value)}
+                        placeholder="Toyota"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Model</label>
+                      <input
+                        type="text"
+                        value={vehicleModel}
+                        onChange={(e) => setVehicleModel(e.target.value)}
+                        placeholder="Prius"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={vehicleYear}
+                        onChange={(e) => setVehicleYear(e.target.value)}
+                        placeholder="2022"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Color</label>
+                      <input
+                        type="text"
+                        value={vehicleColor}
+                        onChange={(e) => setVehicleColor(e.target.value)}
+                        placeholder="Silver"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500 text-right font-medium">
-                    — {h.author ?? 'N/A'}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">MOT Expiry</label>
+                      <input
+                        type="date"
+                        value={motExpiry}
+                        onChange={(e) => setMotExpiry(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Road Tax Expiry</label>
+                      <input
+                        type="date"
+                        value={roadTaxExpiry}
+                        onChange={(e) => setRoadTaxExpiry(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">NSL License Expiry</label>
+                      <input
+                        type="date"
+                        value={nslExpiry}
+                        onChange={(e) => setNslExpiry(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Insurance Expiry</label>
+                      <input
+                        type="date"
+                        value={insuranceExpiry}
+                        onChange={(e) => setInsuranceExpiry(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
                   </div>
                 </div>
-              );
-            })
+              </SubSection>
+            </div>
           ) : (
-            <div className="py-6 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
-              <Activity className="w-8 h-8 text-slate-400 mx-auto mb-1.5" />
-              <p className="text-sm font-medium text-slate-500">
-                No progress updates recorded yet.
-              </p>
-            </div>
-          )}
-        </div>
-      </FormalSectionCard>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SECTION 7: Communication Audit Trail */}
-      {/* ========================================================================= */}
-      {activeTab === 'communication' && (
-        <div className="space-y-4">
-          <CommunicationHistoryTimeline
-            recordId={claim.claimId || claim.id}
-            sourceModule="Claim"
-            matchKeys={[
-              claim.id,
-              claim.claimId,
-              claim.clientPhone,
-              claim.clientEmail,
-              claim.clientName,
-              claim.legalHandlerEmail,
-              claim.legalHandlerPhone,
-              claim.vehicleReg,
-            ].filter(Boolean)}
-            title={`Claim #${claim.claimId || claim.id} — Communication History`}
-            description="Complete audit trail of all WhatsApp messages and emails sent to clients and legal handlers."
-          />
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* POSITIONING REQUIREMENT: Always fix and position the "File Handler" and   */}
-      {/* "Legal Handler" sections at the absolute bottom of the Claim Details page. */}
-      {/* ========================================================================= */}
-      <FormalSectionCard
-        sectionId="section-file-handlers"
-        title="File Handler & Legal Handler"
-        icon={Scale}
-        className="border-sky-500/30 shadow-sm"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* AIE File Handler */}
-          <div className="p-4 rounded-xl border-[1.5px] border-[#E2E8F0] bg-[#F8FAFC]">
-            <div className="flex items-center gap-2 mb-2">
-              <User className="w-4 h-4 text-sky-600" />
-              <h4 className="text-xs font-semibold text-[#334155] uppercase tracking-wider">
-                AIE File Handler
-              </h4>
-            </div>
-            <div className="font-bold text-[1.125rem] text-[#0F172A] leading-snug">
-              {claim.fileHandlers.aieHandler ?? 'Unassigned'}
-            </div>
-            <p className="text-xs text-[#475569] mt-1">
-              Responsible internal claims officer
-            </p>
-          </div>
-
-          {/* Legal Handler */}
-          <div className="p-4 rounded-xl border-[1.5px] border-[#E2E8F0] bg-[#F8FAFC]">
-            <div className="flex items-center gap-2 mb-2">
-              <Scale className="w-4 h-4 text-purple-600" />
-              <h4 className="text-xs font-semibold text-[#334155] uppercase tracking-wider">
-                Legal Handler
-              </h4>
-            </div>
-            {claim.fileHandlers.legalHandler ? (
-              <div className="space-y-1.5">
-                <div className="font-bold text-[1.125rem] text-[#0F172A] leading-snug">
-                  {claim.fileHandlers.legalHandler.name}
-                </div>
-                <div className="text-xs text-[#475569]">
-                  <span className="font-medium text-[#475569]">Email: </span>
-                  {claim.fileHandlers.legalHandler.email ? (
-                    <a
-                      href={`mailto:${claim.fileHandlers.legalHandler.email}`}
-                      className="text-blue-600 hover:text-blue-700 hover:underline font-semibold"
-                    >
-                      {claim.fileHandlers.legalHandler.email}
-                    </a>
-                  ) : (
-                    'N/A'
-                  )}
-                </div>
-                <div className="text-xs text-[#475569]">
-                  <span className="font-medium text-[#475569]">Phone: </span>
-                  {claim.fileHandlers.legalHandler.phone ? (
-                    <a
-                      href={`tel:${claim.fileHandlers.legalHandler.phone}`}
-                      className="text-blue-600 hover:text-blue-700 hover:underline font-semibold"
-                    >
-                      {claim.fileHandlers.legalHandler.phone}
-                    </a>
-                  ) : (
-                    'N/A'
-                  )}
-                </div>
-                {claim.fileHandlers.legalHandler.address && (
-                  <div className="text-xs text-[#475569]">
-                    <span className="font-medium text-[#475569]">Address: </span>
-                    <span className="text-[#0F172A] font-medium">{claim.fileHandlers.legalHandler.address}</span>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenComm('whatsapp', 'legal_handler', 'legalHandler')}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#15803D] hover:bg-[#bbf7d0] bg-[#DCFCE7] border border-[#86EFAC] px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer shadow-xs"
-                    title="Send WhatsApp to Legal Handler"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5 text-[#15803D]" />
-                    <span>WhatsApp Handler</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenComm('email', 'legal_handler', 'legalHandler')}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1D4ED8] hover:bg-[#bfdbfe] bg-[#DBEAFE] border border-[#93C5FD] px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer shadow-xs"
-                    title="Send Email to Legal Handler (with Claim Card attached)"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-[#1D4ED8]" />
-                    <span>Email Handler (+ Claim Card)</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm font-medium text-[#64748B] py-1">
-                No legal handler assigned yet
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* File Handler Internal Notes (if present) */}
-        {claim.notes && claim.notes.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-            <h4 className="text-xs font-bold text-[#334155] uppercase tracking-wider mb-2.5">
-              File Handler Internal Notes ({claim.notes.length})
-            </h4>
-            <div className="space-y-3">
-              {(claim.notes as any)
-                .sort((a: any, b: any) => {
-                  const dateA = toJsDate(a.createdAt);
-                  const dateB = toJsDate(b.createdAt);
-                  if (!dateA || !dateB) return 0;
-                  return dateB.getTime() - dateA.getTime();
-                })
-                .map((n: any) => {
-                  const created = toJsDate(n.createdAt);
-                  const dueDate = toJsDate(n.dueDate);
-                  if (!created || !dueDate) return null;
-                  const isOverdue = dueDate < new Date();
-
+            /* ── VIEW MODE: CLIENT & VEHICLE ── */
+            <div className="space-y-6">
+              {/* Client Information */}
+              <SubSection title="Client Information" icon={User}>
+                {(() => {
+                  const clientName = resolveNameFields(currentClaim.clientInfo);
+                  const clientAddress = resolveAddressFields(currentClaim.clientInfo);
                   return (
-                    <div
-                      key={n.id}
-                      className="border border-[#E2E8F0] rounded-xl p-3.5 bg-[#F8FAFC] flex flex-col"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex-grow mr-4">
-                          <p className="text-xs text-[#64748B]">
-                            <span className="font-semibold text-[#334155]">
-                              Author:
-                            </span>{' '}
-                            {n.author}
-                          </p>
-                          {n.noteTitle && (
-                            <p className="text-sm font-bold text-[#0F172A] mt-0.5">
-                              {n.noteTitle}
-                            </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Field label="First Name" value={clientName.firstName || 'N/A'} />
+                      <Field label="Middle Name" value={clientName.middleName || 'N/A'} />
+                      <Field label="Last Name" value={clientName.lastName || 'N/A'} />
+                      <Field label="Date of Birth" value={formatDate(currentClaim.clientInfo?.dateOfBirth)} />
+
+                      <div>
+                        <dt className="text-xs font-medium text-slate-500">Phone</dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900">
+                          {currentClaim.clientInfo?.phone ? (
+                            <a href={`tel:${currentClaim.clientInfo?.phone}`} className="text-indigo-600 hover:underline">
+                              {currentClaim.clientInfo?.phone}
+                            </a>
+                          ) : (
+                            'N/A'
                           )}
-                        </div>
-                        <div className="text-xs text-[#64748B] font-medium">
-                          {format(created, 'dd/MM/yyyy HH:mm')}
-                        </div>
+                        </dd>
                       </div>
-                      <div className="text-xs text-[#334155] whitespace-pre-wrap mb-2 leading-relaxed">
-                        {n.text}
-                      </div>
-                      <div className="flex items-center text-xs">
-                        <Calendar className="h-3.5 w-3.5 text-[#64748B] mr-1" />
-                        <span className="font-medium mr-1 text-[#64748B]">Due:</span>
-                        <span
-                          className={clsx(
-                            'ml-1 font-medium',
-                            dueDate < new Date()
-                              ? 'text-red-600 font-bold'
-                              : 'text-[#334155]'
+
+                      <div>
+                        <dt className="text-xs font-medium text-slate-500">Email</dt>
+                        <dd className="mt-1 text-sm font-semibold text-slate-900 truncate">
+                          {currentClaim.clientInfo?.email ? (
+                            <a href={`mailto:${currentClaim.clientInfo?.email}`} className="text-indigo-600 hover:underline truncate">
+                              {currentClaim.clientInfo?.email}
+                            </a>
+                          ) : (
+                            'N/A'
                           )}
-                        >
-                          {format(dueDate, 'dd/MM/yyyy')}
-                        </span>
-                        {isOverdue && (
-                          <span className="ml-2 bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded font-semibold border border-red-300">
-                            Overdue
-                          </span>
-                        )}
+                        </dd>
                       </div>
+
+                      <Field label="National Insurance" value={currentClaim.clientInfo?.nationalInsuranceNumber || 'N/A'} />
+                      <Field label="Driving License" value={currentClaim.clientInfo?.driverLicenseNumber || 'N/A'} />
+
+                      <Field label="Building / Flat" value={clientAddress.buildingFlat || 'N/A'} />
+                      <Field label="Street Name" value={clientAddress.streetName || 'N/A'} />
+                      <Field label="Town / City" value={clientAddress.townCity || 'N/A'} />
+                      <Field label="Postcode" value={clientAddress.postcode || 'N/A'} />
+
+                      {Array.isArray(currentClaim.claimReason) && currentClaim.claimReason.includes('PI') && (
+                        <>
+                          <div className="col-span-2">
+                            <Field label="Occupation" value={currentClaim.clientInfo?.occupation || 'N/A'} />
+                          </div>
+                          <div className="col-span-2">
+                            <dt className="text-xs font-medium text-slate-500">Injury Details</dt>
+                            <dd className="mt-1 text-sm text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                              {currentClaim.clientInfo?.injuryDetails || 'N/A'}
+                            </dd>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
-                })}
+                })()}
+              </SubSection>
+
+              {/* Registered Keeper (if enabled) */}
+              {currentClaim.registerKeeper?.enabled && (
+                <SubSection title="Registered Keeper" icon={Building}>
+                  {(() => {
+                    const rkName = resolveNameFields(currentClaim.registerKeeper);
+                    const rkAddress = resolveAddressFields(currentClaim.registerKeeper);
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                        <Field label="First Name" value={rkName.firstName || 'N/A'} />
+                        <Field label="Last Name" value={rkName.lastName || 'N/A'} />
+                        <Field label="Phone" value={currentClaim.registerKeeper?.phone || 'N/A'} />
+                        <Field label="Email" value={currentClaim.registerKeeper?.email || 'N/A'} />
+                        <Field label="Building / Flat" value={rkAddress.buildingFlat || 'N/A'} />
+                        <Field label="Street" value={rkAddress.streetName || 'N/A'} />
+                        <Field label="Town / City" value={rkAddress.townCity || 'N/A'} />
+                        <Field label="Postcode" value={rkAddress.postcode || 'N/A'} />
+                      </div>
+                    );
+                  })()}
+                </SubSection>
+              )}
+
+              {/* Vehicle Details */}
+              <SubSection title="Vehicle Details & Regulatory Status" icon={Car}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Registration</p>
+                    <p className="font-semibold text-base text-slate-900 mt-0.5 font-mono">
+                      {currentClaim.clientVehicle?.registration || 'N/A'}
+                    </p>
+                  </div>
+                  <Field label="Make & Model" value={`${currentClaim.clientVehicle?.make || ''} ${currentClaim.clientVehicle?.model || ''}`.trim() || 'N/A'} />
+                  <Field label="Year" value={currentClaim.clientVehicle?.year || 'N/A'} />
+                  <Field label="Color" value={currentClaim.clientVehicle?.color || 'N/A'} />
+
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">MOT Expiry</p>
+                    <p className={`font-semibold text-sm mt-0.5 ${checkIsExpiring(currentClaim.clientVehicle?.motExpiry) ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+                      {formatDate(currentClaim.clientVehicle?.motExpiry)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Road Tax Expiry</p>
+                    <p className={`font-semibold text-sm mt-0.5 ${checkIsExpiring(currentClaim.clientVehicle?.roadTaxExpiry) ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+                      {formatDate(currentClaim.clientVehicle?.roadTaxExpiry)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">NSL License Expiry</p>
+                    <p className={`font-semibold text-sm mt-0.5 ${checkIsExpiring(currentClaim.clientVehicle?.nslExpiry) ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+                      {formatDate(currentClaim.clientVehicle?.nslExpiry)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Insurance Expiry</p>
+                    <p className={`font-semibold text-sm mt-0.5 ${checkIsExpiring(currentClaim.clientVehicle?.insuranceExpiry) ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+                      {formatDate(currentClaim.clientVehicle?.insuranceExpiry)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Vehicle Documents */}
+                <div className="mt-4 pt-3 border-t border-slate-200">
+                  <p className="text-xs font-bold text-slate-700 uppercase mb-2">Attached Vehicle Documents</p>
+                  {Object.entries(currentClaim.clientVehicle?.documents || {}).length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {Object.entries(currentClaim.clientVehicle?.documents || {}).map(([key, url]) => (
+                        <DocumentLink key={key} url={typeof url === 'string' ? url : undefined} label={key} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No vehicle documents attached</p>
+                  )}
+                </div>
+              </SubSection>
             </div>
+          )}
+        </FormalSectionCard>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: INCIDENT                                                          */}
+      {/* ========================================================================= */}
+      {activeTab === 'incident' && (
+        <FormalSectionCard
+          sectionId="section-incident-details"
+          sectionNumber="2"
+          title="Incident Details & Circumstances"
+          icon={Calendar}
+        >
+          {isEditMode ? (
+            /* ── EDIT MODE: INCIDENT ── */
+            <div className="space-y-6">
+              <SubSection title="Incident Details" icon={Calendar}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Incident Date <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={incidentDate}
+                        onChange={(e) => setIncidentDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Incident Time <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={incidentTime}
+                        onChange={(e) => setIncidentTime(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Location <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={incidentLocation}
+                        onChange={(e) => setIncidentLocation(e.target.value)}
+                        placeholder="Street / Junction / Postcode"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Incident Description <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={incidentDescription}
+                        onChange={(e) => setIncidentDescription(e.target.value)}
+                        placeholder="Describe how the accident occurred..."
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Damage Details <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={incidentDamage}
+                        onChange={(e) => setIncidentDamage(e.target.value)}
+                        placeholder="Specify vehicle and property damage..."
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </SubSection>
+
+              {/* Police Information */}
+              <SubSection title="Police Information" icon={Shield}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Officer Name</label>
+                    <input
+                      type="text"
+                      value={policeOfficerName}
+                      onChange={(e) => setPoliceOfficerName(e.target.value)}
+                      placeholder="Officer Name"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Badge Number</label>
+                    <input
+                      type="text"
+                      value={policeBadgeNumber}
+                      onChange={(e) => setPoliceBadgeNumber(e.target.value)}
+                      placeholder="Badge #"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Police Station</label>
+                    <input
+                      type="text"
+                      value={policeStation}
+                      onChange={(e) => setPoliceStation(e.target.value)}
+                      placeholder="Station"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">CAD / Incident Number</label>
+                    <input
+                      type="text"
+                      value={policeIncidentNumber}
+                      onChange={(e) => setPoliceIncidentNumber(e.target.value)}
+                      placeholder="CAD-1234"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={policeContactInfo}
+                      onChange={(e) => setPoliceContactInfo(e.target.value)}
+                      placeholder="Phone"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+              </SubSection>
+
+              {/* Hire, Storage, Recovery */}
+              <SubSection title="Hire, Storage & Recovery Operations" icon={Car}>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hireEnabled}
+                        onChange={(e) => setHireEnabled(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Hire Vehicle Arranged</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={storageEnabled}
+                        onChange={(e) => setStorageEnabled(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Storage Incurred</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recoveryEnabled}
+                        onChange={(e) => setRecoveryEnabled(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Recovery Vehicle Service</span>
+                    </label>
+                  </div>
+
+                  {/* Hire Vehicle Inputs */}
+                  {hireEnabled && (
+                    <div className="p-3.5 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-3">
+                      <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider block">
+                        Hire Vehicle Specification
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hire Company</label>
+                          <input
+                            type="text"
+                            value={hireCompany}
+                            onChange={(e) => setHireCompany(e.target.value)}
+                            placeholder="Enterprise, Hertz..."
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Daily Rate (£)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={hireRate}
+                            onChange={(e) => setHireRate(e.target.value)}
+                            placeholder="45.00"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Start Date</label>
+                          <input
+                            type="date"
+                            value={hireStartDate}
+                            onChange={(e) => setHireStartDate(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">End Date</label>
+                          <input
+                            type="date"
+                            value={hireEndDate}
+                            onChange={(e) => setHireEndDate(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Storage Details Inputs */}
+                  {storageEnabled && (
+                    <div className="p-3.5 bg-amber-50/50 border border-amber-200 rounded-xl space-y-3">
+                      <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider block">
+                        Storage Garage & Facility
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Garage / Facility Name</label>
+                          <input
+                            type="text"
+                            value={storageGarage}
+                            onChange={(e) => setStorageGarage(e.target.value)}
+                            placeholder="Central Depository"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Daily Storage Rate (£)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={storageRate}
+                            onChange={(e) => setStorageRate(e.target.value)}
+                            placeholder="25.00"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recovery Service Inputs */}
+                  {recoveryEnabled && (
+                    <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
+                      <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block">
+                        Recovery Service Specification
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Recovery Operator / Towing Co</label>
+                          <input
+                            type="text"
+                            value={recoveryOperator}
+                            onChange={(e) => setRecoveryOperator(e.target.value)}
+                            placeholder="AA / RAC / Express Recovery"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Total Recovery Cost (£)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={recoveryCost}
+                            onChange={(e) => setRecoveryCost(e.target.value)}
+                            placeholder="150.00"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SubSection>
+
+              {/* Medical, GP & Hospital Information (Edit) */}
+              <SubSection title="Medical, GP & Hospital Information" icon={Activity}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={gpVisited}
+                        onChange={(e) => setGpVisited(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">GP Consultation Visited</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hospitalVisited}
+                        onChange={(e) => setHospitalVisited(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800">Hospital Attended / A&E</span>
+                    </label>
+                  </div>
+
+                  {gpVisited && (
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                        GP Surgery Details
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Surgery / Practice Name</label>
+                          <input
+                            type="text"
+                            value={gpName}
+                            onChange={(e) => setGpName(e.target.value)}
+                            placeholder="Riverside Health Centre"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Doctor Name</label>
+                          <input
+                            type="text"
+                            value={gpDoctorName}
+                            onChange={(e) => setGpDoctorName(e.target.value)}
+                            placeholder="Dr. Smith"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Contact Phone</label>
+                          <input
+                            type="tel"
+                            value={gpContactNumber}
+                            onChange={(e) => setGpContactNumber(e.target.value)}
+                            placeholder="020 7946 0123"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Address</label>
+                          <input
+                            type="text"
+                            value={gpAddress}
+                            onChange={(e) => setGpAddress(e.target.value)}
+                            placeholder="Practice Address"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div className="col-span-full">
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">GP Notes / Diagnosis</label>
+                          <textarea
+                            rows={2}
+                            value={gpNotes}
+                            onChange={(e) => setGpNotes(e.target.value)}
+                            placeholder="Whiplash diagnosed, physiotherapy recommended..."
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {hospitalVisited && (
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                        Hospital Attendance Details
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hospital Name</label>
+                          <input
+                            type="text"
+                            value={hospitalName}
+                            onChange={(e) => setHospitalName(e.target.value)}
+                            placeholder="St Thomas Hospital"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Attending Doctor</label>
+                          <input
+                            type="text"
+                            value={hospitalDoctorName}
+                            onChange={(e) => setHospitalDoctorName(e.target.value)}
+                            placeholder="Dr. Johnson"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Contact Phone</label>
+                          <input
+                            type="tel"
+                            value={hospitalContactNumber}
+                            onChange={(e) => setHospitalContactNumber(e.target.value)}
+                            placeholder="020 7188 7188"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hospital Address</label>
+                          <input
+                            type="text"
+                            value={hospitalAddress}
+                            onChange={(e) => setHospitalAddress(e.target.value)}
+                            placeholder="Westminster Bridge Rd"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div className="col-span-full">
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Clinical Notes & Discharge Summary</label>
+                          <textarea
+                            rows={2}
+                            value={hospitalNotes}
+                            onChange={(e) => setHospitalNotes(e.target.value)}
+                            placeholder="X-Ray completed, cervical spine sprain..."
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SubSection>
+            </div>
+          ) : (
+            /* ── VIEW MODE: INCIDENT ── */
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-start gap-2.5">
+                  <Calendar className="h-5 w-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Date & Time</p>
+                    <p className="font-semibold text-sm text-slate-900 mt-0.5">
+                      {formatDate(currentClaim.incidentDetails?.date)}{' '}
+                      {currentClaim.incidentDetails?.time ? `at ${currentClaim.incidentDetails?.time}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="h-5 w-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Location</p>
+                    <p className="font-semibold text-sm text-slate-900 mt-0.5">
+                      {currentClaim.incidentDetails?.location || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="col-span-1 md:col-span-2 pt-2 border-t border-slate-200">
+                  <p className="text-xs font-bold text-slate-700 uppercase mb-1">Incident Description</p>
+                  <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    {currentClaim.incidentDetails?.description || 'N/A'}
+                  </p>
+                </div>
+
+                <div className="col-span-1 md:col-span-2">
+                  <p className="text-xs font-bold text-slate-700 uppercase mb-1">Damage Details</p>
+                  <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    {currentClaim.incidentDetails?.damageDetails || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Police Information */}
+              {(currentClaim.policeOfficerName || currentClaim.policeIncidentNumber) && (
+                <SubSection title="Police Information" icon={Shield}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <Field label="Officer Name" value={currentClaim.policeOfficerName} />
+                    <Field label="Badge Number" value={currentClaim.policeBadgeNumber} />
+                    <Field label="Station" value={currentClaim.policeStation} />
+                    <Field label="Incident / CAD Number" value={currentClaim.policeIncidentNumber} />
+                  </div>
+                </SubSection>
+              )}
+
+              {/* Paramedic Involvement */}
+              {(currentClaim.paramedicNames || currentClaim.ambulanceReference || currentClaim.ambulanceService) && (
+                <SubSection title="Paramedic & Ambulance Service" icon={Activity}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <Field label="Paramedic Personnel" value={currentClaim.paramedicNames} />
+                    <Field label="Ambulance Service" value={currentClaim.ambulanceService} />
+                    <Field label="Ambulance Ref" value={currentClaim.ambulanceReference} />
+                  </div>
+                </SubSection>
+              )}
+
+              {/* Hire, Storage & Recovery Operations (View) */}
+              {(currentClaim.hireDetails?.enabled || currentClaim.storage?.enabled || currentClaim.recovery?.enabled) && (
+                <SubSection title="Hire, Storage & Recovery Operations" icon={Car}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {currentClaim.hireDetails?.enabled && (
+                      <div className="p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-2">
+                        <span className="text-xs font-bold text-indigo-900 block">Hire Vehicle</span>
+                        <Field label="Hire Company" value={currentClaim.hireDetails.hireCompany} />
+                        <Field label="Daily Rate" value={formatCurrency(currentClaim.hireDetails.dailyRate || 0)} />
+                        <Field label="Period" value={`${formatDate(currentClaim.hireDetails.startDate)} - ${formatDate(currentClaim.hireDetails.endDate)}`} />
+                      </div>
+                    )}
+                    {currentClaim.storage?.enabled && (
+                      <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                        <span className="text-xs font-bold text-amber-900 block">Storage Facility</span>
+                        <Field label="Garage" value={currentClaim.storage.garage} />
+                        <Field label="Daily Rate" value={formatCurrency(currentClaim.storage.dailyRate || 0)} />
+                      </div>
+                    )}
+                    {currentClaim.recovery?.enabled && (
+                      <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+                        <span className="text-xs font-bold text-emerald-900 block">Recovery Service</span>
+                        <Field label="Operator" value={currentClaim.recovery.operator} />
+                        <Field label="Total Cost" value={formatCurrency(currentClaim.recovery.cost || 0)} />
+                      </div>
+                    )}
+                  </div>
+                </SubSection>
+              )}
+
+              {/* Medical Information (View) */}
+              {(currentClaim.gpInformation?.visited || currentClaim.hospitalInformation?.visited) && (
+                <SubSection title="Medical & Hospital Consultations" icon={Activity}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentClaim.gpInformation?.visited && (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <span className="text-xs font-bold text-slate-800 block">GP Consultation</span>
+                        <Field label="Surgery Name" value={currentClaim.gpInformation.gpName} />
+                        <Field label="Doctor" value={currentClaim.gpInformation.gpDoctorName} />
+                        <Field label="Contact" value={currentClaim.gpInformation.gpContactNumber} />
+                        <Field label="Address" value={currentClaim.gpInformation.gpAddress} />
+                        <Field label="Notes" value={currentClaim.gpInformation.gpNotes} />
+                      </div>
+                    )}
+                    {currentClaim.hospitalInformation?.visited && (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <span className="text-xs font-bold text-slate-800 block">Hospital Consultation</span>
+                        <Field label="Hospital Name" value={currentClaim.hospitalInformation.hospitalName} />
+                        <Field label="Doctor" value={currentClaim.hospitalInformation.hospitalDoctorName} />
+                        <Field label="Contact" value={currentClaim.hospitalInformation.hospitalContactNumber} />
+                        <Field label="Address" value={currentClaim.hospitalInformation.hospitalAddress} />
+                        <Field label="Clinical Notes" value={currentClaim.hospitalInformation.hospitalNotes} />
+                      </div>
+                    )}
+                  </div>
+                </SubSection>
+              )}
+            </div>
+          )}
+        </FormalSectionCard>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: THIRD PARTY                                                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'third_party' && (
+        <FormalSectionCard
+          sectionId="section-third-party"
+          sectionNumber="3"
+          title="Third Party, Passengers & Witnesses"
+          icon={Users}
+        >
+          {isEditMode ? (
+            /* ── EDIT MODE: THIRD PARTY ── */
+            <div className="space-y-6">
+              <SubSection title="Third Party Details (Granular Inputs)" icon={Users}>
+                <div className="space-y-4">
+                  {/* Third Party Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">First Name</label>
+                      <input
+                        type="text"
+                        value={tpFirstName}
+                        onChange={(e) => setTpFirstName(e.target.value)}
+                        placeholder="First Name"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Middle Name</label>
+                      <input
+                        type="text"
+                        value={tpMiddleName}
+                        onChange={(e) => setTpMiddleName(e.target.value)}
+                        placeholder="Middle Name"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        value={tpLastName}
+                        onChange={(e) => setTpLastName(e.target.value)}
+                        placeholder="Last Name"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Third Party Contact & Vehicle */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Contact Phone</label>
+                      <input
+                        type="tel"
+                        value={tpPhone}
+                        onChange={(e) => setTpPhone(e.target.value)}
+                        placeholder="Phone"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        value={tpEmail}
+                        onChange={(e) => setTpEmail(e.target.value)}
+                        placeholder="Email"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vehicle Registration</label>
+                      <input
+                        type="text"
+                        value={tpRegistration}
+                        onChange={(e) => setTpRegistration(e.target.value)}
+                        placeholder="Reg Number"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Third Party Address (Structured) */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                      Third Party Address (Structured Fields)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Building / Flat</label>
+                        <input
+                          type="text"
+                          value={tpBuildingFlat}
+                          onChange={(e) => setTpBuildingFlat(e.target.value)}
+                          placeholder="Building / Flat"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Street</label>
+                        <input
+                          type="text"
+                          value={tpStreetName}
+                          onChange={(e) => setTpStreetName(e.target.value)}
+                          placeholder="Street"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Town / City</label>
+                        <input
+                          type="text"
+                          value={tpTownCity}
+                          onChange={(e) => setTpTownCity(e.target.value)}
+                          placeholder="Town / City"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Postcode</label>
+                        <input
+                          type="text"
+                          value={tpPostcode}
+                          onChange={(e) => setTpPostcode(e.target.value)}
+                          placeholder="Postcode"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl font-mono uppercase"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Insurer & Policy */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Insurer Company</label>
+                      <input
+                        type="text"
+                        value={tpInsurer}
+                        onChange={(e) => setTpInsurer(e.target.value)}
+                        placeholder="e.g. Admiral, Aviva"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Policy Number</label>
+                      <input
+                        type="text"
+                        value={tpPolicyNumber}
+                        onChange={(e) => setTpPolicyNumber(e.target.value)}
+                        placeholder="Policy Ref"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </SubSection>
+
+              {/* Passengers Information (Edit Mode) */}
+              <SubSection title="Passengers Information" icon={Users}>
+                <div className="space-y-3">
+                  {passengers.map((p, idx) => (
+                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Passenger #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPassengers(passengers.filter((_, i) => i !== idx))}
+                          className="text-rose-500 hover:text-rose-700 p-1 text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Full Name</label>
+                          <input
+                            type="text"
+                            value={p.name || ''}
+                            onChange={(e) => {
+                              const updated = [...passengers];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setPassengers(updated);
+                            }}
+                            placeholder="Name"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Contact Phone</label>
+                          <input
+                            type="tel"
+                            value={p.contactNumber || p.phone || ''}
+                            onChange={(e) => {
+                              const updated = [...passengers];
+                              updated[idx] = { ...updated[idx], contactNumber: e.target.value, phone: e.target.value };
+                              setPassengers(updated);
+                            }}
+                            placeholder="07123..."
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Address</label>
+                          <input
+                            type="text"
+                            value={p.address || ''}
+                            onChange={(e) => {
+                              const updated = [...passengers];
+                              updated[idx] = { ...updated[idx], address: e.target.value };
+                              setPassengers(updated);
+                            }}
+                            placeholder="Address"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Postcode</label>
+                          <input
+                            type="text"
+                            value={p.postCode || ''}
+                            onChange={(e) => {
+                              const updated = [...passengers];
+                              updated[idx] = { ...updated[idx], postCode: e.target.value };
+                              setPassengers(updated);
+                            }}
+                            placeholder="Postcode"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-mono uppercase"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={p.dob || ''}
+                            onChange={(e) => {
+                              const updated = [...passengers];
+                              updated[idx] = { ...updated[idx], dob: e.target.value };
+                              setPassengers(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPassengers([...passengers, { name: '', contactNumber: '', address: '', postCode: '', dob: '' }])}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Passenger</span>
+                  </button>
+                </div>
+              </SubSection>
+
+              {/* Witnesses Information (Edit Mode) */}
+              <SubSection title="Witnesses Information" icon={Users}>
+                <div className="space-y-3">
+                  {witnesses.map((w, idx) => (
+                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Witness #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setWitnesses(witnesses.filter((_, i) => i !== idx))}
+                          className="text-rose-500 hover:text-rose-700 p-1 text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Full Name</label>
+                          <input
+                            type="text"
+                            value={w.name || ''}
+                            onChange={(e) => {
+                              const updated = [...witnesses];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setWitnesses(updated);
+                            }}
+                            placeholder="Name"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Contact Phone</label>
+                          <input
+                            type="tel"
+                            value={w.contactNumber || w.phone || ''}
+                            onChange={(e) => {
+                              const updated = [...witnesses];
+                              updated[idx] = { ...updated[idx], contactNumber: e.target.value, phone: e.target.value };
+                              setWitnesses(updated);
+                            }}
+                            placeholder="07123..."
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Address</label>
+                          <input
+                            type="text"
+                            value={w.address || ''}
+                            onChange={(e) => {
+                              const updated = [...witnesses];
+                              updated[idx] = { ...updated[idx], address: e.target.value };
+                              setWitnesses(updated);
+                            }}
+                            placeholder="Address"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Postcode</label>
+                          <input
+                            type="text"
+                            value={w.postCode || ''}
+                            onChange={(e) => {
+                              const updated = [...witnesses];
+                              updated[idx] = { ...updated[idx], postCode: e.target.value };
+                              setWitnesses(updated);
+                            }}
+                            placeholder="Postcode"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-mono uppercase"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={w.dob || ''}
+                            onChange={(e) => {
+                              const updated = [...witnesses];
+                              updated[idx] = { ...updated[idx], dob: e.target.value };
+                              setWitnesses(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setWitnesses([...witnesses, { name: '', contactNumber: '', address: '', postCode: '', dob: '' }])}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Witness</span>
+                  </button>
+                </div>
+              </SubSection>
+            </div>
+          ) : (
+            /* ── VIEW MODE: THIRD PARTY ── */
+            <div className="space-y-6">
+              {(() => {
+                const tpName = resolveNameFields(currentClaim.thirdParty);
+                const tpAddr = resolveAddressFields(currentClaim.thirdParty);
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <Field label="First Name" value={tpName.firstName || 'N/A'} />
+                    <Field label="Middle Name" value={tpName.middleName || 'N/A'} />
+                    <Field label="Last Name" value={tpName.lastName || 'N/A'} />
+                    <Field label="Vehicle Registration" value={currentClaim.thirdParty?.registration || 'N/A'} />
+
+                    <Field label="Phone" value={currentClaim.thirdParty?.phone || 'N/A'} />
+                    <Field label="Email" value={currentClaim.thirdParty?.email || 'N/A'} />
+                    <Field label="Insurer" value={currentClaim.thirdParty?.insurer || 'N/A'} />
+                    <Field label="Policy Number" value={currentClaim.thirdParty?.policyNumber || 'N/A'} />
+
+                    <Field label="Building / Flat" value={tpAddr.buildingFlat || 'N/A'} />
+                    <Field label="Street" value={tpAddr.streetName || 'N/A'} />
+                    <Field label="Town / City" value={tpAddr.townCity || 'N/A'} />
+                    <Field label="Postcode" value={tpAddr.postcode || 'N/A'} />
+                  </div>
+                );
+              })()}
+
+              {/* Passengers (View Mode) */}
+              {currentClaim.passengers && currentClaim.passengers.length > 0 && (
+                <SubSection title="Passengers in Vehicle" icon={Users}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {currentClaim.passengers.map((p: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span className="text-xs font-bold text-slate-800 block">Passenger #{idx + 1}: {p.name || 'Unknown'}</span>
+                        <p className="text-xs text-slate-600">Phone: {p.contactNumber || p.phone || 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Address: {p.address || ''} {p.postCode || ''}</p>
+                        {p.dob && <p className="text-xs text-slate-600">DOB: {formatDate(p.dob)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </SubSection>
+              )}
+
+              {/* Witnesses (View Mode) */}
+              {currentClaim.witnesses && currentClaim.witnesses.length > 0 && (
+                <SubSection title="Witnesses" icon={Users}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {currentClaim.witnesses.map((w: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span className="text-xs font-bold text-slate-800 block">Witness #{idx + 1}: {w.name || 'Unknown'}</span>
+                        <p className="text-xs text-slate-600">Phone: {w.contactNumber || w.phone || 'N/A'}</p>
+                        <p className="text-xs text-slate-600">Address: {w.address || ''} {w.postCode || ''}</p>
+                        {w.dob && <p className="text-xs text-slate-600">DOB: {formatDate(w.dob)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </SubSection>
+              )}
+            </div>
+          )}
+        </FormalSectionCard>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: EVIDENCE                                                          */}
+      {/* ========================================================================= */}
+      {activeTab === 'evidence' && (
+        <FormalSectionCard
+          sectionId="section-evidence"
+          sectionNumber="4"
+          title="Evidence, Media & Documents"
+          icon={Camera}
+        >
+          {isEditMode ? (
+            /* ── EDIT MODE: EVIDENCE UPLOAD & MANAGEMENT ── */
+            <div className="space-y-6">
+              {/* Photographs Upload & Management */}
+              <SubSection title="Vehicle & Accident Media" icon={Camera}>
+                <div className="space-y-4">
+                  {/* Staged new images */}
+                  {stagedFiles.images.length > 0 && (
+                    <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-2">
+                      <span className="text-xs font-bold text-indigo-900 block">Staged for Upload ({stagedFiles.images.length} new)</span>
+                      <div className="flex flex-wrap gap-2">
+                        {stagedFiles.images.map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs">
+                            <span className="font-medium text-slate-800 truncate max-w-[150px]">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setStagedFiles({ ...stagedFiles, images: stagedFiles.images.filter((_, idx) => idx !== i) })}
+                              className="text-rose-500 hover:text-rose-700"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Existing Images */}
+                  {existingEvidence.images.length > 0 && (
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 block mb-2">Existing Uploaded Photographs</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {existingEvidence.images.map((img, i) => (
+                          <div key={i} className="relative group aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                            <img src={img} alt={`Evidence ${i + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setExistingEvidence({ ...existingEvidence, images: existingEvidence.images.filter((_, idx) => idx !== i) })}
+                              className="absolute top-1.5 right-1.5 p-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md shadow-xs opacity-90 group-hover:opacity-100 transition cursor-pointer"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/30 rounded-xl cursor-pointer transition">
+                    <Upload className="w-6 h-6 text-indigo-600 mb-2" />
+                    <span className="text-xs font-bold text-slate-800">Click to Select Photographs</span>
+                    <span className="text-[11px] text-slate-500 mt-0.5">JPG, PNG, WebP files accepted</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          setStagedFiles({ ...stagedFiles, images: [...stagedFiles.images, ...Array.from(e.target.files)] });
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </SubSection>
+
+              {/* Engineer Reports */}
+              <SubSection title="Engineer Reports" icon={FileText}>
+                <div className="space-y-3">
+                  {existingEvidence.engineerReport.map((url, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                      <div className="flex items-center gap-2 text-indigo-700 font-semibold truncate">
+                        <FileText className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">Engineer Report {i + 1}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExistingEvidence({ ...existingEvidence, engineerReport: existingEvidence.engineerReport.filter((_, idx) => idx !== i) })}
+                        className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {stagedFiles.engineerReport.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs">
+                      <span className="font-semibold text-indigo-900 truncate">New: {file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setStagedFiles({ ...stagedFiles, engineerReport: stagedFiles.engineerReport.filter((_, idx) => idx !== i) })}
+                        className="text-rose-500 hover:text-rose-700 p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <label className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer transition">
+                    <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Upload Engineer Report</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          setStagedFiles({ ...stagedFiles, engineerReport: [...stagedFiles.engineerReport, ...Array.from(e.target.files)] });
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </SubSection>
+
+              {/* Bank Statements & Admin Documents */}
+              <SubSection title="Bank Statements & Admin Documents" icon={FileText}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Bank Statements */}
+                  <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <span className="text-xs font-bold text-slate-800 block">Bank Statements</span>
+                    {existingEvidence.bankStatement.map((url, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg text-xs">
+                        <span className="truncate text-slate-700">Statement {i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => setExistingEvidence({ ...existingEvidence, bankStatement: existingEvidence.bankStatement.filter((_, idx) => idx !== i) })}
+                          className="text-rose-500 hover:text-rose-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {stagedFiles.bankStatement.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+                        <span className="truncate text-indigo-900">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setStagedFiles({ ...stagedFiles, bankStatement: stagedFiles.bankStatement.filter((_, idx) => idx !== i) })}
+                          className="text-rose-500 hover:text-rose-700"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Add Bank Statement</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            setStagedFiles({ ...stagedFiles, bankStatement: [...stagedFiles.bankStatement, ...Array.from(e.target.files)] });
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Admin Documents */}
+                  <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <span className="text-xs font-bold text-slate-800 block">Admin / Formal Documents</span>
+                    {existingEvidence.adminDocuments.map((url, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg text-xs">
+                        <span className="truncate text-slate-700">Admin Doc {i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => setExistingEvidence({ ...existingEvidence, adminDocuments: existingEvidence.adminDocuments.filter((_, idx) => idx !== i) })}
+                          className="text-rose-500 hover:text-rose-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {stagedFiles.adminDocuments.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+                        <span className="truncate text-indigo-900">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setStagedFiles({ ...stagedFiles, adminDocuments: stagedFiles.adminDocuments.filter((_, idx) => idx !== i) })}
+                          className="text-rose-500 hover:text-rose-700"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Add Admin Document</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            setStagedFiles({ ...stagedFiles, adminDocuments: [...stagedFiles.adminDocuments, ...Array.from(e.target.files)] });
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </SubSection>
+            </div>
+          ) : (
+            /* ── VIEW MODE: EVIDENCE ── */
+            <div className="space-y-6">
+              {/* Image & Video Gallery */}
+              <SubSection title="Vehicle & Accident Media" icon={Camera}>
+                {currentClaim.evidence?.images && currentClaim.evidence.images.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {currentClaim.evidence.images.map((img: string, i: number) => (
+                      <a
+                        key={i}
+                        href={img}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-2xs block"
+                      >
+                        <img src={img} alt={`Evidence ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-white text-xs font-semibold">
+                          View Photo
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No evidence photographs uploaded</p>
+                )}
+              </SubSection>
+
+              {/* Reports & Statements */}
+              <SubSection title="Formal Reports & Documents" icon={FileText}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {currentClaim.evidence?.engineerReport?.map((url: string, idx: number) => (
+                    <DocumentLink key={idx} url={url} label={`Engineer Report ${idx + 1}`} />
+                  ))}
+                  {currentClaim.evidence?.bankStatement?.map((url: string, idx: number) => (
+                    <DocumentLink key={idx} url={url} label={`Bank Statement ${idx + 1}`} />
+                  ))}
+                  {currentClaim.evidence?.adminDocuments?.map((url: string, idx: number) => (
+                    <DocumentLink key={idx} url={url} label={`Admin Document ${idx + 1}`} />
+                  ))}
+                </div>
+              </SubSection>
+            </div>
+          )}
+        </FormalSectionCard>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: PROGRESS & NOTES                                                   */}
+      {/* ========================================================================= */}
+      {activeTab === 'progress' && (
+        <FormalSectionCard
+          sectionId="section-progress"
+          sectionNumber="5"
+          title="Case Progress, File Handlers & Communication Audit"
+          icon={Activity}
+        >
+          {isEditMode ? (
+            /* ── EDIT MODE: PROGRESS & HANDLERS ── */
+            <div className="space-y-6">
+              <SubSection title="Case Progress Stage" icon={Activity}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Current Case Progress
+                    </label>
+                    <select
+                      value={caseProgress}
+                      onChange={(e) => setCaseProgress(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      {PROGRESS_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Claim Type</label>
+                    <select
+                      value={claimType}
+                      onChange={(e) => setClaimType(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="Standard">Standard</option>
+                      <option value="Fault">Fault</option>
+                      <option value="Non-Fault">Non-Fault</option>
+                      <option value="Split">Split</option>
+                    </select>
+                  </div>
+                </div>
+              </SubSection>
+
+              <SubSection title="Assigned Handlers" icon={Scale}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">AIE File Handler</label>
+                    <input
+                      type="text"
+                      value={aieHandler}
+                      onChange={(e) => setAieHandler(e.target.value)}
+                      placeholder="Handler Name"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Legal Handler Firm</label>
+                    <input
+                      type="text"
+                      value={legalHandlerFirm}
+                      onChange={(e) => setLegalHandlerFirm(e.target.value)}
+                      placeholder="Solicitors / Firm Name"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Legal Handler Name</label>
+                    <input
+                      type="text"
+                      value={legalHandlerName}
+                      onChange={(e) => setLegalHandlerName(e.target.value)}
+                      placeholder="Contact Solicitor"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Legal Handler Email</label>
+                    <input
+                      type="email"
+                      value={legalHandlerEmail}
+                      onChange={(e) => setLegalHandlerEmail(e.target.value)}
+                      placeholder="solicitor@legal.co.uk"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                </div>
+              </SubSection>
+            </div>
+          ) : (
+            /* ── VIEW MODE: PROGRESS & HANDLERS ── */
+            <div className="space-y-6">
+              {/* Progress Summary */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase block">Current Progress</span>
+                  <p className="text-base font-bold text-slate-900 mt-0.5">{currentClaim.caseProgress || 'Your Claim Has Started'}</p>
+                </div>
+                <StatusBadge status={displayStatus} />
+              </div>
+
+              {/* Progress History */}
+              <SubSection title="Progress Timeline" icon={Clock}>
+                <div className="space-y-3">
+                  {historyToShow.length > 0 ? (
+                    historyToShow.map((h: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <StatusBadge status={h.status} />
+                          <span className="text-[11px] text-slate-400 font-mono">{formatDateTime(h.date)}</span>
+                        </div>
+                        {h.note && <p className="text-xs text-slate-700 mt-2">{h.note}</p>}
+                        {h.author && <p className="text-[10px] text-slate-400 mt-1 text-right">— {h.author}</p>}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No progress events logged yet</p>
+                  )}
+                </div>
+              </SubSection>
+
+              {/* Communication Audit Trail */}
+              <SubSection title="Communication History Trail" icon={MessageSquare}>
+                <CommunicationHistoryTimeline
+                  recordId={currentClaim.claimId || currentClaim.id}
+                  sourceModule="Claim"
+                  matchKeys={[currentClaim.id, currentClaim.claimId, currentClaim.clientPhone].filter(Boolean) as string[]}
+                />
+              </SubSection>
+            </div>
+          )}
+        </FormalSectionCard>
+      )}
+
+      {/* Floating Save Bar in Edit Mode */}
+      {isEditMode && (
+        <div className="sticky bottom-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 p-4 rounded-b-2xl flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditMode(false);
+                if (initialEditMode && onClose) {
+                  onClose();
+                }
+              }}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition cursor-pointer"
+            >
+              Cancel Edit
+            </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+              >
+                Close
+              </button>
+            )}
           </div>
-        )}
-      </FormalSectionCard>
 
-      {/* Tab Navigation Footer */}
-      <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shrink-0 shadow-2xs">
-        <button
-          type="button"
-          onClick={handlePrevTab}
-          disabled={currentTabIndex === 0}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Previous</span>
-        </button>
+          <button
+            type="button"
+            onClick={handleSaveClaim}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Saving Claim...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Save All Claim Changes</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
-        <span className="text-xs font-semibold text-slate-500">
-          Tab {currentTabIndex + 1} of {tabs.length}
-        </span>
-
-        <button
-          type="button"
-          onClick={handleNextTab}
-          disabled={currentTabIndex === tabs.length - 1}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs cursor-pointer"
-        >
-          <span>Next</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Metadata & Audit Footer */}
-      <div className="text-xs text-[#64748B] border-t border-[#E2E8F0] pt-4 flex flex-col sm:flex-row justify-between gap-2">
-        <div>Created by: <span className="text-[#334155] font-semibold">{createdByName ?? claim.updatedBy ?? 'N/A'}</span></div>
-        <div>Last Updated: <span className="text-[#334155] font-semibold">{formatDateTime(claim.updatedAt)}</span></div>
-      </div>
-
-      {/* Communication Modal Integration */}
-      <ClaimCommunicationModal
-        isOpen={commModalOpen}
-        onClose={() => setCommModalOpen(false)}
-        claim={claim}
-        initialChannel={commChannel}
-        initialCategory={commCategory}
-        initialRecipient={commRecipient}
-      />
+      {/* Integrated Claim Communication Modal */}
+      {commModalOpen && (
+        <ClaimCommunicationModal
+          claim={currentClaim}
+          isOpen={commModalOpen}
+          onClose={() => setCommModalOpen(false)}
+          initialChannel={commChannel}
+          initialCategory={commCategory}
+          recipient={commRecipient}
+        />
+      )}
     </div>
   );
 };

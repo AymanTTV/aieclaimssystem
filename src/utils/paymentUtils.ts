@@ -45,8 +45,11 @@ const computeTotalAmountDue = (rental: Rental, vehicle?: Vehicle) => {
  * financeTransactions.ts expects: 'paid' | 'partially_paid' | 'unpaid'
  */
 const toFinanceStatus = (
-  s: 'paid' | 'partially_paid' | 'pending'
-): 'paid' | 'partially_paid' | 'unpaid' => (s === 'pending' ? 'unpaid' : s);
+  s: 'paid' | 'partially_paid' | 'pending' | 'refunded' | 'unpaid' | string
+): 'paid' | 'partially_paid' | 'unpaid' => {
+  if (s === 'pending' || s === 'refunded') return 'unpaid';
+  return s as any;
+};
 
 /**
  * Resolve customer name from Firestore for a given customerId.
@@ -67,14 +70,10 @@ const resolveCustomerName = async (customerId?: string): Promise<string | undefi
 
 /**
  * Try to update the finance transaction that corresponds to a specific payment.
- * Preferred match:
- *   - referenceId == rental.id
- *   - paymentReference == oldPayment.id
- * Legacy fallback:
- *   - referenceId == rental.id
- *   - paymentReference == oldPayment.reference
- *
- * If not found, create an "adjustment" transaction for the delta (with customer info).
+ * Comprehensive match:
+ *   - paymentId == oldPayment.id
+ *   - referenceId == rental.id AND paymentReference == oldPayment.id
+ *   - referenceId == rental.id AND paymentReference == oldPayment.reference
  */
 const upsertFinanceTxForPaymentEdit = async (opts: {
   rental: Rental;
@@ -86,45 +85,91 @@ const upsertFinanceTxForPaymentEdit = async (opts: {
   const { rental, oldPayment, newPayment, vehicle, paymentStatus } = opts;
 
   const txRef = collection(db, 'transactions');
+  const matchedDocs: any[] = [];
 
-  // Preferred: paymentReference == old payment id
-  let q = query(
-    txRef,
-    where('referenceId', '==', rental.id),
-    where('paymentReference', '==', oldPayment.id)
-  );
-  let snap = await getDocs(q);
+  // 1. Query by paymentId
+  try {
+    const qPayId = query(txRef, where('paymentId', '==', oldPayment.id));
+    const snapPayId = await getDocs(qPayId);
+    snapPayId.docs.forEach((d) => matchedDocs.push(d));
+  } catch {}
 
-  // Legacy: paymentReference == oldPayment.reference
-  if (snap.empty && oldPayment.reference) {
-    q = query(
-      txRef,
-      where('referenceId', '==', rental.id),
-      where('paymentReference', '==', oldPayment.reference)
-    );
-    snap = await getDocs(q);
+  // 2. Query by paymentReference == oldPayment.id
+  if (matchedDocs.length === 0) {
+    try {
+      const qPayRef = query(
+        txRef,
+        where('referenceId', '==', rental.id),
+        where('paymentReference', '==', oldPayment.id)
+      );
+      const snapPayRef = await getDocs(qPayRef);
+      snapPayRef.docs.forEach((d) => matchedDocs.push(d));
+    } catch {}
+  }
+
+  // 3. Query by legacy paymentReference == oldPayment.reference
+  if (matchedDocs.length === 0 && oldPayment.reference) {
+    try {
+      const qLegRef = query(
+        txRef,
+        where('referenceId', '==', rental.id),
+        where('paymentReference', '==', oldPayment.reference)
+      );
+      const snapLegRef = await getDocs(qLegRef);
+      snapLegRef.docs.forEach((d) => matchedDocs.push(d));
+    } catch {}
   }
 
   const delta = (newPayment.amount || 0) - (oldPayment.amount || 0);
+  const paymentRefStr = rental.rentalAgreementNumber || newPayment.reference || (rental.id ? `RA-${rental.id.slice(-6).toUpperCase()}` : '');
+  const vehicleReg = vehicle?.registrationNumber || '';
+  const targetAccountId = vehicle?.owner?.accountId || undefined;
 
-  // If found, update in place (also ensure customer fields are present)
-  if (!snap.empty) {
+  // If found, update in place in BOTH transactions and finance_ledger
+  if (matchedDocs.length > 0) {
     const customerName = await resolveCustomerName(rental.customerId);
-    await Promise.all(
-      snap.docs.map(async (d) => {
-        const ref = d.ref;
-        await updateDoc(ref, {
-          amount: newPayment.amount,
-          paymentMethod: newPayment.method,
-          paymentReference: newPayment.id, // normalize linkage going forward
-          paymentStatus: toFinanceStatus(paymentStatus),
-          description: `Edited rental payment (#${rental.id.slice(-8).toUpperCase()})`,
-          updatedAt: new Date(),
-          customerId: rental.customerId || null,
-          ...(customerName ? { customerName } : {}),
-        });
-      })
-    );
+    const updatePayload = {
+      amount: newPayment.amount,
+      customerBilled: newPayment.amount,
+      grossBilling: newPayment.amount,
+      paid: newPayment.amount,
+      paidAmount: newPayment.amount,
+      paymentMethod: newPayment.method,
+      paymentReference: paymentRefStr,
+      paymentId: newPayment.id,
+      category: 'Vehicle Rental Income',
+      departmentName: 'Vehicle Rental / Fleet',
+      paymentStatus: toFinanceStatus(paymentStatus),
+      description: `Edited rental payment for #${paymentRefStr}${vehicleReg ? ` (${vehicleReg})` : ''}`,
+      vehicleRegistration: vehicleReg || undefined,
+      vehicleReg: vehicleReg || undefined,
+      accountTo: targetAccountId,
+      accountId: targetAccountId,
+      updatedAt: new Date(),
+      customerId: rental.customerId || null,
+      ...(customerName ? { customerName } : {}),
+    };
+
+    for (const d of matchedDocs) {
+      await updateDoc(doc(db, 'transactions', d.id), updatePayload).catch(() => {});
+      await updateDoc(doc(db, 'finance_ledger', d.id), updatePayload).catch(() => {});
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            id: matchedDocs[0].id,
+            paymentId: newPayment.id,
+            entityId: rental.id,
+            referenceId: rental.id,
+            ...updatePayload,
+            action: 'UPDATE_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
     return;
   }
 
@@ -133,19 +178,25 @@ const upsertFinanceTxForPaymentEdit = async (opts: {
     const customerName = await resolveCustomerName(rental.customerId);
     await createFinanceTransaction({
       type: delta >= 0 ? 'income' : 'expense',
-      category: 'payment_adjustment',
+      transactionType: delta >= 0 ? 'INCOME' : 'EXPENSE',
+      entryType: delta >= 0 ? 'CREDIT' : 'DEBIT',
+      category: 'Vehicle Rental Income',
+      departmentName: 'Vehicle Rental / Fleet',
       amount: Math.abs(delta),
-      description: `Payment edit for rental #${rental.id.slice(-8).toUpperCase()}`,
+      customerBilled: Math.abs(delta),
+      description: `Payment edit for rental #${paymentRefStr}`,
       referenceId: rental.id,
       vehicleId: rental.vehicleId,
       vehicleName: vehicle
         ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
         : undefined,
+      vehicleOwner: vehicle?.owner ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false } : undefined,
       paymentMethod: newPayment.method,
-      paymentReference: newPayment.id, // store payment id for reliable future lookups
+      paymentReference: paymentRefStr,
+      paymentId: newPayment.id,
       paymentStatus: toFinanceStatus(paymentStatus),
       date: new Date(),
-      // ✅ include customer info
+      accountTo: targetAccountId,
       customerId: rental.customerId,
       customerName,
     });
@@ -153,8 +204,178 @@ const upsertFinanceTxForPaymentEdit = async (opts: {
 };
 
 /**
+ * Propagate rental payment status change directly to all linked Finance Ledger entries.
+ */
+export const syncRentalPaymentStatusToFinance = async (
+  rentalId: string,
+  newPaymentStatus: string,
+  rentalAgreementNumber?: string
+) => {
+  try {
+    const normStatus = toFinanceStatus(newPaymentStatus);
+    const txRef = collection(db, 'transactions');
+    const matchedDocs = new Set<string>();
+
+    const q1 = query(txRef, where('referenceId', '==', rentalId));
+    const s1 = await getDocs(q1);
+    s1.docs.forEach((d) => matchedDocs.add(d.id));
+
+    const q2 = query(txRef, where('entityId', '==', rentalId));
+    const s2 = await getDocs(q2);
+    s2.docs.forEach((d) => matchedDocs.add(d.id));
+
+    for (const docId of matchedDocs) {
+      const updates = {
+        paymentStatus: normStatus,
+        category: 'Vehicle Rental Income',
+        departmentName: 'Vehicle Rental / Fleet',
+        ...(rentalAgreementNumber ? { orderNumber: rentalAgreementNumber } : {}),
+        updatedAt: new Date(),
+      };
+      await updateDoc(doc(db, 'transactions', docId), updates).catch(() => {});
+      await updateDoc(doc(db, 'finance_ledger', docId), updates).catch(() => {});
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: rentalId,
+            referenceId: rentalId,
+            paymentStatus: normStatus,
+            action: 'UPDATE_PAYMENT_STATUS',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+  } catch (err) {
+    console.warn('Error syncing rental payment status to finance:', err);
+  }
+};
+
+/**
+ * Refund a rental payment and propagate status directly to linked Finance Ledger entry.
+ */
+export const refundRentalPayment = async (
+  rental: Rental,
+  paymentId: string,
+  refundReason?: string,
+  vehicle?: Vehicle
+): Promise<boolean> => {
+  try {
+    const payment = (rental.payments || []).find((p) => p.id === paymentId);
+    if (!payment) throw new Error('Payment not found');
+
+    const totalAmountDue = computeTotalAmountDue(rental, vehicle);
+    const newPaidAmount = Math.max(0, (rental.paidAmount || 0) - (payment.amount || 0));
+    const newRemainingAmount = totalAmountDue - newPaidAmount;
+
+    const newPaymentStatus: 'pending' | 'partially_paid' | 'paid' =
+      newPaidAmount <= 0
+        ? 'pending'
+        : Math.abs(newPaidAmount - totalAmountDue) <= 0.001
+        ? 'paid'
+        : 'partially_paid';
+
+    // Mark the payment as refunded in the rental document
+    const updatedPayments = (rental.payments || []).map((p) =>
+      p.id === paymentId
+        ? {
+            ...p,
+            status: 'refunded' as const,
+            notes: `${p.notes ? `${p.notes} | ` : ''}REFUNDED: ${refundReason || 'Refund processed'}`,
+          }
+        : p
+    );
+
+    await updateDoc(doc(db, 'rentals', rental.id), {
+      paidAmount: newPaidAmount,
+      remainingAmount: Math.max(newRemainingAmount, 0),
+      paymentStatus: newPaymentStatus,
+      payments: updatedPayments,
+      updatedAt: new Date(),
+    });
+
+    // Directly find and update the linked Finance Ledger entry to 'refunded' / 'cancelled'
+    const txRef = collection(db, 'transactions');
+    const matchedDocIds = new Set<string>();
+
+    const qPay = query(txRef, where('paymentId', '==', paymentId));
+    const sPay = await getDocs(qPay);
+    sPay.docs.forEach((d) => matchedDocIds.add(d.id));
+
+    const qRef = query(txRef, where('referenceId', '==', rental.id), where('paymentReference', '==', paymentId));
+    const sRef = await getDocs(qRef);
+    sRef.docs.forEach((d) => matchedDocIds.add(d.id));
+
+    const refundDesc = `Refunded payment for rental #${rental.rentalAgreementNumber || rental.id.slice(-8).toUpperCase()}${refundReason ? ` (${refundReason})` : ''}`;
+
+    for (const docId of matchedDocIds) {
+      const updates = {
+        paymentStatus: 'refunded',
+        status: 'cancelled',
+        description: refundDesc,
+        category: 'Vehicle Rental Income',
+        departmentName: 'Vehicle Rental / Fleet',
+        updatedAt: new Date(),
+      };
+      await updateDoc(doc(db, 'transactions', docId), updates).catch(() => {});
+      await updateDoc(doc(db, 'finance_ledger', docId), updates).catch(() => {});
+    }
+
+    // Also record a payment reversal/refund expense in Finance
+    const customerName = await resolveCustomerName(rental.customerId);
+    await createFinanceTransaction({
+      type: 'expense',
+      transactionType: 'EXPENSE',
+      entryType: 'DEBIT',
+      category: 'Vehicle Rental Income',
+      departmentName: 'Vehicle Rental / Fleet',
+      amount: payment.amount,
+      customerBilled: payment.amount,
+      description: refundDesc,
+      referenceId: rental.id,
+      vehicleId: rental.vehicleId,
+      vehicleName: vehicle
+        ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
+        : undefined,
+      vehicleOwner: vehicle?.owner ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false } : undefined,
+      paymentMethod: payment.method,
+      paymentReference: rental.rentalAgreementNumber || payment.reference || payment.id,
+      paymentId: `refund_${payment.id}`,
+      paymentStatus: 'refunded',
+      status: 'completed',
+      date: new Date(),
+      accountFrom: vehicle?.owner?.accountId,
+      customerId: rental.customerId,
+      customerName,
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: rental.id,
+            paymentId,
+            paymentStatus: 'refunded',
+            action: 'REFUND_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error refunding payment:', error);
+    throw error;
+  }
+};
+
+/**
  * Delete a rental payment and recompute paid/remaining/status.
- * Also logs a finance "payment_reversal" expense equal to the removed amount (with customer info).
+ * Also propagates status change to the linked Finance Ledger entry and logs a reversal.
  */
 export const deleteRentalPayment = async (
   rental: Rental,
@@ -185,25 +406,70 @@ export const deleteRentalPayment = async (
       updatedAt: new Date(),
     });
 
+    // Propagate status change directly to any linked Finance Ledger entry
+    const txRef = collection(db, 'transactions');
+    const matchedDocIds = new Set<string>();
+
+    const qPay = query(txRef, where('paymentId', '==', paymentId));
+    const sPay = await getDocs(qPay);
+    sPay.docs.forEach((d) => matchedDocIds.add(d.id));
+
+    const qRef = query(txRef, where('referenceId', '==', rental.id), where('paymentReference', '==', paymentId));
+    const sRef = await getDocs(qRef);
+    sRef.docs.forEach((d) => matchedDocIds.add(d.id));
+
+    for (const docId of matchedDocIds) {
+      const updates = {
+        paymentStatus: 'refunded',
+        status: 'cancelled',
+        description: `Cancelled / Reversed rental payment for #${rental.rentalAgreementNumber || rental.id.slice(-8).toUpperCase()}`,
+        updatedAt: new Date(),
+      };
+      await updateDoc(doc(db, 'transactions', docId), updates).catch(() => {});
+      await updateDoc(doc(db, 'finance_ledger', docId), updates).catch(() => {});
+    }
+
     // Finance: reversal (expense) — include customer like normal rental income
     const customerName = await resolveCustomerName(rental.customerId);
     await createFinanceTransaction({
       type: 'expense',
-      category: 'payment_reversal',
+      transactionType: 'EXPENSE',
+      entryType: 'DEBIT',
+      category: 'Vehicle Rental Income',
+      departmentName: 'Vehicle Rental / Fleet',
       amount: payment.amount,
-      description: `Payment reversal for rental #${rental.id.slice(-8).toUpperCase()}`,
+      customerBilled: payment.amount,
+      description: `Payment reversal for rental #${rental.rentalAgreementNumber || rental.id.slice(-8).toUpperCase()}`,
       referenceId: rental.id,
       vehicleId: rental.vehicleId,
       vehicleName: vehicle
         ? `${vehicle.make} ${vehicle.model} (${vehicle.registrationNumber})`
         : undefined,
+      vehicleOwner: vehicle?.owner ? { name: vehicle.owner.name, isDefault: vehicle.owner.isDefault ?? false } : undefined,
       paymentMethod: payment.method,
-      paymentReference: payment.id, // use payment id for reliable linkage
+      paymentReference: rental.rentalAgreementNumber || payment.id,
+      paymentId: `reversal_${payment.id}`,
       paymentStatus: toFinanceStatus(newPaymentStatus),
       date: new Date(),
+      accountFrom: vehicle?.owner?.accountId,
       customerId: rental.customerId,
       customerName,
     });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: rental.id,
+            paymentId,
+            deletedPaymentId: paymentId,
+            paymentStatus: newPaymentStatus,
+            action: 'DELETE_PAYMENT',
+            timestamp: Date.now(),
+          },
+        })
+      );
+    }
 
     return true;
   } catch (error) {

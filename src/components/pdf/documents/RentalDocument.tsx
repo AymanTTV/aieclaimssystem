@@ -2,8 +2,11 @@ import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Rental, Vehicle, Customer, VehicleCondition } from '../../../types';
 import { styles } from '../styles';
+import SafePdfLogo from '../SafePdfLogo';
 import { formatDate } from '../../../utils/dateHelpers';
-import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
+import { formatInlineCompanyFooter, extractActiveCorporateEntityProfile } from '../../../utils/legalDocumentUtils';
+import { getResolvedTermsContent } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from '../claims/PdfTermsWarningNotice';
 
 interface RentalDocumentProps {
   data: Rental & {
@@ -31,17 +34,39 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
   customer, 
   companyDetails 
 }) => {
+  const activeProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...data,
+    corporateEntityKey: (data as any)?.corporateEntityKey,
+    corporateEntityName: (data as any)?.corporateEntityName,
+  });
+
+  const effectiveCompanyDetails = {
+    ...companyDetails,
+    fullName: activeProfile.companyName || companyDetails?.fullName,
+    officialAddress: activeProfile.companyAddress || companyDetails?.officialAddress,
+    phone: activeProfile.phone || companyDetails?.phone,
+    email: activeProfile.email || companyDetails?.email,
+    website: activeProfile.website,
+    claimsTeam: activeProfile.claimsTeam,
+    companyNumber: activeProfile.companyNumber,
+    vatNumber: activeProfile.vatNumber,
+  };
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Image src={companyDetails.logoUrl} style={styles.logo} />
+          <SafePdfLogo src={companyDetails?.logoUrl} companyName={effectiveCompanyDetails.fullName} style={styles.logo} />
           <View style={styles.companyInfo}>
-            <Text>{companyDetails.fullName}</Text>
-            <Text>{companyDetails.officialAddress}</Text>
-            <Text>Tel: {companyDetails.phone}</Text>
-            <Text>Email: {companyDetails.email}</Text>
+            <Text>{effectiveCompanyDetails.fullName}</Text>
+            <Text>{effectiveCompanyDetails.officialAddress}</Text>
+            <Text>Tel: {effectiveCompanyDetails.phone}</Text>
+            <Text>Email: {effectiveCompanyDetails.email}</Text>
+            {Boolean(effectiveCompanyDetails.website) && (
+              <Text>Web: {effectiveCompanyDetails.website}</Text>
+            )}
           </View>
         </View>
 
@@ -181,22 +206,49 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
         </View>
 
         {/* Terms and Conditions */}
-        <View style={[styles.section, styles.keepTogether]}>
-          <Text style={styles.sectionTitle}>Terms and Conditions</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.value}>
-              1. The vehicle must be returned in the same condition as at check-out.{'\n'}
-              2. Any damage beyond normal wear and tear will be charged to the customer.{'\n'}
-              3. Late returns will incur additional charges.{'\n'}
-              4. Fuel must be returned at the same level as at check-out.{'\n'}
-              5. The vehicle must not be used for any illegal purposes.{'\n'}
-              6. The customer is responsible for any traffic violations during the rental period.
-            </Text>
-          </View>
+        <View style={[styles.section, { marginBottom: 10 }]} wrap={true}>
+          {(() => {
+            const isClaim = Boolean(
+              data.type === 'claim' ||
+              customer?.type === 'claim' ||
+              (data as any)?.customerType === 'claim' ||
+              String(data.reason || '').toLowerCase().includes('claim')
+            );
+            const resolvedTermsData = getResolvedTermsContent(
+              {
+                documentScope: 'rental',
+                hireType: data.type,
+                customerType: customer?.type,
+                rentalStatus: data.status,
+                paymentStatus: (data as any).paymentStatus,
+                isClaim,
+                targetPagePosition: 'page_3_terms',
+              },
+              effectiveCompanyDetails
+            );
+            return (
+              <>
+                <Text style={styles.sectionTitle}>
+                  {resolvedTermsData.isConfigured
+                    ? resolvedTermsData.title
+                    : 'TERMS AND CONDITIONS'}
+                </Text>
+                {resolvedTermsData.isConfigured && resolvedTermsData.paragraphs.length > 0 ? (
+                  resolvedTermsData.paragraphs.map((para: string, idx: number) => (
+                    <Text key={idx} wrap={true} style={[styles.text, { fontSize: 9, lineHeight: 1.35, marginBottom: 4.5, textAlign: 'justify' }]}>
+                      {para}
+                    </Text>
+                  ))
+                ) : (
+                  <PdfTermsWarningNotice message={resolvedTermsData.warningMessage} />
+                )}
+              </>
+            );
+          })()}
         </View>
 
         {/* Signatures */}
-        <View style={styles.signatureSection}>
+        <View style={styles.signatureSection} wrap={false} minPresenceAhead={150}>
           <View style={styles.signatureBox}>
             <Text>Customer Signature</Text>
             <Image style={styles.signature} src={data.customerSignature} />
@@ -216,7 +268,7 @@ const RentalDocument: React.FC<RentalDocumentProps> = ({
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            {formatInlineCompanyFooter(companyDetails)}
+            {formatInlineCompanyFooter(effectiveCompanyDetails)}
           </Text>
           <Text
             style={styles.pageNumber}

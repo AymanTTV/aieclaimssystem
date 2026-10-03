@@ -75,6 +75,9 @@ export interface Transaction {
   profitMargin?: number;
   isProfitEdited?: boolean;
   isEdited?: boolean;
+  isPassThrough?: boolean;
+  passThrough?: boolean;
+  isPassThroughMaintenance?: boolean;
   linkedInvoiceRef?: string;
   linkedMaintenanceRecord?: any;
 
@@ -223,6 +226,11 @@ export interface Invoice {
   accountId?: string;
   accountName?: string;
   
+  companyId?: string;
+  issuingEntity?: string;
+  corporateEntityKey?: string;
+  corporateEntityName?: string;
+
   updatedAt: Date;
   
   isRecurring?: boolean;

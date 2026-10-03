@@ -467,42 +467,94 @@ export async function syncMaintenanceRecord(
       }
     }
 
-    for (const [txId, txData] of txToUpdate.entries()) {
-      const typeStr = (txData?.type || '').toLowerCase();
-      const txTypeStr = (txData?.transactionType || '').toUpperCase();
-      const isIncome = typeStr === 'income' || txTypeStr === 'INCOME';
+    const hasSubCost = metrics.subcontractorCost > 0;
+    const isPassThrough = hasSubCost && Math.abs(metrics.customerBilled - metrics.subcontractorCost) < 0.01;
+    const isMarkUp = hasSubCost && metrics.customerBilled > metrics.subcontractorCost + 0.01;
+    const isPureExpense = metrics.customerBilled <= 0.01 && hasSubCost;
+    const isDirectTransaction = !hasSubCost;
 
-      // Purge any duplicate or paired Income entries tied to this maintenance job
-      if (isIncome) {
-        console.log(`[FinanceLedger Audit] Purging duplicate Income entry ${txId} during maintenance sync`);
-        syncBatch.delete(doc(db, 'transactions', txId));
-        syncBatch.delete(doc(db, 'finance_ledger', txId));
-        continue;
+    const unifiedTxPayload: Record<string, any> = {
+      type: isPureExpense ? 'expense' : 'income',
+      transactionType: isPureExpense ? 'EXPENSE' : 'INCOME',
+      entryType: isPureExpense ? 'DEBIT' : 'CREDIT',
+      category: isPassThrough ? 'Pass-Through Maintenance' : (updates.type || existingLog.type || 'Maintenance'),
+      amount: isPureExpense ? metrics.subcontractorCost : metrics.customerBilled,
+      customerBilled: metrics.customerBilled,
+      grossBilling: metrics.customerBilled,
+      dealerCost: hasSubCost ? metrics.subcontractorCost : 0,
+      subcontractorCost: hasSubCost ? metrics.subcontractorCost : 0,
+      netProfit: isPassThrough || isDirectTransaction ? 0 : metrics.netProfit,
+      profitMargin: isPassThrough || isDirectTransaction ? 0 : metrics.profitMargin,
+      profitMarginPercent: isPassThrough || isDirectTransaction ? 0 : metrics.profitMarginPercent,
+      isPassThrough: isPassThrough,
+      passThrough: isPassThrough,
+      isPassThroughMaintenance: isPassThrough,
+      isDirectTransaction: isDirectTransaction,
+      hasSubcontractorCost: hasSubCost,
+      isProfitEdited: hasSubCost,
+      isEdited: hasSubCost,
+      entityType: 'MAINTENANCE',
+      referenceId: logId,
+      sourceReferenceId: logId,
+      linkedInvoiceRef: logId,
+      updatedAt: new Date(),
+    };
+    if (isPassThrough) {
+      unifiedTxPayload.customCategory = 'Pass-Through Maintenance';
+    }
+    if (updates.paymentStatus || existingLog.paymentStatus) {
+      unifiedTxPayload.paymentStatus = updates.paymentStatus || existingLog.paymentStatus;
+    }
+    if (updates.paidAmount !== undefined || existingLog.paidAmount !== undefined) {
+      const pAmt = Number(updates.paidAmount !== undefined ? updates.paidAmount : existingLog.paidAmount);
+      unifiedTxPayload.paidAmount = pAmt;
+      unifiedTxPayload.paid = pAmt;
+    }
+    if (updates.remainingAmount !== undefined || existingLog.remainingAmount !== undefined) {
+      const rAmt = Number(updates.remainingAmount !== undefined ? updates.remainingAmount : existingLog.remainingAmount);
+      unifiedTxPayload.remainingAmount = rAmt;
+      unifiedTxPayload.owing = rAmt;
+    }
+    if (orderNum) {
+      unifiedTxPayload.orderId = orderNum;
+      unifiedTxPayload.orderNumber = orderNum;
+    }
+    if (invNum) {
+      unifiedTxPayload.invoiceNumber = invNum;
+    }
+
+    if (txToUpdate.size > 0) {
+      // Single-record enforcement: Select ONE primary record to update, and delete any duplicate records
+      const [primaryTxId] = txToUpdate.keys();
+      syncBatch.update(doc(db, 'transactions', primaryTxId), sanitizeForFirestore(unifiedTxPayload));
+      syncBatch.set(doc(db, 'finance_ledger', primaryTxId), sanitizeForFirestore({ id: primaryTxId, ...unifiedTxPayload }), { merge: true });
+
+      // Delete any additional duplicate entries
+      for (const txId of txToUpdate.keys()) {
+        if (txId !== primaryTxId) {
+          console.log(`[FinanceLedger Audit] Purging duplicate entry ${txId} during single-record maintenance sync`);
+          syncBatch.delete(doc(db, 'transactions', txId));
+          syncBatch.delete(doc(db, 'finance_ledger', txId));
+        }
       }
-
-      const txPayload: Record<string, any> = {
-        type: 'expense',
-        transactionType: 'EXPENSE',
-        entryType: 'DEBIT',
-        dealerCost: metrics.subcontractorCost,
-        subcontractorCost: metrics.subcontractorCost,
-        customerBilled: metrics.customerBilled,
-        netProfit: metrics.netProfit,
-        profitMarginPercent: metrics.profitMarginPercent,
-        isProfitEdited: true,
-        isEdited: true,
-        linkedInvoiceRef: logId,
-        updatedAt: new Date(),
+    } else {
+      // Insert single unified Financial Ledger Record
+      const newTxRef = doc(collection(db, 'transactions'));
+      const newTx = {
+        id: newTxRef.id,
+        ...unifiedTxPayload,
+        description: updates.description || existingLog.description || `Maintenance Job: ${updates.type || existingLog.type || 'Service'} | Order: ${orderNum || logId}`,
+        date: updates.date ? new Date(updates.date) : (existingLog.date ? new Date(existingLog.date) : new Date()),
+        createdAt: new Date(),
+        createdBy: updates.updatedBy || existingLog.createdBy || 'system',
+        status: 'completed',
+        vehicleId: updates.vehicleId || existingLog.vehicleId || null,
+        vehicleName: updates.vehicleName || existingLog.vehicleName || null,
+        customerId: updates.customerId || existingLog.customerId || null,
+        customerName: updates.customerName || existingLog.customerName || existingLog.serviceProvider || null,
       };
-      if (updates.paymentStatus) txPayload.paymentStatus = updates.paymentStatus;
-      if (orderNum) {
-        txPayload.orderId = orderNum;
-        txPayload.orderNumber = orderNum;
-      }
-      if (invNum) txPayload.invoiceNumber = invNum;
-
-      syncBatch.update(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
-      syncBatch.set(doc(db, 'finance_ledger', txId), sanitizeForFirestore({ id: txId, ...txPayload }), { merge: true });
+      syncBatch.set(newTxRef, sanitizeForFirestore(newTx));
+      syncBatch.set(doc(db, 'finance_ledger', newTxRef.id), sanitizeForFirestore(newTx), { merge: true });
     }
 
     // Commit all updates (log, invoices, transactions) atomically in a single roundtrip
@@ -648,9 +700,10 @@ export async function syncRentalRecord(
       linkedInvoiceRef: rentalId,
       orderNumber: agreementNum || null,
       type: 'income',
-      category: 'rental',
+      category: 'Vehicle Rental Income',
       amount: billedAmount,
       customerBilled: billedAmount,
+      departmentName: 'Vehicle Rental / Fleet',
       dealerCost: subCost,
       subcontractorCost: subCost,
       netProfit: isExplicitlyEdited ? metrics.netProfit : 0,
@@ -670,8 +723,31 @@ export async function syncRentalRecord(
     }
 
     if (txToUpdate.size > 0) {
-      for (const [txId] of txToUpdate.entries()) {
-        await updateDoc(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload));
+      for (const [txId, existingTxData] of txToUpdate.entries()) {
+        const isIndividualPayment = Boolean(
+          existingTxData?.paymentId ||
+          existingTxData?.category === 'Vehicle Rental Income' ||
+          existingTxData?.isPayment ||
+          existingTxData?.isRentalPayment
+        );
+
+        if (isIndividualPayment) {
+          // Do NOT overwrite individual payment amount with the full rental cost!
+          // Propagate payment status and completion updates directly to the linked ledger entry
+          const paymentTxPayload = {
+            paymentStatus: rawPaymentStatus,
+            category: 'Vehicle Rental Income',
+            departmentName: 'Vehicle Rental / Fleet',
+            ...(normCompletionStatus === 'cancelled' ? { status: 'cancelled' } : {}),
+            orderNumber: agreementNum || existingTxData.orderNumber || null,
+            updatedAt: new Date(),
+          };
+          await updateDoc(doc(db, 'transactions', txId), sanitizeForFirestore(paymentTxPayload)).catch(() => {});
+          await updateDoc(doc(db, 'finance_ledger', txId), sanitizeForFirestore(paymentTxPayload)).catch(() => {});
+        } else {
+          await updateDoc(doc(db, 'transactions', txId), sanitizeForFirestore(txPayload)).catch(() => {});
+          await updateDoc(doc(db, 'finance_ledger', txId), sanitizeForFirestore(txPayload)).catch(() => {});
+        }
       }
     } else {
       // Create new transaction in Finance Ledger
@@ -684,7 +760,22 @@ export async function syncRentalRecord(
         createdAt: new Date(),
         createdBy: updates.updatedBy || existingRental.createdBy || 'system',
       };
-      await addDoc(collection(db, 'transactions'), sanitizeForFirestore(newTx));
+      const createdTxRef = await addDoc(collection(db, 'transactions'), sanitizeForFirestore(newTx));
+      await setDoc(doc(db, 'finance_ledger', createdTxRef.id), sanitizeForFirestore({ id: createdTxRef.id, ...newTx }), { merge: true }).catch(() => {});
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeRecordUpdated', {
+          detail: {
+            entityId: rentalId,
+            referenceId: rentalId,
+            paymentStatus: rawPaymentStatus,
+            action: 'SYNC_RENTAL',
+            timestamp: Date.now(),
+          },
+        })
+      );
     }
 
     // Return condition / vehicle damage charges
@@ -846,13 +937,87 @@ export async function syncInvoiceRecord(
       (String(updates.description || existingInv.description || '').toLowerCase().includes('maintenance'))
     );
 
-    // STRICT FIX: Maintenance payments must ONLY record as a single EXPENSE entry on Finance Ledger.
-    // Never create a paired Income transaction on the Finance Ledger for maintenance invoices.
+    // 3. PREVENT DUPLICATE INVOICING LEDGER ENTRIES:
+    // When an Invoice is generated for an existing Maintenance record, update the existing Maintenance ledger entry's payment status rather than creating a second duplicate invoice transaction in the Finance module.
     if (isMaintenanceLinked || updates.skipLedgerIncome || existingInv.skipLedgerIncome) {
       console.log(
-        `[FinanceLedger Audit] [syncFinancialRecord:INVOICE] Skipping transaction generation for maintenance invoice ${invoiceId}. Maintenance records are strictly recorded as single EXPENSE entries.`
+        `[FinanceLedger Audit] [syncFinancialRecord:INVOICE] Syncing invoice payment status to existing Maintenance ledger entry for ${invoiceId} (Order #${orderNum || 'N/A'}).`
       );
+
+      const candidateVariants = orderNum ? getOrderCandidateVariants(String(orderNum).trim()) : [];
+      const mLogId = refId || updates.maintenanceJobId || existingInv.maintenanceJobId;
+      if (mLogId) candidateVariants.push(mLogId);
+
+      let maintenanceTxDocId: string | null = null;
+      for (const variant of candidateVariants) {
+        try {
+          const qByOrd = query(collection(db, 'transactions'), where('orderId', '==', variant));
+          const snapByOrd = await getDocs(qByOrd);
+          if (!snapByOrd.empty) {
+            maintenanceTxDocId = snapByOrd.docs[0].id;
+            break;
+          }
+          const qByRef = query(collection(db, 'transactions'), where('referenceId', '==', variant));
+          const snapByRef = await getDocs(qByRef);
+          if (!snapByRef.empty) {
+            maintenanceTxDocId = snapByRef.docs[0].id;
+            break;
+          }
+          const qBySrc = query(collection(db, 'transactions'), where('sourceReferenceId', '==', variant));
+          const snapBySrc = await getDocs(qBySrc);
+          if (!snapBySrc.empty) {
+            maintenanceTxDocId = snapBySrc.docs[0].id;
+            break;
+          }
+        } catch {}
+      }
+
+      const resolvedInvNum = invNum || existingInv.invoiceNumber || updates.invoiceNumber;
+      const targetPaymentStatus = updates.paymentStatus || existingInv.paymentStatus || 'unpaid';
+      const targetPaid = updates.paidAmount !== undefined ? Number(updates.paidAmount) : (existingInv.paidAmount !== undefined ? Number(existingInv.paidAmount) : undefined);
+      const targetRemaining = updates.remainingAmount !== undefined ? Number(updates.remainingAmount) : (existingInv.remainingAmount !== undefined ? Number(existingInv.remainingAmount) : undefined);
+
+      if (maintenanceTxDocId) {
+        const updatePayload: Record<string, any> = {
+          paymentStatus: targetPaymentStatus,
+          status: targetPaymentStatus === 'paid' ? 'completed' : targetPaymentStatus,
+          ...(targetPaid !== undefined && { paidAmount: targetPaid, paid: targetPaid }),
+          ...(targetRemaining !== undefined && { remainingAmount: targetRemaining, owing: targetRemaining }),
+          ...(resolvedInvNum && { invoiceNumber: resolvedInvNum }),
+          invoiceId: invoiceId,
+          linkedInvoiceRef: invoiceId,
+          updatedAt: new Date(),
+        };
+        if (updates.paymentMethod || existingInv.paymentMethod) {
+          updatePayload.paymentMethod = updates.paymentMethod || existingInv.paymentMethod;
+        }
+        if (updates.paymentReference || existingInv.paymentReference) {
+          updatePayload.paymentReference = updates.paymentReference || existingInv.paymentReference;
+        }
+        syncBatch.update(doc(db, 'transactions', maintenanceTxDocId), sanitizeForFirestore(updatePayload));
+        syncBatch.set(doc(db, 'finance_ledger', maintenanceTxDocId), sanitizeForFirestore({ id: maintenanceTxDocId, ...updatePayload }), { merge: true });
+      }
+
+      // Purge any separate duplicate invoice transactions created for this maintenance invoice
+      try {
+        const dupQueries = [
+          query(collection(db, 'transactions'), where('invoiceId', '==', invoiceId)),
+          query(collection(db, 'transactions'), where('referenceId', '==', invoiceId)),
+        ];
+        for (const q of dupQueries) {
+          const snap = await getDocs(q);
+          snap.docs.forEach((d) => {
+            if (d.id !== maintenanceTxDocId) {
+              console.log(`[FinanceLedger Audit] Purging duplicate invoice transaction ${d.id} for maintenance invoice ${invoiceId}`);
+              syncBatch.delete(doc(db, 'transactions', d.id));
+              syncBatch.delete(doc(db, 'finance_ledger', d.id));
+            }
+          });
+        }
+      } catch {}
+
       await syncBatch.commit();
+      invalidateFinanceLedgerCache();
       await purgeOrphanedMaintenanceIncomeEntries(orderNum || refId || 'A1');
       return;
     }
@@ -938,15 +1103,18 @@ export async function syncInvoiceRecord(
           (txData.category && txData.category.toLowerCase().includes('payment'))
         );
 
+        const hasSub = metrics.subcontractorCost > 0;
         const txPayload: Record<string, any> = {
-          subcontractorCost: metrics.subcontractorCost,
-          dealerCost: metrics.subcontractorCost,
+          subcontractorCost: hasSub ? metrics.subcontractorCost : 0,
+          dealerCost: hasSub ? metrics.subcontractorCost : 0,
           customerBilled: metrics.customerBilled,
-          netProfit: metrics.netProfit,
-          profitMargin: metrics.profitMargin,
-          profitMarginPercent: metrics.profitMarginPercent,
-          isProfitEdited: true,
-          isEdited: true,
+          netProfit: hasSub ? metrics.netProfit : 0,
+          profitMargin: hasSub ? metrics.profitMargin : 0,
+          profitMarginPercent: hasSub ? metrics.profitMarginPercent : 0,
+          isProfitEdited: hasSub,
+          isEdited: hasSub,
+          isDirectTransaction: !hasSub,
+          hasSubcontractorCost: hasSub,
           linkedInvoiceRef: invoiceId,
           referenceId: txData.referenceId || invoiceId,
           entityId: txData.entityId || invoiceId,

@@ -11,9 +11,8 @@ import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import FormField from '../ui/FormField';
 import TextArea from '../ui/TextArea';
 import FileUpload from '../ui/FileUpload';
-import SignaturePad from '../ui/SignaturePad';
 import Modal from '../ui/Modal';
-import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gauge, PoundSterling, FileText, CreditCard, Trash2, MessageCircle, Mail, Printer } from 'lucide-react';
+import { X, Search, Car, User, Plus, Info, CheckCircle, AlertTriangle, Fuel, Gauge, PoundSterling, FileText, CreditCard, Trash2, MessageCircle, Mail, Printer, Building2, Landmark, Eye, EyeOff, Sparkles, RefreshCw, Lock } from 'lucide-react';
 import { addWeeks, format, differenceInDays, isAfter, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 import { createFinanceTransaction } from '../../utils/financeTransactions';
@@ -21,6 +20,12 @@ import { syncRentalRecord } from '../../services/unifiedSync.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { useAvailableVehicles } from '../../hooks/useAvailableVehicles';
 import RentalCommunicationModal from './RentalCommunicationModal';
+import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import { getAvailableCompanyEntities } from '../../utils/entityBranding';
+import { getEffectiveBankAccounts } from '../../utils/bankAccountAllocation';
+import { getResolvedTermsContent, RoutingContext } from '../../utils/documentTemplateTerms';
+import { resolveCustomerOrUserSignature, saveSignatureEverywhere } from '../../utils/signatureStorage';
+import { formatExecutionDateTime } from '../../utils/legalDocumentUtils';
 
 type BaseReason = 'hired' | 'claim' | 'o/d' | 'staff' | 'workshop';
 type HireVariant = 'normal' | 'h-substitute' | 'c-substitute';
@@ -36,6 +41,16 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
   const { formatCurrency } = useFormattedDisplay();
+  const { companyDetails } = useCompanyDetails();
+  const availableEntities = useMemo(
+    () => getAvailableCompanyEntities(companyDetails),
+    [companyDetails]
+  );
+  const availableBanks = useMemo(
+    () => getEffectiveBankAccounts(companyDetails),
+    [companyDetails]
+  );
+
   const topRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -135,7 +150,14 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
     originalStartDate: safeFormatDate((rental.originalStartDate ?? rental.startDate) as any, "yyyy-MM-dd'T'HH:mm"),
     amountToAdd: 0, paymentMethod: 'cash' as const, paymentReference: '', paymentNotes: '',
     hireSubstitutionDetails: initialSubForms.length ? initialSubForms : [newSubDetail()],
-    extraCharges: rental.extraCharges || []
+    extraCharges: rental.extraCharges || [],
+
+    // Pre-selected Corporate Entity & Bank Account
+    corporateEntityKey: rental.corporateEntityKey || (rental.type === 'claim' ? 'aie_claims' : 'aie_skyline'),
+    corporateEntityName: rental.corporateEntityName || (rental.type === 'claim' ? 'AIE Claims Ltd' : 'AIE Skyline Limited'),
+    corporateEntityLogo: rental.corporateEntityLogo || '',
+    bankAccountId: rental.bankAccountId || '',
+    bankAccountDetails: rental.bankAccountDetails || null,
   });
 
   const [formData, setFormData] = useState(buildInitialFormData);
@@ -148,6 +170,55 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
     setInsurancePerWeekTouched((rental as any).insurancePerWeek != null);
     isFirstRender.current = true; setHasModifiedWeeks(false); setInitialized(false); setSubNewImages({}); 
   }, [rental.id]);
+
+  // Synchronize pre-selection with available corporate entities when available
+  useEffect(() => {
+    if (availableEntities.length > 0) {
+      const currentKey = formData.corporateEntityKey || rental.corporateEntityKey || (rental.type === 'claim' ? 'aie_claims' : 'aie_skyline');
+      const matchedEntity = availableEntities.find(
+        (e) => e.key === currentKey || e.id === currentKey || (rental.corporateEntityName && e.fullName.toLowerCase() === rental.corporateEntityName.toLowerCase())
+      ) || availableEntities[0];
+
+      if (matchedEntity && (!formData.corporateEntityKey || !formData.corporateEntityName || formData.corporateEntityKey !== matchedEntity.key)) {
+        setFormData((prev) => ({
+          ...prev,
+          corporateEntityKey: matchedEntity.key,
+          corporateEntityName: matchedEntity.fullName,
+          corporateEntityLogo: matchedEntity.logoUrl || prev.corporateEntityLogo || '',
+        }));
+      }
+    }
+  }, [availableEntities, rental.corporateEntityKey, rental.corporateEntityName, rental.type]);
+
+  // Synchronize pre-selection with available bank accounts when available
+  useEffect(() => {
+    if (availableBanks.length > 0) {
+      let matchedBank = availableBanks.find((b) => b.id === (formData.bankAccountId || rental.bankAccountId));
+      if (!matchedBank && rental.bankAccountDetails?.accountNumber) {
+        matchedBank = availableBanks.find((b) => b.accountNumber === rental.bankAccountDetails?.accountNumber);
+      }
+      if (!matchedBank) {
+        matchedBank =
+          rental.type === 'claim'
+            ? availableBanks.find((b) => b.id.includes('claims') || b.id.includes('natwest')) || availableBanks[0]
+            : availableBanks.find((b) => b.isDefault || b.id.includes('lloyds')) || availableBanks[0];
+      }
+      if (matchedBank && (!formData.bankAccountId || !formData.bankAccountDetails || formData.bankAccountId !== matchedBank.id)) {
+        setFormData((prev) => ({
+          ...prev,
+          bankAccountId: matchedBank!.id,
+          bankAccountDetails: {
+            bankName: matchedBank!.bankName,
+            accountName: matchedBank!.accountName,
+            accountNumber: matchedBank!.accountNumber,
+            sortCode: matchedBank!.sortCode,
+            iban: matchedBank!.iban,
+            bic: matchedBank!.bic,
+          },
+        }));
+      }
+    }
+  }, [availableBanks, rental.bankAccountId, rental.bankAccountDetails, rental.type]);
 
   const deriveReasonUI = (reason: any): { base: BaseReason; variant: HireVariant } => {
     if (reason === 'h-substitute') return { base: 'hired', variant: 'h-substitute' };
@@ -162,6 +233,41 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
   const initReasonUI = deriveReasonUI(formData.reason);
   const [baseReason, setBaseReason] = useState<BaseReason>(initReasonUI.base);
   const [hireVariant, setHireVariant] = useState<HireVariant>(initReasonUI.variant);
+  const [showLiveTermsPreview, setShowLiveTermsPreview] = useState(false);
+
+  const selectedEntity = useMemo(() => {
+    return (
+      availableEntities.find(
+        (x) => x.key === formData.corporateEntityKey || x.id === formData.corporateEntityKey
+      ) || availableEntities[0]
+    );
+  }, [availableEntities, formData.corporateEntityKey]);
+
+  const compiledTermsPreview = useMemo(() => {
+    const isClaim = formData.type === 'claim' || formData.reason === 'h-claim';
+    const context: RoutingContext = {
+      documentScope: 'rental',
+      hireType: formData.type,
+      rentalStatus: formData.status,
+      paymentStatus: (rental as any).paymentStatus,
+      targetPagePosition: 'page_3_terms',
+      isClaim,
+    };
+    const entityContext = {
+      ...companyDetails,
+      page1Entity: selectedEntity,
+      page2Entity: selectedEntity,
+      page3Entity: selectedEntity,
+      fullName: selectedEntity?.fullName,
+      registrationNumber: selectedEntity?.registrationNumber,
+      vatNumber: selectedEntity?.vatNumber,
+      officialAddress: selectedEntity?.officialAddress,
+      phone: selectedEntity?.phone,
+      email: selectedEntity?.email,
+      website: selectedEntity?.website,
+    };
+    return getResolvedTermsContent(context, entityContext);
+  }, [formData.type, formData.status, formData.reason, selectedEntity, companyDetails, rental]);
 
   useEffect(() => {
     const desiredReason = baseReason !== 'hired' ? baseReason : hireVariant === 'normal' ? 'hired' : hireVariant;
@@ -498,11 +604,34 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         ? submitHireSubstitutionDetails.filter(sub => sub.make || sub.model || sub.registration)
         : null;
 
+      // Auto-populate saved signature from Customer Profile / IndexedDB / Active User
+      let effectiveSignature = formData.signature || rental.signature || selectedCustomer?.signature || null;
+      if (!effectiveSignature) {
+        effectiveSignature = await resolveCustomerOrUserSignature({
+          customerId: formData.customerId,
+          customer: selectedCustomer,
+          customerName: selectedCustomer?.name,
+          rental,
+          userId: user?.id,
+          user,
+        });
+      }
+
+      const isLegallySigned = Boolean(effectiveSignature);
+      const backdatedExecutionTimestamp = formatExecutionDateTime(s, 'dd/MM/yyyy HH:mm');
+
       const rentalUpdateData: Partial<Rental> = {
         rentalAgreementNumber, vehicleId: formData.vehicleId, customerId: formData.customerId,
         startDate: s, endDate: e, type: formData.type, reason: formData.reason, status: formData.status,
         cost: costs.gross, paidAmount: updatedTotalPaid, remainingAmount: submitRemainingAmount, paymentStatus: submitPaymentStatus, payments: updatedPayments,
-        signature: formData.signature || null, claimRef: formData.claimRef || null,
+        signature: effectiveSignature,
+        customerSignature: effectiveSignature,
+        isSigned: isLegallySigned,
+        documentStatus: isLegallySigned ? 'Legally Signed & Verified' : null,
+        signedAt: isLegallySigned ? (rental.signedAt || s) : null,
+        customerSignatureDate: isLegallySigned ? (rental.customerSignatureDate || s) : null,
+        signatureTimestamp: isLegallySigned ? (rental.signatureTimestamp || backdatedExecutionTimestamp) : null,
+        claimRef: formData.claimRef || null,
         
         storageStartDate: formData.storageStartDate ? new Date(formData.storageStartDate) : null,
         storageEndDate: formData.storageEndDate ? new Date(formData.storageEndDate) : null,
@@ -527,6 +656,11 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         extraCharges: formData.extraCharges.filter(c => c.name.trim() !== ''),
 
         numberOfWeeks: formData.type === 'weekly' ? formData.numberOfWeeks || 1 : null,
+        corporateEntityKey: formData.corporateEntityKey,
+        corporateEntityName: formData.corporateEntityName,
+        corporateEntityLogo: formData.corporateEntityLogo,
+        bankAccountId: formData.bankAccountId,
+        bankAccountDetails: formData.bankAccountDetails,
         checkOutCondition: updatedCondition, hireSubstitutionDetails: finalSubs, updatedAt: new Date(), updatedBy: user.id
       };
 
@@ -538,6 +672,15 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
       const finalUpdatePayload = cleanObjectForFirestore(rentalUpdateData);
 
       await updateDoc(doc(db, 'rentals', rental.id), finalUpdatePayload);
+
+      if (effectiveSignature && formData.customerId) {
+        saveSignatureEverywhere(formData.customerId, effectiveSignature, {
+          customerId: formData.customerId,
+          customerName: selectedCustomer?.name,
+          userId: user?.id,
+          autoUpdateFirestore: true,
+        }).catch(() => {});
+      }
 
       // Synchronize immediately with Central Finance Ledger
       syncRentalRecord(rental.id, finalUpdatePayload).catch((err) =>
@@ -598,17 +741,43 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
       if (newPayment > 0) {
         setTimeout(async () => {
           try {
+            const agreementRef = rentalAgreementNumber || rental.rentalAgreementNumber || formData.paymentReference || (rental.id ? `RA-${rental.id.slice(-6).toUpperCase()}` : '');
+            const targetAccId = selectedVehicle.owner?.accountId || undefined;
+            const vehicleRegStr = selectedVehicle.registrationNumber || '';
+
             await createFinanceTransaction({
-              type: 'income', category: 'Rental', amount: formData.amountToAdd,
-              description: `A ${rental.type} Rental payment from customer (${selectedCustomer?.name || 'N/A'})${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
-              referenceId: rental.id, paymentMethod: formData.paymentMethod, paymentReference: formData.paymentReference,
-              status: 'completed', paymentStatus: submitPaymentStatus as any, date: new Date(), vehicleId: rental.vehicleId,
-              accountTo: selectedVehicle.owner?.accountId || undefined,
-              groupId: selectedVehicle.assignedGroupId || undefined, // Already here
-              // ✅ ADD THESE LINES:
-              groupName: selectedVehicle.assignedGroupName || undefined,
+              type: 'income',
+              transactionType: 'INCOME',
+              entryType: 'CREDIT',
+              category: 'Vehicle Rental Income',
+              departmentName: 'Vehicle Rental / Fleet',
               departmentId: selectedVehicle.assignedDepartmentId || undefined,
-              departmentName: selectedVehicle.assignedDepartmentName || undefined
+              amount: formData.amountToAdd,
+              customerBilled: formData.amountToAdd,
+              grossBilling: formData.amountToAdd,
+              paid: formData.amountToAdd,
+              paidAmount: formData.amountToAdd,
+              description: `Rental payment for #${agreementRef}${vehicleRegStr ? ` (${vehicleRegStr})` : ''} from customer (${selectedCustomer?.name || 'N/A'})${formData.paymentNotes ? ` – ${formData.paymentNotes}` : ''}`,
+              referenceId: rental.id,
+              sourceReferenceId: rental.id,
+              linkedInvoiceRef: rental.id,
+              entityId: rental.id,
+              entityType: 'RENTAL',
+              orderNumber: rentalAgreementNumber || rental.rentalAgreementNumber || undefined,
+              paymentReference: agreementRef,
+              paymentMethod: formData.paymentMethod,
+              status: 'completed',
+              paymentStatus: submitPaymentStatus as any,
+              date: new Date(),
+              vehicleId: rental.vehicleId,
+              vehicleRegistration: vehicleRegStr,
+              vehicleReg: vehicleRegStr,
+              vehicleName: vehicleRegStr ? `${selectedVehicle.make || ''} ${selectedVehicle.model || ''} (${vehicleRegStr})`.trim() : undefined,
+              accountTo: targetAccId,
+              accountId: targetAccId,
+              accountsTo: targetAccId ? [targetAccId] : undefined,
+              groupId: selectedVehicle.assignedGroupId || undefined,
+              groupName: selectedVehicle.assignedGroupName || undefined,
             });
           } catch {}
         }, 0);
@@ -651,6 +820,235 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
         {/* SETUP TAB */}
         {activeTab === 'setup' && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+             {/* Corporate Entity Profile & Assigned Bank Account Selection Controls */}
+             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                   <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200">
+                         <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                         <h3 className="text-base font-bold text-slate-900">Corporate Entity &amp; Bank Allocation</h3>
+                         <p className="text-xs text-slate-500">Legal entity on agreements, invoices, VAT registration, and payment bank account</p>
+                      </div>
+                   </div>
+                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Header &amp; Remittance
+                   </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                   {/* Dropdown 1: Corporate Entity Profile */}
+                   <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                         <Building2 className="w-4 h-4 text-blue-600" /> Corporate Entity Profile
+                      </label>
+                      <select
+                        value={formData.corporateEntityKey}
+                        onChange={(e) => {
+                          const selectedKey = e.target.value;
+                          const ent = availableEntities.find(x => x.key === selectedKey || x.id === selectedKey);
+                          if (ent) {
+                            setFormData(p => ({
+                              ...p,
+                              corporateEntityKey: ent.key,
+                              corporateEntityName: ent.fullName,
+                              corporateEntityLogo: ent.logoUrl || '',
+                            }));
+                          }
+                        }}
+                        className="block w-full px-3 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                      >
+                        {availableEntities.map((ent) => (
+                          <option key={ent.key || ent.id} value={ent.key}>
+                            {ent.fullName} {ent.registrationNumber ? `(Reg: ${ent.registrationNumber})` : ''}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Visual Preview */}
+                      {(() => {
+                        const curEnt = availableEntities.find(x => x.key === formData.corporateEntityKey) || availableEntities[0];
+                        if (!curEnt) return null;
+                        return (
+                          <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+                             <div className="min-w-0">
+                                <span className="font-bold text-slate-800 block truncate">{curEnt.fullName}</span>
+                                <span className="text-slate-500 text-[11px] block mt-0.5">
+                                   {curEnt.registrationNumber ? `Co. Reg: ${curEnt.registrationNumber}` : ''}
+                                   {curEnt.vatNumber ? ` • VAT: ${curEnt.vatNumber}` : ''}
+                                </span>
+                             </div>
+                             {curEnt.tradingName && (
+                                <span className="px-2 py-0.5 bg-blue-100/70 text-blue-800 rounded font-medium text-[11px] shrink-0 ml-2">
+                                   {curEnt.tradingName}
+                                </span>
+                             )}
+                          </div>
+                        );
+                      })()}
+                   </div>
+
+                   {/* Dropdown 2: Assigned Bank Account */}
+                   <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                         <Landmark className="w-4 h-4 text-emerald-600" /> Assigned Bank Account
+                      </label>
+                      <select
+                        value={formData.bankAccountId}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const b = availableBanks.find(x => x.id === selectedId);
+                          if (b) {
+                            setFormData(p => ({
+                              ...p,
+                              bankAccountId: b.id,
+                              bankAccountDetails: {
+                                bankName: b.bankName,
+                                accountName: b.accountName,
+                                accountNumber: b.accountNumber,
+                                sortCode: b.sortCode,
+                                iban: b.iban,
+                                bic: b.bic,
+                              },
+                            }));
+                          }
+                        }}
+                        className="block w-full px-3 py-2.5 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-xs text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+                      >
+                        {availableBanks.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.bankName} — A/C: {b.accountNumber.length > 4 ? `****${b.accountNumber.slice(-4)}` : b.accountNumber} ({b.accountName})
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Visual Preview */}
+                      {(() => {
+                        const curBank = availableBanks.find(x => x.id === formData.bankAccountId) || availableBanks[0];
+                        if (!curBank) return null;
+                        return (
+                          <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+                             <div className="min-w-0">
+                                <span className="font-bold text-slate-800 block truncate">{curBank.bankName}</span>
+                                <span className="text-slate-500 text-[11px] font-mono block mt-0.5">
+                                   Account: ****{curBank.accountNumber.slice(-4)} • Sort: {curBank.sortCode}
+                                </span>
+                             </div>
+                             <span className="px-2 py-0.5 bg-emerald-100/70 text-emerald-800 rounded font-medium text-[11px] shrink-0 ml-2">
+                                {curBank.accountName}
+                             </span>
+                          </div>
+                        );
+                      })()}
+                   </div>
+                </div>
+
+                {/* Live Template Preview & Re-Compilation Section */}
+                <div className="pt-4 border-t border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800">
+                        Dynamic T&amp;C Re-Compilation Engine:
+                      </span>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Synchronized to {selectedEntity?.fullName || 'Active Profile'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowLiveTermsPreview((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      {showLiveTermsPreview ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Hide Live Clause Preview</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Preview Live T&amp;C Clauses &amp; Variables</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {showLiveTermsPreview && (
+                    <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 animate-in fade-in duration-150">
+                      {/* Live Header Representation */}
+                      <div className="p-3 bg-white border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide block">PDF Header Compilation Target</span>
+                          <span className="font-bold text-slate-900 text-sm">{selectedEntity?.fullName}</span>
+                          <span className="text-slate-500 block text-[11px] mt-0.5">
+                            {selectedEntity?.officialAddress}
+                          </span>
+                        </div>
+                        <div className="text-left sm:text-right text-[11px] text-slate-600 shrink-0 font-mono">
+                          <div>Reg No: <strong>{selectedEntity?.registrationNumber || 'N/A'}</strong></div>
+                          <div>VAT: <strong>{selectedEntity?.vatNumber || 'N/A'}</strong></div>
+                        </div>
+                      </div>
+
+                      {/* Active Placeholder Mapping Badges */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="text-slate-500 font-semibold mr-1">Evaluated Variables:</span>
+                        <span className="px-2 py-0.5 bg-blue-100/70 text-blue-900 rounded font-mono border border-blue-200">
+                          &#123;&#123;company_name&#125;&#125; &rarr; {selectedEntity?.fullName}
+                        </span>
+                        <span className="px-2 py-0.5 bg-emerald-100/70 text-emerald-900 rounded font-mono border border-emerald-200">
+                          &#123;&#123;company_number&#125;&#125; &rarr; {selectedEntity?.registrationNumber}
+                        </span>
+                        <span className="px-2 py-0.5 bg-purple-100/70 text-purple-900 rounded font-mono border border-purple-200">
+                          &#123;&#123;vat_number&#125;&#125; &rarr; {selectedEntity?.vatNumber}
+                        </span>
+                        <span className="px-2 py-0.5 bg-amber-100/70 text-amber-900 rounded font-mono border border-amber-200">
+                          Legacy Mentions &rarr; Auto-Sanitized to {selectedEntity?.fullName}
+                        </span>
+                      </div>
+
+                      {/* Live Compiled Clauses Text */}
+                      {!compiledTermsPreview.isConfigured ? (
+                        <div className="bg-red-50 border-2 border-dashed border-red-300 rounded-lg p-3.5 text-center">
+                          <p className="text-xs font-bold text-red-800 uppercase tracking-wide mb-1">
+                            ⚠️ TEMPLATE CONFIGURATION REQUIRED
+                          </p>
+                          <p className="text-xs text-red-700 leading-relaxed font-medium">
+                            {compiledTermsPreview.warningMessage}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-white p-3.5 rounded-lg border border-slate-200 max-h-56 overflow-y-auto space-y-2">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2">
+                            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                              {compiledTermsPreview.title}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              Template: {compiledTermsPreview.templateName}
+                            </span>
+                          </div>
+                          {compiledTermsPreview.paragraphs.map((p, idx) => (
+                            <p key={idx} className="text-xs text-slate-700 leading-relaxed font-sans">
+                              {p}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <RefreshCw className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span>
+                          Saving updates will instantly write the new corporate profile to the rental record and re-generate all PDF documents.
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+             </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Vehicle Assignment */}
@@ -725,26 +1123,56 @@ const RentalEditModal: React.FC<RentalEditModalProps> = ({ rental, vehicles, cus
                       </div>
                     </div>
                     
+                    {/* Locked Down Customer Signature Section */}
                     <div className="border-t border-gray-100 pt-4 mt-2">
                       <div className="flex justify-between items-center mb-2">
-                         <label className="block text-sm font-bold text-gray-700">Customer Signature</label>
-                         {formData.signature ? (
-                           <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase tracking-wider">Attached</span>
+                         <div className="flex items-center gap-1.5">
+                           <Lock className="w-4 h-4 text-slate-500" />
+                           <label className="block text-sm font-bold text-gray-800">Customer Digital Signature</label>
+                         </div>
+                         {(formData.signature || rental.signature || selectedCustomer?.signature) ? (
+                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider">
+                             <CheckCircle className="w-3 h-3 text-emerald-600" />
+                             Locked &amp; Legally Verified
+                           </span>
                          ) : (
-                           <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wider">Required</span>
+                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200 uppercase tracking-wider">
+                             <Lock className="w-3 h-3 text-amber-600" />
+                             Signature Required
+                           </span>
                          )}
                       </div>
                       
-                      <SignaturePad
-                        value={formData.signature}
-                        onChange={(sig) => setFormData(p => ({ ...p, signature: sig }))}
-                      />
-                      
-                      <p className="text-xs text-gray-500 mt-2">
-                        {formData.signature 
-                          ? 'Signature is loaded from profile. You can clear and re-sign above if needed.' 
-                          : 'Please have the customer sign above.'}
-                      </p>
+                      {(formData.signature || rental.signature || selectedCustomer?.signature) ? (
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                          <div className="h-24 w-full bg-white rounded-lg border border-slate-200 flex items-center justify-center p-2 shadow-inner">
+                            <img
+                              src={formData.signature || rental.signature || selectedCustomer?.signature || ''}
+                              alt="Customer Signature"
+                              className="max-h-full max-w-full object-contain pointer-events-none select-none"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1 font-medium text-slate-600">
+                              <Lock className="w-3 h-3 text-slate-400" />
+                              Locked to protect legal contract integrity
+                            </span>
+                            <span className="text-slate-400 font-mono">
+                              Managed via Members / Customers module
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-2">
+                          <p className="font-semibold flex items-center gap-1.5 text-amber-900">
+                            <Lock className="w-3.5 h-3.5 text-amber-600" />
+                            No signature registered under customer profile
+                          </p>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            To protect legal contract integrity, signatures cannot be hand-drawn, overwritten, or cleared inside active rental records. Please use the official <strong>&quot;Request Signature&quot;</strong> workflow from the Members / Customers module.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

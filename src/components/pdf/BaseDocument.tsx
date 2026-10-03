@@ -1,6 +1,7 @@
 import React from 'react';
 import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { styles } from './styles';
+import SafePdfLogo from './SafePdfLogo';
 import { format } from 'date-fns';
 import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
 
@@ -24,9 +25,7 @@ const BaseDocument: React.FC<BaseDocumentProps> = ({
       {/* Header */}
       <View style={styles.header} fixed>
         <View style={styles.headerLeft}>
-          {companyDetails?.logoUrl && (
-            <Image src={companyDetails.logoUrl} style={styles.logo} />
-          )}
+          <SafePdfLogo src={companyDetails?.logoUrl} companyName={companyDetails?.fullName} style={styles.logo} />
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.companyName}>

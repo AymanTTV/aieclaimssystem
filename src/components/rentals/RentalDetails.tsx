@@ -43,13 +43,19 @@ import {
   RefreshCw,
   Smartphone,
   Lock,
-  History
+  History,
+  PenTool,
+  Building2,
+  Landmark
 } from 'lucide-react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ensureValidDate } from '../../utils/dateHelpers';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import { getAvailableCompanyEntities } from '../../utils/entityBranding';
+import { getEffectiveBankAccounts } from '../../utils/bankAccountAllocation';
 import VehicleConditionDetails from './VehicleConditionDetails';
 import CommunicationHistoryTimeline from '../common/CommunicationHistoryTimeline';
 import { 
@@ -62,6 +68,8 @@ import {
 } from '../../utils/rentalCalculations';
 import RentalPaymentHistory from './RentalPaymentHistory';
 import RentalMondayAutoEmailToggle from './RentalMondayAutoEmailToggle';
+import { resolveCustomerOrUserSignature } from '../../utils/signatureStorage';
+import { getHireCommencementDate, formatExecutionDateTime } from '../../utils/legalDocumentUtils';
 import { sendSingleRentalTestEmail } from '../../jobs/mondayAutoEmailJob';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { RentalCommunicationModal } from './RentalCommunicationModal';
@@ -95,6 +103,54 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
   const [activeTab, setActiveTab] = useState<RentalDetailTab>('overview');
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const { formatCurrency } = useFormattedDisplay();
+
+  const { companyDetails } = useCompanyDetails();
+  const availableEntities = useMemo(
+    () => getAvailableCompanyEntities(companyDetails),
+    [companyDetails]
+  );
+  const availableBanks = useMemo(
+    () => getEffectiveBankAccounts(companyDetails),
+    [companyDetails]
+  );
+
+  const assignedEntity = useMemo(() => {
+    const targetKey = rental.corporateEntityKey || (rental.type === 'claim' ? 'aie_claims' : 'aie_skyline');
+    return (
+      availableEntities.find(
+        (e) =>
+          e.key === targetKey ||
+          e.id === targetKey ||
+          (rental.corporateEntityName &&
+            e.fullName.toLowerCase() === rental.corporateEntityName.toLowerCase())
+      ) || availableEntities[0]
+    );
+  }, [availableEntities, rental.corporateEntityKey, rental.corporateEntityName, rental.type]);
+
+  const assignedBank = useMemo(() => {
+    if (rental.bankAccountId) {
+      const found = availableBanks.find((b) => b.id === rental.bankAccountId);
+      if (found) return found;
+    }
+    if (rental.bankAccountDetails?.accountNumber) {
+      const found = availableBanks.find(
+        (b) => b.accountNumber === rental.bankAccountDetails?.accountNumber
+      );
+      if (found) return found;
+      return {
+        id: 'rental_assigned_bank',
+        bankName: rental.bankAccountDetails.bankName,
+        accountName: rental.bankAccountDetails.accountName,
+        accountNumber: rental.bankAccountDetails.accountNumber,
+        sortCode: rental.bankAccountDetails.sortCode,
+        iban: rental.bankAccountDetails.iban,
+        bic: rental.bankAccountDetails.bic,
+      };
+    }
+    return rental.type === 'claim'
+      ? availableBanks.find((b) => b.id.includes('claims') || b.id.includes('natwest')) || availableBanks[0]
+      : availableBanks.find((b) => b.isDefault || b.id.includes('lloyds')) || availableBanks[0];
+  }, [availableBanks, rental.bankAccountId, rental.bankAccountDetails, rental.type]);
 
   const start = ensureValidDate(rental.startDate);
   const end = ensureValidDate(rental.endDate);
@@ -205,6 +261,49 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
     };
     fetchCreatedByName();
   }, [rental.createdBy]);
+
+  // Auto-Populate Saved Signature & Sync Document Status
+  useEffect(() => {
+    let isCancelled = false;
+    const autoSyncSignature = async () => {
+      if (rental.signature) return;
+      const sig = await resolveCustomerOrUserSignature({
+        customerId: rental.customerId,
+        customer,
+        customerName: customer?.name || rental.customerName,
+        rental,
+      });
+
+      if (sig && !isCancelled) {
+        rental.signature = sig;
+        rental.customerSignature = sig;
+        rental.isSigned = true;
+        rental.documentStatus = 'Legally Signed & Verified';
+
+        const execDate = getHireCommencementDate(rental);
+        const execTs = formatExecutionDateTime(rental, 'dd/MM/yyyy HH:mm');
+        rental.signedAt = execDate;
+        rental.signatureTimestamp = execTs;
+
+        try {
+          await updateDoc(doc(db, 'rentals', rental.id), {
+            signature: sig,
+            customerSignature: sig,
+            isSigned: true,
+            documentStatus: 'Legally Signed & Verified',
+            signedAt: execDate,
+            customerSignatureDate: execDate,
+            signatureTimestamp: execTs,
+            updatedAt: new Date(),
+          });
+        } catch (err) {
+          console.warn('[RentalDetails] Background signature sync note:', err);
+        }
+      }
+    };
+    autoSyncSignature();
+    return () => { isCancelled = true; };
+  }, [rental.id, rental.signature, rental.customerId, customer]);
 
   // Formatting Helpers
   const formatDateTime = (date: any): string => {
@@ -1049,6 +1148,70 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
 
             </div>
 
+            {/* Dedicated Assigned Corporate Profile & Bank summary card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-200">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Corporate &amp; Billing Profile</p>
+                    <h4 className="text-base font-bold text-slate-900">
+                      Assigned Corporate Profile &amp; Bank
+                    </h4>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-md border border-indigo-200">
+                  Legal &amp; Remittance
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Company Name & Reg No. */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-start gap-3">
+                  <div className="p-2 bg-blue-100/70 text-blue-700 rounded-lg shrink-0 mt-0.5">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Company Name &amp; Reg No.</span>
+                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                      {assignedEntity ? (
+                        `${assignedEntity.fullName}${assignedEntity.registrationNumber ? ` - Reg: ${assignedEntity.registrationNumber}` : ''}`
+                      ) : (
+                        rental.corporateEntityName || 'AIE Skyline Limited - Reg: 14592207'
+                      )}
+                    </span>
+                    <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-2">
+                      {assignedEntity?.tradingName && <span className="text-slate-600 font-medium">{assignedEntity.tradingName}</span>}
+                      {assignedEntity?.vatNumber && <span className="font-mono text-slate-500">• VAT: {assignedEntity.vatNumber}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bank Name & Account Number */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-start gap-3">
+                  <div className="p-2 bg-emerald-100/70 text-emerald-700 rounded-lg shrink-0 mt-0.5">
+                    <Landmark className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">Bank Name &amp; Account Number</span>
+                    <span className="font-bold text-slate-900 text-sm block mt-0.5">
+                      {assignedBank ? (
+                        `${assignedBank.bankName} - Account: ${assignedBank.accountNumber.length > 4 ? `****${assignedBank.accountNumber.slice(-4)}` : assignedBank.accountNumber} / Sort: ${assignedBank.sortCode}`
+                      ) : (
+                        'Lloyds Bank Commercial - Account: ****3162 / Sort: 30-99-50'
+                      )}
+                    </span>
+                    <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-2">
+                      {assignedBank?.accountName && <span className="text-slate-600 font-medium">Name: {assignedBank.accountName}</span>}
+                      {assignedBank?.currency && <span className="font-mono text-slate-500">• {assignedBank.currency}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Schedule & Timeline Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
@@ -1331,7 +1494,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 }`}
               >
                 {rental.documents?.invoice ? <Receipt className="h-3.5 w-3.5 mr-1.5 text-emerald-600" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
-                {rental.documents?.invoice ? 'View Invoice PDF' : 'Generate Rental Invoice'}
+                {rental.documents?.invoice ? 'View Invoice PDF' : 'Download Invoice'}
               </button>
 
               <button
@@ -1344,17 +1507,30 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                 }`}
               >
                 {rental.documents?.permit ? <FileText className="h-3.5 w-3.5 mr-1.5 text-purple-600" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
-                {rental.documents?.permit ? 'View Permit PDF' : 'Generate Parking Permit'}
+                {rental.documents?.permit ? 'View Permit PDF' : 'Download Permit'}
               </button>
             </div>
 
             {/* Itemized Cost Summary Table */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-blue-400" />
                   Detailed Itemized Cost Breakdown
                 </h3>
+
+                {/* Information pill / badge under the cost breakdown header */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-full text-xs font-medium shadow-2xs">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>
+                    Billing Entity: <strong className="font-bold text-blue-950">{assignedEntity?.fullName || rental.corporateEntityName || 'AIE Skyline Limited'}</strong>
+                  </span>
+                  <span className="text-blue-300">|</span>
+                  <Landmark className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    Payment Bank: <strong className="font-bold text-blue-950">{assignedBank?.bankName || 'Lloyds Bank Commercial'}</strong>
+                  </span>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -1798,7 +1974,106 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
         {/* ========================================================================= */}
         {activeTab === 'documents' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            
+            {/* Direct On-Demand Document Actions: View PDF, WhatsApp Share, Email Share, Request Signature */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Direct Document Actions:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* View PDF */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (latestAgreementKey && rental.documents?.agreements?.[latestAgreementKey]) {
+                      openDocument(rental.documents.agreements[latestAgreementKey]);
+                    } else if (rental.documents?.invoice) {
+                      openDocument(rental.documents.invoice);
+                    } else {
+                      window.open(`/doc/${encodeURIComponent(rental.id)}/hireAgreement`, '_blank');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 transition cursor-pointer shadow-2xs"
+                  title="View PDF"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  <span>View PDF</span>
+                </button>
+
+                {/* WhatsApp Share */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommModalMode('whatsapp');
+                    setIsCommModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition cursor-pointer shadow-2xs"
+                  title="Share via WhatsApp"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>WhatsApp Share</span>
+                </button>
+
+                {/* Email Share */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommModalMode('email');
+                    setIsCommModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-800 transition cursor-pointer shadow-2xs"
+                  title="Share via Email"
+                >
+                  <Mail className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Email Share</span>
+                </button>
+
+                {/* Request Signature */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const custId = rental.customerId;
+                    if (!custId) {
+                      toast.error('No customer ID associated with this rental');
+                      return;
+                    }
+                    const toastId = toast.loading('Generating secure signature request link...');
+                    try {
+                      const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+                      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+                      await updateDoc(doc(db, 'customers', custId), {
+                        signatureRequestToken: token,
+                        signatureRequestExpiresAt: expiresAt,
+                        signatureRentalId: rental.id,
+                        updatedAt: new Date()
+                      });
+                      await updateDoc(doc(db, 'rentals', rental.id), {
+                        signatureRequestToken: token,
+                        signatureRequestExpiresAt: expiresAt,
+                        updatedAt: new Date()
+                      });
+                      const signUrl = `${window.location.origin}/sign/${custId}?token=${token}&rentalId=${encodeURIComponent(rental.id)}`;
+                      await navigator.clipboard.writeText(signUrl);
+
+                      const phone = customer?.mobile || customer?.phone || (rental as any).customerPhone;
+                      if (phone) {
+                        const text = `Hello ${customer?.name || rental.customerName || 'Customer'},\n\nPlease review and electronically sign your Rental Agreement #${rental.rentalAgreementNumber || rental.id} using this secure link:\n${signUrl}\n\nKind regards.`;
+                        const cleanPhone = phone.replace(/\D/g, '');
+                        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+                      }
+                      toast.success('Signature request link copied to clipboard & WhatsApp opened!', { id: toastId });
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Failed to generate signature link', { id: toastId });
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-300 bg-purple-600 hover:bg-purple-700 text-white transition cursor-pointer shadow-2xs"
+                  title="Request Digital Signature"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Request Signature</span>
+                </button>
+              </div>
+            </div>
+
             {/* Documents & Agreements Section */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
@@ -1845,7 +2120,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                   }`}
                 >
                   {rental.documents?.invoice ? <Receipt className="h-4 w-4 mr-2 text-emerald-600" /> : <Download className="h-4 w-4 mr-2" />}
-                  {rental.documents?.invoice ? 'View Rental Invoice' : 'Generate Invoice'}
+                  {rental.documents?.invoice ? 'View Rental Invoice' : 'Download Invoice'}
                 </button>
 
                 <button
@@ -1858,7 +2133,7 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
                   }`}
                 >
                   {rental.documents?.permit ? <MapPin className="h-4 w-4 mr-2 text-purple-600" /> : <Download className="h-4 w-4 mr-2" />}
-                  {rental.documents?.permit ? 'View Parking Permit' : 'Generate Permit'}
+                  {rental.documents?.permit ? 'View Parking Permit' : 'Download Permit'}
                 </button>
               </div>
 
@@ -1892,13 +2167,21 @@ const RentalDetails: React.FC<RentalDetailsProps> = ({
             </div>
 
             {/* Customer Signature Card */}
-            {rental.signature && (
+            {(rental.signature || customer?.signature) && (
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-purple-600" /> Customer Digital Signature
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-600" /> Customer Digital Signature
+                  </h3>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> Legally Signed &amp; Verified
+                  </span>
+                </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 w-full max-w-sm">
-                  <img src={rental.signature} alt="Customer Signature" className="max-h-24 object-contain bg-white rounded-lg border border-slate-200 p-2" />
+                  <img src={rental.signature || customer?.signature || ''} alt="Customer Signature" className="max-h-24 object-contain bg-white rounded-lg border border-slate-200 p-2" />
+                </div>
+                <div className="text-xs text-slate-600 font-mono">
+                  Execution Date: <span className="font-bold text-slate-900">{formatExecutionDateTime(rental, 'dd/MM/yyyy HH:mm')}</span>
                 </div>
               </div>
             )}

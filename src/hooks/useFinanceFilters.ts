@@ -1,12 +1,199 @@
 // src/hooks/useFinanceFilters.ts
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Transaction, Vehicle, Account } from '../types';
 import { isWithinInterval, parseISO, isValid } from 'date-fns';
+
+export const getTransactionAssignedAccountName = (
+  txn: Transaction,
+  vehicles: Vehicle[] = [],
+  accounts: Account[] = []
+): string | null => {
+  const vehicle = vehicles.find(
+    (v) => v.id === txn.vehicleId || (txn.vehicleName && v.registrationNumber === txn.vehicleName)
+  );
+
+  // Exact resolution matching TransactionTable
+  const accId =
+    (txn as any).accountId ||
+    txn.accountFrom ||
+    txn.accountTo ||
+    vehicle?.owner?.accountId;
+
+  if (accId) {
+    const accStr = String(accId).trim();
+    const accLower = accStr.toLowerCase();
+    if (
+      accLower !== 'unassigned' &&
+      accLower !== 'unknown' &&
+      accLower !== 'no_account_assigned' &&
+      accLower !== 'no account assigned' &&
+      accLower !== 'null' &&
+      accLower !== 'undefined' &&
+      accStr !== ''
+    ) {
+      const matched = accounts.find(
+        (a) => a.id === accStr || a.name.toLowerCase() === accLower || a.name === accStr
+      );
+      if (matched && matched.name) return matched.name;
+    }
+  }
+
+  // Check direct account names
+  const accountNameCandidate =
+    (txn as any).accountName ||
+    txn.vehicleOwner?.name ||
+    vehicle?.owner?.name ||
+    vehicle?.owner?.accountName ||
+    vehicle?.assignedAccountName;
+
+  if (accountNameCandidate) {
+    const str = String(accountNameCandidate).trim();
+    const lower = str.toLowerCase();
+    if (
+      lower !== 'unassigned' &&
+      lower !== 'unknown' &&
+      lower !== 'no_account_assigned' &&
+      lower !== 'no account assigned' &&
+      lower !== 'null' &&
+      lower !== 'undefined' &&
+      str !== ''
+    ) {
+      const matched = accounts.find(
+        (a) => a.id === str || a.name.toLowerCase() === lower || a.name === str
+      );
+      if (matched && matched.name) return matched.name;
+      return str;
+    }
+  }
+
+  // Check array accounts: accountsFrom / accountsTo
+  const arrayIds: any[] = [];
+  if (Array.isArray((txn as any).accountsFrom)) arrayIds.push(...(txn as any).accountsFrom);
+  if (Array.isArray((txn as any).accountsTo)) arrayIds.push(...(txn as any).accountsTo);
+  for (const item of arrayIds) {
+    if (!item) continue;
+    const str = String(item).trim();
+    const lower = str.toLowerCase();
+    if (
+      lower === 'unassigned' ||
+      lower === 'unknown' ||
+      lower === 'no_account_assigned' ||
+      lower === 'no account assigned' ||
+      lower === 'null' ||
+      lower === 'undefined' ||
+      str === ''
+    )
+      continue;
+    const matched = accounts.find(
+      (a) => a.id === str || a.name.toLowerCase() === lower || a.name === str
+    );
+    if (matched?.name) return matched.name;
+    return str;
+  }
+
+  // Other candidate properties
+  const otherCandidates: any[] = [
+    (txn as any).relatedAccountName,
+    (txn as any).sourceAccountName,
+    (txn as any).destinationAccountName,
+    (txn as any).ownerName,
+  ];
+
+  for (const item of otherCandidates) {
+    if (!item) continue;
+    const str = String(item).trim();
+    const lower = str.toLowerCase();
+    if (
+      lower === 'unassigned' ||
+      lower === 'unknown' ||
+      lower === 'no_account_assigned' ||
+      lower === 'no account assigned' ||
+      lower === 'null' ||
+      lower === 'undefined' ||
+      str === ''
+    )
+      continue;
+
+    const matched = accounts.find(
+      (a) => a.id === str || a.name.toLowerCase() === lower || a.name === str
+    );
+    if (matched?.name) return matched.name;
+    return str;
+  }
+
+  if (accId) {
+    const accStr = String(accId).trim();
+    const accLower = accStr.toLowerCase();
+    if (
+      accLower !== 'unassigned' &&
+      accLower !== 'unknown' &&
+      accLower !== 'no_account_assigned' &&
+      accLower !== 'no account assigned' &&
+      accLower !== 'null' &&
+      accLower !== 'undefined' &&
+      accStr !== ''
+    ) {
+      return accStr;
+    }
+  }
+
+  return null;
+};
+
+export const isDefaultViewTransaction = (
+  transaction: Transaction,
+  accounts: Account[] = [],
+  vehicles: Vehicle[] = []
+): boolean => {
+  const assignedAccountName = getTransactionAssignedAccountName(transaction, vehicles, accounts);
+  const rawAccountId = (transaction as any).accountId || transaction.accountFrom || transaction.accountTo;
+  const rawAccountName = (transaction as any).accountName || transaction.vehicleOwner?.name;
+
+  const hasValidAccountId =
+    rawAccountId != null &&
+    String(rawAccountId).trim() !== '' &&
+    !['unassigned', 'unknown', 'no_account_assigned', 'no account assigned', 'null', 'undefined'].includes(
+      String(rawAccountId).trim().toLowerCase()
+    );
+
+  const hasValidAccountName =
+    rawAccountName != null &&
+    String(rawAccountName).trim() !== '' &&
+    !['unassigned', 'unknown', 'no_account_assigned', 'no account assigned', 'null', 'undefined'].includes(
+      String(rawAccountName).trim().toLowerCase()
+    );
+
+  const hasAssignedAccountPill = Boolean(assignedAccountName);
+
+  // 1. Mandatory Account Null Check & Forceful Exclusion:
+  // On initial page load (when no filter is chosen), enforce a strict guard condition:
+  // • IF accountId != null AND accountId != "" AND accountName != null (or if any assigned account pill is present)
+  // • THEN FORCEFULLY EXCLUDE THE TRANSACTION FROM THIS VIEW.
+  //
+  // 2. Stop Keyword Matching on Assigned Accounts:
+  // Do NOT match categories containing the word "Refund" or "Reversal" (such as "Road Tax Refund"
+  // or "Vehicle Insurance Refunded") IF the transaction already has an assigned account attached.
+  // Standard assigned refunds are regular financial entries and must only load when their specific account is selected.
+  //
+  // 3. Resulting State:
+  // Transactions showing "Acc: VEHICLE OWNERS" or "Acc: AIE SKYLINE ACCOUNTS" must NOT render on page load.
+  // Outside of active filters, display ONLY entries where the Account pill is completely missing/blank.
+  if (hasAssignedAccountPill || hasValidAccountId || hasValidAccountName) {
+    return false;
+  }
+
+  // Only entries where the Account pill is completely missing/blank can display in default view
+  return true;
+};
+
+export const isNeedsAttentionTransaction = isDefaultViewTransaction;
+export const isAdministrativeAttentionTransaction = isDefaultViewTransaction;
 
 export const useFinanceFilters = (
   transactions: Transaction[] = [],
   vehicles: Vehicle[] = [],
-  accounts: Account[] = []
+  accounts: Account[] = [],
+  groups: { id: string; name: string }[] = []
 ) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -28,6 +215,11 @@ export const useFinanceFilters = (
   const [recurringFilter, setRecurringFilter] = useState<string>('all');
   const [recurringFrequency, setRecurringFrequency] = useState<string>('all');
   const [profitTrackingFilter, setProfitTrackingFilter] = useState<'all' | 'has_profit' | 'legacy'>('all');
+  const [needsAttentionFilter, setNeedsAttentionFilter] = useState<boolean>(true);
+
+  const needsAttentionCount = useMemo(() => {
+    return transactions.filter((t) => isNeedsAttentionTransaction(t, accounts, vehicles)).length;
+  }, [transactions, accounts, vehicles]);
 
   const normalizeFilter = (val: string | string[], defaultVal = 'all') => {
     if (Array.isArray(val)) {
@@ -35,6 +227,81 @@ export const useFinanceFilters = (
     }
     return !val || val === defaultVal ? ['all'] : [val];
   };
+
+  // Determine whether any explicit filter/account selection is active
+  const hasActiveFilter = useMemo(() => {
+    const catFilters = normalizeFilter(category);
+    const ownerFilters = normalizeFilter(selectedOwner);
+    const groupFilters = normalizeFilter(groupFilter);
+    const deptFilters = normalizeFilter(departmentFilter);
+    const custFilters = normalizeFilter(customerFilter);
+    const vehFilters = normalizeFilter(vehicleFilter);
+
+    const rawAccFilter = Array.isArray(accountFilter)
+      ? accountFilter
+      : accountFilter
+        ? [accountFilter]
+        : [];
+    const cleanAccFilter = rawAccFilter.filter(
+      (f) => f && f !== '' && f !== 'null' && f !== 'undefined'
+    );
+
+    return (
+      cleanAccFilter.length > 0 ||
+      !vehFilters.includes('all') ||
+      !groupFilters.includes('all') ||
+      !deptFilters.includes('all') ||
+      !custFilters.includes('all') ||
+      !ownerFilters.includes('all') ||
+      !catFilters.includes('all') ||
+      type !== 'all' ||
+      paymentStatus !== 'all' ||
+      Boolean(startDate || endDate) ||
+      Boolean(searchQuery && searchQuery.trim().length > 0) ||
+      showLinked !== 'all' ||
+      recurringFilter !== 'all' ||
+      recurringFrequency !== 'all' ||
+      profitTrackingFilter !== 'all'
+    );
+  }, [
+    needsAttentionFilter,
+    accountFilter,
+    vehicleFilter,
+    groupFilter,
+    departmentFilter,
+    customerFilter,
+    selectedOwner,
+    category,
+    type,
+    paymentStatus,
+    startDate,
+    endDate,
+    searchQuery,
+    showLinked,
+    recurringFilter,
+    recurringFrequency,
+    profitTrackingFilter,
+  ]);
+
+  const handleResetAll = useCallback(() => {
+    setSearchQuery('');
+    setStartDate(null);
+    setEndDate(null);
+    setType('all');
+    setPaymentStatus('all');
+    setCategory('all');
+    setSelectedOwner('all');
+    setAccountFilter([]);
+    setGroupFilter('all');
+    setDepartmentFilter('all');
+    setCustomerFilter('all');
+    setVehicleFilter('all');
+    setShowLinked('all');
+    setRecurringFilter('all');
+    setRecurringFrequency('all');
+    setProfitTrackingFilter('all');
+    setNeedsAttentionFilter(true);
+  }, []);
 
   const owners = useMemo(() => {
     const ownerSet = new Set<string>();
@@ -53,9 +320,13 @@ export const useFinanceFilters = (
   const safeParseDate = (dateVal: any): Date | null => {
     if (!dateVal) return null;
     if (dateVal instanceof Date && isValid(dateVal)) return dateVal;
-    if (dateVal.toDate) {
+    if (typeof dateVal?.toDate === 'function') {
       const tsDate = dateVal.toDate();
       return isValid(tsDate) ? tsDate : null;
+    }
+    if (typeof dateVal === 'object' && typeof dateVal?.seconds === 'number') {
+      const tsDate = new Date(dateVal.seconds * 1000);
+      if (isValid(tsDate)) return tsDate;
     }
     try {
       const isoDate = parseISO(dateVal);
@@ -67,6 +338,35 @@ export const useFinanceFilters = (
   };
 
   const filteredTransactions = useMemo(() => {
+    // 1. Strict Initial Default View Rule (Outside Filters):
+    // When NO toolbar filter or account is selected, display ONLY transactions that meet one of these two strict conditions:
+    // 1. NO ACCOUNT ASSIGNED: accountId / accountName is NULL, empty (""), or "unassigned".
+    // 2. REVERSAL PAYMENT: Transaction type or description explicitly contains "reversal" or "refund".
+    // Completely EXCLUDE every other transaction type (including pending payments, standard rentals, maintenance, or regular income/expenses) if it has an account assigned.
+    if (!hasActiveFilter) {
+      const defaultOnly = transactions.filter((t) =>
+        isDefaultViewTransaction(t, accounts, vehicles)
+      );
+
+      return defaultOnly.sort((a, b) => {
+        const dateA = safeParseDate(a.date)?.getTime() || 0;
+        const dateB = safeParseDate(b.date)?.getTime() || 0;
+        if (dateB !== dateA) return dateB - dateA;
+
+        const timeA = (a.createdAt as any)?.toDate
+          ? (a.createdAt as any).toDate().getTime()
+          : a.createdAt instanceof Date
+          ? a.createdAt.getTime()
+          : 0;
+        const timeB = (b.createdAt as any)?.toDate
+          ? (b.createdAt as any).toDate().getTime()
+          : b.createdAt instanceof Date
+          ? b.createdAt.getTime()
+          : 0;
+        return timeB - timeA;
+      });
+    }
+
     const catFilters = normalizeFilter(category);
     const ownerFilters = normalizeFilter(selectedOwner);
     const groupFilters = normalizeFilter(groupFilter);
@@ -85,7 +385,7 @@ export const useFinanceFilters = (
 
     const filtered = transactions.filter((transaction) => {
       const transactionDate = safeParseDate(transaction.date);
-      if (!transactionDate) return false;
+      if ((startDate || endDate) && !transactionDate) return false;
 
       // 1. Search Query
       const searchLower = searchQuery.toLowerCase();
@@ -142,6 +442,9 @@ export const useFinanceFilters = (
       const assignedAccountIds = new Set<string>();
 
       if ((transaction as any).accountId) assignedAccountIds.add((transaction as any).accountId);
+      if (transaction.accountFrom) assignedAccountIds.add(transaction.accountFrom);
+      if (transaction.accountTo) assignedAccountIds.add(transaction.accountTo);
+      if (vehicle?.owner?.accountId) assignedAccountIds.add(vehicle.owner.accountId);
 
       if (Array.isArray((transaction as any).accountsFrom)) {
         (transaction as any).accountsFrom.filter(Boolean).forEach((id: string) => assignedAccountIds.add(id));
@@ -150,7 +453,8 @@ export const useFinanceFilters = (
         (transaction as any).accountsTo.filter(Boolean).forEach((id: string) => assignedAccountIds.add(id));
       }
 
-      const hasAccountAssigned = assignedAccountIds.size > 0 || !!(transaction as any).relatedAccountName;
+      const assignedAccountName = getTransactionAssignedAccountName(transaction, vehicles, accounts);
+      const hasAccountAssigned = assignedAccountIds.size > 0 || !!assignedAccountName || !!(transaction as any).relatedAccountName;
 
       if (cleanAccFilter.length === 0 || cleanAccFilter.includes('all')) {
         matchesAccount = true;
@@ -161,6 +465,13 @@ export const useFinanceFilters = (
         );
 
         let anyMatch = selectedIds.some((id) => assignedAccountIds.has(id));
+
+        if (!anyMatch && assignedAccountName) {
+          anyMatch = selectedIds.some((id) => {
+            const acc = accounts.find((a) => a.id === id);
+            return acc && acc.name.toLowerCase() === assignedAccountName.toLowerCase();
+          });
+        }
 
         if (!anyMatch && (transaction as any).relatedAccountName) {
           const relatedStr = (transaction as any).relatedAccountName;
@@ -237,10 +548,6 @@ export const useFinanceFilters = (
         }
       }
 
-      // Profit Tracking Filter
-      // Option 1: "All Records" (Default)
-      // Option 2: "Has Net Profit" (Filters rows where netProfit or dealerCost explicitly exists / is recorded)
-      // Option 3: "Legacy / Uncalculated" (Filters rows where dealerCost is null/undefined or £0.00 / not yet recorded)
       const hasExplicitDealerCost =
         (transaction.dealerCost !== null && transaction.dealerCost !== undefined && transaction.dealerCost !== '' && Number(transaction.dealerCost) > 0) ||
         (transaction.subcontractorCost !== null && transaction.subcontractorCost !== undefined && transaction.subcontractorCost !== '' && Number(transaction.subcontractorCost) > 0);
@@ -288,10 +595,12 @@ export const useFinanceFilters = (
   }, [
     transactions, searchQuery, type, category, paymentStatus, selectedOwner,
     accountFilter, customerFilter, vehicleFilter, startDate, endDate, groupFilter, departmentFilter, 
-    showLinked, recurringFilter, recurringFrequency, profitTrackingFilter, vehicles, accounts
+    showLinked, recurringFilter, recurringFrequency, profitTrackingFilter, vehicles, accounts, groups, hasActiveFilter, needsAttentionFilter
   ]);
 
   const totalOwingFromOwners = useMemo(() => {
+    if (!hasActiveFilter) return 0;
+
     const ownerBalances: { [ownerName: string]: number } = {};
     const ownerFilters = normalizeFilter(selectedOwner);
 
@@ -318,9 +627,10 @@ export const useFinanceFilters = (
       }
     }
     return totalOwing;
-  }, [transactions, selectedOwner]);
+  }, [transactions, selectedOwner, hasActiveFilter]);
 
   const totalOwingFromAccounts = useMemo(() => {
+    if (!hasActiveFilter) return 0;
     if (!accounts || accounts.length === 0) return 0;
 
     const balances = new Map<string, number>();
@@ -372,9 +682,10 @@ export const useFinanceFilters = (
     });
 
     return totalOwing;
-  }, [transactions, accounts, accountFilter]);
+  }, [transactions, accounts, accountFilter, hasActiveFilter]);
 
   const accountSummary = useMemo(() => {
+    if (!hasActiveFilter) return null;
     const rawAccFilter = Array.isArray(accountFilter) ? accountFilter : accountFilter ? [accountFilter] : [];
     const cleanAccFilter = rawAccFilter.filter((f) => f && f !== '' && f !== 'null' && f !== 'undefined');
 
@@ -388,7 +699,7 @@ export const useFinanceFilters = (
       else if (t.type === 'expense') expense += t.amount;
     });
     return { income, expense, balance: income - expense };
-  }, [filteredTransactions, accountFilter]);
+  }, [filteredTransactions, accountFilter, hasActiveFilter]);
 
   const setDateRange = (range: { start: Date | null; end: Date | null }) => {
     setStartDate(range.start);
@@ -411,10 +722,14 @@ export const useFinanceFilters = (
     recurringFilter, setRecurringFilter,
     recurringFrequency, setRecurringFrequency,
     profitTrackingFilter, setProfitTrackingFilter,
+    needsAttentionFilter, setNeedsAttentionFilter,
+    needsAttentionCount,
     owners,
     filteredTransactions,
     accountSummary,
     totalOwingFromOwners,
-    totalOwingFromAccounts
+    totalOwingFromAccounts,
+    hasActiveFilter,
+    handleResetAll
   };
 };

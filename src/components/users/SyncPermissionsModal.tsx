@@ -179,6 +179,7 @@ export const ACTION_FRIENDLY_NAMES: Partial<Record<PermissionAction, string>> = 
   deletePermanently: 'Delete Permanently',
   workshopTv: 'Workshop TV',
   publicMirror: 'Live Public Mirror',
+  manageDynamicTerms: 'Manage Dynamic T&Cs',
 };
 
 const MEMBER_PORTAL_KEYS: Array<keyof RolePermissions> = ['memberProfile', 'memberRentals', 'memberTransactions', 'memberInvoices'];

@@ -205,6 +205,7 @@ export const FRIENDLY_LABELS: Record<string, string> = {
   targetCustom: 'Target Custom',
   workshopTv: 'Workshop TV',
   publicMirror: 'Live Public Mirror',
+  manageDynamicTerms: 'Manage Dynamic T&Cs',
 };
 
 export const ACTION_DESCRIPTIONS: Record<string, string> = {
@@ -281,6 +282,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   deletePermanently: 'Permits permanently and irretrievably destroying archived items.',
   workshopTv: 'Allows viewing and launching the Workshop TV Auto-Rotation Display Mirror board.',
   publicMirror: 'Allows viewing, opening, and copying the real-time Live Public Mirror link.',
+  manageDynamicTerms: 'Grant full access to create, edit, and delete legal templates in the T&C Manager.',
 };
 
 export const getModuleIcon = (modKey: keyof RolePermissions, className: string = 'w-4 h-4') => {
@@ -1144,6 +1146,69 @@ export const UserRoleModal: React.FC<UserRoleModalProps> = ({ user, initialRole,
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════════════
+              SYSTEM SETTINGS DEDICATED DYNAMIC T&C PERMISSION
+             ════════════════════════════════════════════════════════════════════════════════ */}
+          {selectedModule === 'settings' && (
+            <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 border border-indigo-500/30 rounded-2xl p-5 shadow-lg text-white space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-500/20">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-wider text-indigo-200">
+                      Dynamic Terms &amp; Conditions Permissions
+                    </h4>
+                    <p className="text-xs text-slate-300">
+                      Grant full access to create, edit, and delete legal templates in the T&amp;C Manager.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono px-2.5 py-1 rounded-md bg-indigo-950/80 border border-indigo-500/30 text-indigo-300 font-bold self-start sm:self-auto">
+                  System Settings • Legal Engine
+                </span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-indigo-950/70 border border-indigo-500/60 ring-1 ring-indigo-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-indigo-100">Manage Dynamic T&amp;Cs</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      Boolean((customPermissions.settings as any)?.manageDynamicTerms)
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    }`}>
+                      {Boolean((customPermissions.settings as any)?.manageDynamicTerms) ? 'Permission Granted' : 'Disabled (Revoked)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Grant full access to create, edit, and delete legal templates in the T&amp;C Manager. Directly controls the Edit and Delete actions.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => isManager && toggleAction('settings', 'manageDynamicTerms')}
+                  className="cursor-pointer shrink-0"
+                >
+                  <div
+                    className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
+                      Boolean((customPermissions.settings as any)?.manageDynamicTerms) ? 'bg-indigo-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full bg-white transition-transform flex items-center justify-center ${
+                        Boolean((customPermissions.settings as any)?.manageDynamicTerms) ? 'translate-x-5 shadow-xs' : 'translate-x-0'
+                      }`}
+                    >
+                      {Boolean((customPermissions.settings as any)?.manageDynamicTerms) && <Check className="w-3 h-3 text-indigo-700 stroke-[3]" />}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -46,54 +46,69 @@ export const AccountStatementPreviewModal: React.FC<AccountStatementPreviewModal
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400 flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5 text-indigo-400" /> Account:
+                  <Wallet className="w-3.5 h-3.5 text-indigo-400" /> Account Holder:
                 </span>
                 <span className="font-bold text-white">{statementData.account.name}</span>
               </div>
 
               <div className="flex items-center justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" /> Period:
+                  <Wallet className="w-3.5 h-3.5 text-slate-400" /> Account Number / Sort Code:
+                </span>
+                <span className="font-mono font-bold text-slate-200">
+                  {statementData.account.accountNumber || '30513162'} • {statementData.account.sortCode || '20-00-00'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-1 border-b border-slate-800">
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" /> Statement Period:
                 </span>
                 <span className="font-medium text-slate-200">{statementData.periodLabel}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="text-[10px] text-slate-500 uppercase font-bold block mb-0.5">
-                  Opening Balance
-                </span>
-                <span className="font-mono font-bold text-slate-200 text-sm">
-                  {fmtCurrency(statementData.openingBalance)}
-                </span>
+            {/* Boxed Account Summary Table */}
+            <div className="rounded-lg border border-slate-700 bg-slate-900/80 overflow-hidden pt-1">
+              <div className="px-3 py-1.5 bg-slate-800/80 border-b border-slate-700 text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                Account Summary Table
               </div>
+              <div className="grid grid-cols-2 gap-2 p-2">
+                <div className="p-2 rounded bg-slate-950/60 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">
+                    Opening Balance
+                  </span>
+                  <span className="font-mono font-bold text-slate-200 text-sm">
+                    {fmtCurrency(statementData.openingBalance)}
+                  </span>
+                </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="text-[10px] text-emerald-400 uppercase font-bold flex items-center gap-1 mb-0.5">
-                  <TrendingUp className="w-3 h-3" /> Total Inflows ({statementData.inflowCount})
-                </span>
-                <span className="font-mono font-bold text-emerald-400 text-sm">
-                  +{fmtCurrency(statementData.totalInflows)}
-                </span>
-              </div>
+                <div className="p-2 rounded bg-slate-950/60 border border-slate-800">
+                  <span className="text-[10px] text-emerald-400 uppercase font-bold flex items-center gap-1 mb-0.5">
+                    <TrendingUp className="w-3 h-3" /> Total Money In ({statementData.inflowCount})
+                  </span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    +{fmtCurrency(statementData.totalInflows)}
+                  </span>
+                </div>
 
-              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="text-[10px] text-rose-400 uppercase font-bold flex items-center gap-1 mb-0.5">
-                  <TrendingDown className="w-3 h-3" /> Total Outflows ({statementData.outflowCount})
-                </span>
-                <span className="font-mono font-bold text-rose-400 text-sm">
-                  -{fmtCurrency(statementData.totalOutflows)}
-                </span>
-              </div>
+                <div className="p-2 rounded bg-slate-950/60 border border-slate-800">
+                  <span className="text-[10px] text-rose-400 uppercase font-bold flex items-center gap-1 mb-0.5">
+                    <TrendingDown className="w-3 h-3" /> Total Money Out ({statementData.outflowCount})
+                  </span>
+                  <span className="font-mono font-bold text-rose-400 text-sm">
+                    -{fmtCurrency(statementData.totalOutflows)}
+                  </span>
+                </div>
 
-              <div className="p-2.5 rounded-lg bg-indigo-950/40 border border-indigo-500/40">
-                <span className="text-[10px] text-indigo-400 uppercase font-bold block mb-0.5">
-                  Closing Balance
-                </span>
-                <span className="font-mono font-bold text-indigo-300 text-sm">
-                  {fmtCurrency(statementData.closingBalance)}
-                </span>
+                <div className="p-2 rounded bg-indigo-950/40 border border-indigo-500/40">
+                  <span className="text-[10px] text-indigo-400 uppercase font-bold block mb-0.5">
+                    Closing / Running Balance
+                  </span>
+                  <span className="font-mono font-bold text-indigo-300 text-sm">
+                    {fmtCurrency(statementData.closingBalance)}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -5,5 +5,6 @@ export { default as NoticeOfRightToCancel } from './NoticeOfRightToCancel';
 export { default as CreditStorageAndRecovery } from './CreditStorageAndRecovery';
 export { default as HireAgreement } from './HireAgreement';
 export { default as SatisfactionNotice } from './SatisfactionNotice';
+export { default as PdfTermsWarningNotice } from './PdfTermsWarningNotice';
 
 

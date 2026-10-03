@@ -11,6 +11,7 @@ import {
 import { Transaction, Vehicle, Account, Customer } from '../../../types';
 import { format } from 'date-fns';
 import { styles as globalStyles } from '../styles';
+import SafePdfLogo from '../SafePdfLogo';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface FinanceDocumentProps {
@@ -246,9 +247,11 @@ const FinanceDocument: React.FC<FinanceDocumentProps> = ({
   const Header = () => (
     <View style={globalStyles.header} fixed>
       <View style={globalStyles.headerLeft}>
-        {companyDetails.logoUrl && (
-          <Image src={companyDetails.logoUrl} style={globalStyles.logo} />
-        )}
+        <SafePdfLogo
+          src={companyDetails.logoUrl}
+          companyName={companyDetails.fullName || 'AIE Skyline Limited'}
+          style={globalStyles.logo}
+        />
       </View>
       <View style={globalStyles.headerRight}>
         <Text style={globalStyles.companyName}>

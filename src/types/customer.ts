@@ -58,6 +58,7 @@ export interface Customer {
   signedAt?: Date;
   termsAccepted?: boolean;
   termsAcceptedAt?: Date;
+  documentStatus?: string;
 
   licenseFrontUrl?: string;
   licenseBackUrl?: string;

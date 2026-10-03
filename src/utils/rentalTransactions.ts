@@ -1,22 +1,36 @@
-import { addDoc, collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Rental } from '../types';
+import { createFinanceTransaction } from './financeTransactions';
 
 export const createRentalTransaction = async (rental: Rental) => {
   try {
     if (rental.paidAmount && rental.paidAmount > 0) {
-      await addDoc(collection(db, 'transactions'), {
+      const paymentRef = rental.rentalAgreementNumber || rental.paymentReference || (rental.id ? `RA-${rental.id.slice(-6).toUpperCase()}` : '');
+      await createFinanceTransaction({
         type: 'income',
-        category: 'rental',
+        transactionType: 'INCOME',
+        entryType: 'CREDIT',
+        category: 'Vehicle Rental Income',
+        departmentName: 'Vehicle Rental / Fleet',
         amount: rental.paidAmount,
-        description: `Rental payment for ${rental.type} rental`,
+        customerBilled: rental.paidAmount,
+        grossBilling: rental.paidAmount,
+        paid: rental.paidAmount,
+        paidAmount: rental.paidAmount,
+        description: `Rental payment for #${paymentRef} (${rental.type} rental)`,
         referenceId: rental.id,
+        sourceReferenceId: rental.id,
+        linkedInvoiceRef: rental.id,
+        entityId: rental.id,
+        entityType: 'RENTAL',
         vehicleId: rental.vehicleId,
-        paymentStatus: rental.paymentStatus,
+        paymentStatus: (rental.paymentStatus === 'paid' ? 'paid' : (rental.paymentStatus === 'partially_paid' ? 'partially_paid' : 'unpaid')) as any,
         paymentMethod: rental.paymentMethod,
-        paymentReference: rental.paymentReference,
+        paymentReference: paymentRef,
+        orderNumber: rental.rentalAgreementNumber || undefined,
+        status: 'completed',
         date: new Date(),
-        createdAt: new Date()
       });
     }
   } catch (error) {
@@ -32,16 +46,40 @@ export const updateRentalTransaction = async (rental: Rental) => {
     const snapshot = await getDocs(q);
 
     if (!snapshot.empty) {
-      const transactionDoc = snapshot.docs[0];
-      await updateDoc(doc(db, 'transactions', transactionDoc.id), {
+      const paymentRef = rental.rentalAgreementNumber || rental.paymentReference || (rental.id ? `RA-${rental.id.slice(-6).toUpperCase()}` : '');
+      const updates = {
         amount: rental.paidAmount || 0,
-        paymentStatus: rental.paymentStatus,
+        customerBilled: rental.paidAmount || 0,
+        paid: rental.paidAmount || 0,
+        paidAmount: rental.paidAmount || 0,
+        category: 'Vehicle Rental Income',
+        departmentName: 'Vehicle Rental / Fleet',
+        paymentStatus: (rental.paymentStatus === 'paid' ? 'paid' : (rental.paymentStatus === 'partially_paid' ? 'partially_paid' : 'unpaid')) as any,
         paymentMethod: rental.paymentMethod,
-        paymentReference: rental.paymentReference,
+        paymentReference: paymentRef,
+        orderNumber: rental.rentalAgreementNumber || undefined,
         updatedAt: new Date()
-      });
+      };
+
+      for (const d of snapshot.docs) {
+        await updateDoc(doc(db, 'transactions', d.id), updates).catch(() => {});
+        await updateDoc(doc(db, 'finance_ledger', d.id), updates).catch(() => {});
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('financeRecordUpdated', {
+            detail: {
+              entityId: rental.id,
+              referenceId: rental.id,
+              ...updates,
+              action: 'UPDATE_RENTAL_TRANSACTION',
+              timestamp: Date.now(),
+            },
+          })
+        );
+      }
     } else if (rental.paidAmount && rental.paidAmount > 0) {
-      // Create new transaction if none exists and there's a payment
       await createRentalTransaction(rental);
     }
   } catch (error) {

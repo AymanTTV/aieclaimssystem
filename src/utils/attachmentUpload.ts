@@ -22,7 +22,7 @@ export const formatFileSize = (bytes: number): string => {
 
 export const uploadCustomAttachment = async (
   file: File,
-  moduleContext: 'rentals' | 'invoices' | 'claims' | 'maintenance',
+  moduleContext: 'rentals' | 'invoices' | 'claims' | 'maintenance' | 'finance',
   recordId?: string
 ): Promise<string> => {
   const safeId = (recordId || 'general').replace(/[^a-zA-Z0-9_-]/g, '_');

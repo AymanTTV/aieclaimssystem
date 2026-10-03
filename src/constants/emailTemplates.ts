@@ -39,6 +39,77 @@ export const emailTemplates: Record<EmailType, EmailTemplate[]> = {
   /* ───────── FINANCE (NEW) ───────── */
   finance: [
     {
+      id: 'finance_statement_notification',
+      name: 'Statement Notification',
+      subjectTemplate: 'Statement Notification - Ref: {Transaction_Ref}',
+      bodyTemplate:
+`Dear {Customer_Name},
+
+Please find your official account statement notification from AIE Skyline Limited.
+
+Transaction & Statement Summary:
+• Date: {Date}
+• Transaction Ref: {Transaction_Ref}
+• Amount: £{Amount}
+• Current Running Balance: £{Running_Balance}
+
+Official Statement Document:
+{Statement_PDF_Link}
+
+If you have any questions regarding your statement or transaction activity, please do not hesitate to contact our finance department.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction']
+    },
+    {
+      id: 'finance_payment_reminder',
+      name: 'Payment Reminder',
+      subjectTemplate: 'Payment Reminder - Ref: {Transaction_Ref}',
+      bodyTemplate:
+`Dear {Customer_Name},
+
+This is a gentle payment reminder regarding your account with AIE Skyline Limited.
+
+Payment Details:
+• Transaction Reference: {Transaction_Ref}
+• Date: {Date}
+• Amount Due: £{Amount}
+• Current Running Balance: £{Running_Balance}
+
+Please settle this outstanding balance at your earliest convenience using our payment details:
+🏦 Bank: Lloyds Bank
+💼 Account Name: AIE SKYLINE LIMITED
+🔢 Account Number: 30513162
+🔣 Sort Code: 30-99-50
+📝 Payment Reference: {Transaction_Ref}
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction']
+    },
+    {
+      id: 'finance_transaction_receipt',
+      name: 'Transaction Receipt',
+      subjectTemplate: 'Official Transaction Receipt - Ref: {Transaction_Ref}',
+      bodyTemplate:
+`Dear {Customer_Name},
+
+Thank you for your payment. Please find your official transaction receipt details below:
+
+Receipt Summary:
+• Transaction Ref: {Transaction_Ref}
+• Processed Date: {Date}
+• Amount Received: £{Amount}
+• Updated Running Balance: £{Running_Balance}
+
+Document Link:
+{Statement_PDF_Link}
+
+Thank you for your valued business.
+
+${aieSkylineSignature}`,
+      requiredFields: ['transaction']
+    },
+    {
       id: 'finance_payment_received',
       name: 'Payment Received Confirmation',
       subjectTemplate: 'Payment Received - [Vehicle Reg]',

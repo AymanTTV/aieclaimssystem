@@ -2,36 +2,32 @@
 import { format } from 'date-fns';
 
 /**
- * Generates formatted UK timestamp string:
- * "Electronically Signed on DD/MM/YYYY at HH:MM:SS BST" (or UTC)
+ * Generates formatted timestamp string mirroring backdated rental start date/time:
+ * e.g. "DD/MM/YYYY HH:mm" or "Date: DD/MM/YYYY HH:mm"
  */
-export function formatSignatureTimestamp(date = new Date()): string {
+export function formatSignatureTimestamp(date: Date | string = new Date(), prefix = ''): string {
   const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
   const pad = (n: number) => n.toString().padStart(2, '0');
   const day = pad(d.getDate());
   const month = pad(d.getMonth() + 1);
   const year = d.getFullYear();
   const hours = pad(d.getHours());
   const minutes = pad(d.getMinutes());
-  const seconds = pad(d.getSeconds());
 
-  // Determine if daylight saving time (BST) or UTC/GMT
-  const jan = new Date(year, 0, 1).getTimezoneOffset();
-  const jul = new Date(year, 6, 1).getTimezoneOffset();
-  const isDST = Math.max(jan, jul) !== d.getTimezoneOffset();
-  const tzAbbr = isDST ? 'BST' : 'UTC';
-
-  return `Electronically Signed on ${day}/${month}/${year} at ${hours}:${minutes}:${seconds} ${tzAbbr}`;
+  const formatted = `${day}/${month}/${year} ${hours}:${minutes}`;
+  return prefix ? `${prefix}${formatted}` : formatted;
 }
 
 /**
- * Appends the electronic signature timestamp and consent metadata
- * directly onto the signature image canvas as a secure tamper-evident banner.
+ * Appends the backdated execution timestamp and verified consent metadata
+ * onto the signature image canvas cleanly without unwanted audit subtext.
  */
 export async function stampSignatureImage(
   dataUrl: string,
   timestampText: string,
-  signerName?: string
+  signerName?: string,
+  options?: { hideAuditSubtext?: boolean }
 ): Promise<string> {
   return new Promise((resolve) => {
     if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
@@ -50,7 +46,8 @@ export async function stampSignatureImage(
           return;
         }
 
-        const bannerHeight = 44;
+        // Clean subtext cleanup: clean 32px banner or return pristine signature
+        const bannerHeight = options?.hideAuditSubtext ? 0 : 36;
         const targetWidth = Math.max(img.width, 500);
         const targetHeight = img.height + bannerHeight;
 
@@ -65,29 +62,32 @@ export async function stampSignatureImage(
         const xOffset = Math.max(0, (targetWidth - img.width) / 2);
         ctx.drawImage(img, xOffset, 0);
 
-        // Draw dividing line
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(16, img.height);
-        ctx.lineTo(targetWidth - 16, img.height);
-        ctx.stroke();
+        if (bannerHeight > 0 && timestampText) {
+          // Clean dividing line
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(16, img.height);
+          ctx.lineTo(targetWidth - 16, img.height);
+          ctx.stroke();
 
-        // Draw timestamp metadata line
-        ctx.fillStyle = '#0f172a';
-        ctx.font = 'bold 11px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+          // Clean backdated timestamp line - removes old "Electronically Signed on ... BST"
+          const cleanTimestamp = timestampText.replace(/^Electronically Signed on\s*/i, 'Date: ');
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 11px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
 
-        ctx.fillText(timestampText, targetWidth / 2, img.height + 15);
+          ctx.fillText(cleanTimestamp.startsWith('Date:') ? cleanTimestamp : `Date: ${cleanTimestamp}`, targetWidth / 2, img.height + 14);
 
-        // Draw legal consent line
-        ctx.fillStyle = '#059669';
-        ctx.font = 'bold 9px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        const consentLine = signerName
-          ? `✓ Verified Consent • Terms & Conditions Agreed • Signer: ${signerName}`
-          : '✓ Verified Consent • Terms & Conditions Explicitly Agreed';
-        ctx.fillText(consentLine, targetWidth / 2, img.height + 31);
+          // Clean verified consent line
+          ctx.fillStyle = '#059669';
+          ctx.font = 'bold 9px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          const consentLine = signerName
+            ? `✓ Legally Signed & Verified • ${signerName}`
+            : '✓ Legally Signed & Verified';
+          ctx.fillText(consentLine, targetWidth / 2, img.height + 26);
+        }
 
         resolve(canvas.toDataURL('image/png'));
       } catch (err) {

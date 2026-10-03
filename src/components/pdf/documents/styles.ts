@@ -72,9 +72,21 @@ export const styles = StyleSheet.create({
     paddingTop: 5,
   },
   signatureSection: {
-    marginTop: 30,
+    marginTop: 8,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
+  },
+  termsText: {
+    fontSize: 9,
+    color: '#374151',
+    lineHeight: 1.35,
+    marginBottom: 4.5,
+    textAlign: 'justify',
   },
   signatureBox: {
     width: '45%',

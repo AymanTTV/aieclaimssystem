@@ -45,9 +45,9 @@ import {
   AccountStatementData,
   StatementTransactionItem,
 } from '../pdf/documents/AccountStatementDocument';
+import AccountStatementPreviewModal from './AccountStatementPreviewModal';
 import companySignatureFallback from '../../assets/signiture.png';
 import companyLogoFallback from '../../assets/logo.png';
-import AccountStatementPreviewModal from './AccountStatementPreviewModal';
 
 interface AccountStatementModalProps {
   isOpen: boolean;
@@ -109,7 +109,7 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
     'Official periodic account statement. Reconciled against double-entry General Ledger records.'
   );
   const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
-  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(initialOpenPreview || false);
   const [companyDetails, setCompanyDetails] = useState<any>({
     fullName: 'AIE Skyline Limited',
     tradingName: 'AIE Skyline',
@@ -165,8 +165,8 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
       if (initialEndDate) {
         setCustomEndDate(initialEndDate);
       }
-      if (initialOpenPreview) {
-        setShowPreviewModal(true);
+      if (initialOpenPreview !== undefined) {
+        setShowPreviewModal(initialOpenPreview);
       }
     }
   }, [isOpen, initialPeriodType, initialStartDate, initialEndDate, initialOpenPreview]);
@@ -333,12 +333,14 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
         inPeriodList.push({
           id: tx.id,
           date: txDate,
-          reference: tx.referenceId || tx.paymentReference || tx.id.slice(-6).toUpperCase(),
+          reference: tx.referenceId || tx.paymentReference || (tx as any).invoiceNumber || tx.id.slice(-6).toUpperCase(),
           description: tx.description || tx.customerName || (direction === 'credit' ? 'Account Credit' : 'Account Debit'),
           category: tx.category || (direction === 'credit' ? 'Income' : 'Expense'),
           type: direction,
           amount,
           counterparty: tx.customerName || (tx as any).vendor || '',
+          vehicleReg: (tx as any).vehicleReg || (tx as any).registration || (tx as any).vehiclePlate || '',
+          vehicleName: (tx as any).vehicleName || (tx as any).vehicleModel || '',
         });
       }
     }
@@ -406,6 +408,16 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
         id: selectedAccount.id,
         name: selectedAccount.name,
         accountType: selectedAccount.accountType,
+        accountNumber:
+          (selectedAccount as any).accountNumber ||
+          companyDetails?.bankAccountNumber ||
+          (companyDetails as any)?.accountNumber ||
+          '30513162',
+        sortCode:
+          (selectedAccount as any).sortCode ||
+          companyDetails?.bankSortCode ||
+          (companyDetails as any)?.sortCode ||
+          '20-00-00',
         vehicleName: (selectedAccount as any).vehicleName,
         vehicleReg: (selectedAccount as any).vehicleReg,
         currency: 'GBP (£)',
@@ -440,7 +452,7 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
   ]);
 
   // ── GENERATE AND DOWNLOAD PDF STATEMENT ──
-  const handleGeneratePDF = async () => {
+  const handleGeneratePDF = async (overrideCompanyDetails?: any) => {
     if (!selectedAccount || !activeStatementData) {
       toast.error('Please select an account.');
       return;
@@ -450,9 +462,14 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
     const toastId = toast.loading(`Generating official ${periodLabel} statement...`);
 
     try {
+      const detailsToUse =
+        overrideCompanyDetails && typeof overrideCompanyDetails === 'object' && Object.keys(overrideCompanyDetails).length > 0
+          ? overrideCompanyDetails
+          : companyDetails;
+
       // Render PDF Blob using @react-pdf/renderer
       const blob = await pdf(
-        <AccountStatementDocument data={activeStatementData} companyDetails={companyDetails} />
+        <AccountStatementDocument data={activeStatementData} companyDetails={detailsToUse} />
       ).toBlob();
 
       // Trigger Download
@@ -486,13 +503,12 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
   ];
 
   return (
-    <>
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        title="Generate Account Statement"
-        size="2xl"
-      >
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Generate Account Statement"
+      size="2xl"
+    >
       <div className="space-y-6 text-left">
         {/* Modal Intro Banner */}
         <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -856,76 +872,168 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
           )}
         </div>
 
-        {/* ── STEP 3: LIVE COMPUTED STATEMENT PREVIEW ── */}
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+        {/* ── STEP 3: LIVE COMPUTED STATEMENT PREVIEW (STRUCTURED BOXED ACCOUNT SUMMARY TABLE) ── */}
+        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
+          <div className="flex items-center justify-between pb-2 border-b border-[#E2E8F0]">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Calculated Statement Metrics ({periodLabel})</span>
+              <span>Account Summary Table ({periodLabel})</span>
             </span>
             <span className="text-xs font-semibold text-slate-500">
-              {statementCalculations.transactionsInPeriod.length} Activity Entries
+              {statementCalculations.transactionsInPeriod.length} Activity Entries • {format(dateRangeStart, 'dd/MM/yyyy')} to {format(dateRangeEnd, 'dd/MM/yyyy')}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {/* 1. Opening Balance */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <span className="block text-[10px] font-bold uppercase text-slate-400">
-                Opening Balance
-              </span>
-              <span className="block text-base font-black font-mono text-slate-800 mt-1">
-                {formatCurrency(statementCalculations.openingBalance)}
-              </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                As of {format(dateRangeStart, 'dd MMM')}
+          {/* Boxed Account Summary Table matching PDF */}
+          <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+            <div className="bg-[#F1F5F9] border-b border-[#E2E8F0] px-3.5 py-2 flex items-center justify-between text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <span>Account Financial Summary</span>
+              <span className="text-[11px] font-mono text-slate-500 font-normal">
+                Ledger Balanced &amp; Certified
               </span>
             </div>
 
-            {/* 2. Total Inflows */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <span className="block text-[10px] font-bold uppercase text-emerald-700">
-                Total Inflows (+)
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#E2E8F0]">
+              {/* 1. Opening Balance */}
+              <div className="p-3.5 bg-[#F8FAFC]/50">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Opening Balance
+                </span>
+                <span className="block text-base font-black font-mono text-slate-800 mt-1">
+                  {formatCurrency(statementCalculations.openingBalance)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  As of {format(dateRangeStart, 'dd/MM/yyyy')}
+                </span>
+              </div>
+
+              {/* 2. Total Money In (Credits / Income) */}
+              <div className="p-3.5 bg-[#F8FAFC]/50">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  Total Money In (Credits / Income)
+                </span>
+                <span className="block text-base font-black font-mono text-emerald-700 mt-1">
+                  +{formatCurrency(statementCalculations.totalInflows)}
+                </span>
+                <span className="text-[10px] text-emerald-600 block mt-0.5">
+                  {statementCalculations.inflowCount} Credits
+                </span>
+              </div>
+
+              {/* 3. Total Money Out (Debits / Expenses) */}
+              <div className="p-3.5 bg-[#F8FAFC]/50">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                  Total Money Out (Debits / Expenses)
+                </span>
+                <span className="block text-base font-black font-mono text-rose-700 mt-1">
+                  -{formatCurrency(statementCalculations.totalOutflows)}
+                </span>
+                <span className="text-[10px] text-rose-500 block mt-0.5">
+                  {statementCalculations.outflowCount} Debits
+                </span>
+              </div>
+
+              {/* 4. Closing / Running Balance */}
+              <div className="p-3.5 bg-[#F8FAFC]/50">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  Closing / Running Balance
+                </span>
+                <span
+                  className={`block text-base font-black font-mono mt-1 ${
+                    statementCalculations.closingBalance < 0
+                      ? 'text-rose-700'
+                      : 'text-indigo-900'
+                  }`}
+                >
+                  {formatCurrency(statementCalculations.closingBalance)}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                  Net: {statementCalculations.netMovement >= 0 ? '+' : ''}
+                  {formatCurrency(statementCalculations.netMovement)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Classic Bank Ledger Table Preview */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Classic Bank Ledger Table ({statementCalculations.transactionsInPeriod.length} entries)</span>
               </span>
-              <span className="block text-base font-black font-mono text-emerald-700 mt-1">
-                +{formatCurrency(statementCalculations.totalInflows)}
-              </span>
-              <span className="text-[10px] text-emerald-600 block mt-0.5">
-                {statementCalculations.inflowCount} Credits
+              <span className="text-[11px] text-slate-500 font-mono">
+                Opening Balance: {formatCurrency(statementCalculations.openingBalance)}
               </span>
             </div>
 
-            {/* 3. Total Outflows */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <span className="block text-[10px] font-bold uppercase text-rose-700">
-                Total Outflows (-)
-              </span>
-              <span className="block text-base font-black font-mono text-rose-700 mt-1">
-                -{formatCurrency(statementCalculations.totalOutflows)}
-              </span>
-              <span className="text-[10px] text-rose-500 block mt-0.5">
-                {statementCalculations.outflowCount} Debits
-              </span>
-            </div>
-
-            {/* 4. Closing Balance */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <span className="block text-[10px] font-bold uppercase text-slate-500">
-                Closing Balance
-              </span>
-              <span
-                className={`block text-base font-black font-mono mt-1 ${
-                  statementCalculations.closingBalance < 0
-                    ? 'text-rose-700'
-                    : 'text-indigo-900'
-                }`}
-              >
-                {formatCurrency(statementCalculations.closingBalance)}
-              </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Net: {statementCalculations.netMovement >= 0 ? '+' : ''}
-                {formatCurrency(statementCalculations.netMovement)}
-              </span>
+            <div className="overflow-x-auto rounded-xl border border-[#CBD5E1] bg-white max-h-72 overflow-y-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-[#0F172A] text-white sticky top-0 z-10">
+                  <tr>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] w-[13%]">Date</th>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] w-[32%]">Transaction Details</th>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] w-[17%]">Reference / Vehicle</th>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-right w-[12%]">Paid In (Credit)</th>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-right w-[12%]">Paid Out (Debit)</th>
+                    <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-right w-[14%]">Running Balance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E2E8F0]">
+                  {statementCalculations.transactionsInPeriod.map((tx, idx) => {
+                    const isCredit = tx.type === 'credit';
+                    return (
+                      <tr key={tx.id || idx} className={idx % 2 === 1 ? 'bg-[#F8FAFC] hover:bg-slate-100/80' : 'bg-white hover:bg-[#F8FAFC]'}>
+                        <td className="py-2 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap">
+                          {format(new Date(tx.date), 'dd/MM/yyyy')}
+                        </td>
+                        <td className="py-2 px-3">
+                          <p className="font-bold text-slate-900 truncate text-xs">{tx.description}</p>
+                          <p className="text-[10px] text-slate-500 truncate">{tx.category}</p>
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className="font-mono text-xs font-semibold text-slate-700">{tx.reference || '—'}</span>
+                          {Boolean(tx.vehicleReg) && (
+                            <span className="block text-[10px] text-slate-500 font-mono">Reg: {tx.vehicleReg}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-[#059669] text-xs">
+                          {isCredit ? `+${formatCurrency(tx.amount)}` : <span className="text-slate-300 font-normal">—</span>}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-[#BE123C] text-xs">
+                          {!isCredit ? `-${formatCurrency(tx.amount)}` : <span className="text-slate-300 font-normal">—</span>}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-xs text-slate-900">
+                          {formatCurrency(tx.runningBalance || 0)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {statementCalculations.transactionsInPeriod.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-400 text-xs">
+                        No transactions recorded in this statement period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="bg-[#F1F5F9] border-t-2 border-[#0F172A] font-bold text-xs text-slate-900 sticky bottom-0">
+                  <tr>
+                    <td colSpan={3} className="py-2.5 px-3">
+                      Reconciled Closing Balance ({periodLabel})
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-[#059669]">
+                      +{formatCurrency(statementCalculations.totalInflows)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-[#BE123C]">
+                      -{formatCurrency(statementCalculations.totalOutflows)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-indigo-950 text-sm">
+                      {formatCurrency(statementCalculations.closingBalance)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
         </div>
@@ -997,16 +1105,15 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
               Cancel
             </button>
 
-            {/* ── REAL-TIME PREVIEW BUTTON ── */}
             <button
               type="button"
               onClick={() => setShowPreviewModal(true)}
-              disabled={!selectedAccount || !activeStatementData}
-              className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100/90 text-indigo-700 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Real-time live PDF preview using @react-pdf/renderer before generating"
+              disabled={isGeneratingPDF || !selectedAccount}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50"
+              title="Preview statement document before downloading"
             >
-              <Eye className="w-4 h-4 text-indigo-600" />
-              <span>Preview Statement</span>
+              <Eye className="w-4 h-4 text-slate-500" />
+              <span>Preview</span>
             </button>
 
             <button
@@ -1030,18 +1137,19 @@ export const AccountStatementModal: React.FC<AccountStatementModalProps> = ({
           </div>
         </div>
       </div>
-    </Modal>
 
-    {/* ── REAL-TIME ACCOUNT STATEMENT PREVIEW MODAL ── */}
-    <AccountStatementPreviewModal
-      isOpen={showPreviewModal}
-      onClose={() => setShowPreviewModal(false)}
-      statementData={activeStatementData}
-      companyDetails={companyDetails}
-      onDownloadPDF={handleGeneratePDF}
-      isGeneratingPDF={isGeneratingPDF}
-    />
-    </>
+      {/* ── SPLIT LIVE DOCUMENT PREVIEW MODAL ── */}
+      {showPreviewModal && activeStatementData && (
+        <AccountStatementPreviewModal
+          isOpen={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          statementData={activeStatementData}
+          companyDetails={companyDetails}
+          onDownloadPDF={handleGeneratePDF}
+          isGeneratingPDF={isGeneratingPDF}
+        />
+      )}
+    </Modal>
   );
 };
 

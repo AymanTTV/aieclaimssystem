@@ -20,6 +20,8 @@ import {
   ZoomIn,
   ZoomOut,
   Sliders,
+  SlidersHorizontal,
+  Save,
   CheckCircle2,
   Shield,
   CreditCard,
@@ -58,6 +60,7 @@ import {
 import {
   DocumentTypeKey,
   DocumentTermTemplate,
+  RoutingContext,
   getTemplatesForDocumentType,
   getDefaultTemplateForDocument,
 } from '../../utils/documentTemplateTerms';
@@ -79,12 +82,25 @@ export interface SplitDocumentPreviewModalProps {
   initialEntityKey?: string;
   initialBankId?: string;
   initialTemplateId?: string;
+  initialCustomTermsTitle?: string;
+  initialCustomTermsContent?: string;
   initialPageTemplateMapping?: PageTemplateMappingConfig;
+  onSaveRentalSettings?: (settings: {
+    entityKey: string;
+    entityName: string;
+    entityLogo: string;
+    bankId: string;
+    bankDetails: any;
+    templateId: string;
+    templateTitle: string;
+    templateContent: string;
+  }) => Promise<void> | void;
   extraControlsTab?: {
     label: string;
     icon: React.ReactNode;
     content: React.ReactNode;
   };
+  routingContext?: Partial<RoutingContext>;
 }
 
 export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps> = ({
@@ -100,8 +116,12 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   initialEntityKey,
   initialBankId,
   initialTemplateId,
+  initialCustomTermsTitle,
+  initialCustomTermsContent,
   initialPageTemplateMapping,
+  onSaveRentalSettings,
   extraControlsTab,
+  routingContext,
 }) => {
   // ── 0. ROLE-BASED CONTROLS & OVERRIDE PERMISSIONS ──
   const { user } = useAuth();
@@ -123,32 +143,39 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
 
   const canOverride = isManagerRole || hasOverridePermission;
 
+  // Active company details state for instant live refresh upon saving T&Cs or branding
+  const [activeCompanyDetails, setActiveCompanyDetails] = useState<any>(baseCompanyDetails);
+
+  useEffect(() => {
+    setActiveCompanyDetails(baseCompanyDetails);
+  }, [baseCompanyDetails]);
+
   // Retrieve manager-configured default mappings for this document type
   const managerDefaults = useMemo(
-    () => getManagerDefaultsForDocType(documentType, baseCompanyDetails),
-    [documentType, baseCompanyDetails]
+    () => getManagerDefaultsForDocType(documentType, activeCompanyDetails),
+    [documentType, activeCompanyDetails]
   );
 
   // ── 1. ENTITY & BRANDING OVERRIDES STATE ──
   const availableEntities = useMemo(
-    () => getAvailableCompanyEntities(baseCompanyDetails),
-    [baseCompanyDetails]
+    () => getAvailableCompanyEntities(activeCompanyDetails),
+    [activeCompanyDetails]
   );
 
   const [selectedEntityKey, setSelectedEntityKey] = useState<string>(() => {
+    if (initialEntityKey) return initialEntityKey;
     if (!canOverride && managerDefaults?.entityKey) {
       return managerDefaults.entityKey;
     }
-    if (initialEntityKey) return initialEntityKey;
     if (managerDefaults?.entityKey) return managerDefaults.entityKey;
-    return getDefaultEntityKeyForDocument(documentType, baseCompanyDetails);
+    return getDefaultEntityKeyForDocument(documentType, activeCompanyDetails);
   });
 
   useEffect(() => {
-    if (initialEntityKey && canOverride) {
+    if (initialEntityKey) {
       setSelectedEntityKey(initialEntityKey);
     }
-  }, [initialEntityKey, canOverride]);
+  }, [initialEntityKey]);
 
   const selectedEntity = useMemo(
     () => availableEntities.find((e) => e.key === selectedEntityKey) || availableEntities[0],
@@ -244,10 +271,10 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   );
 
   const [selectedBankId, setSelectedBankId] = useState<string>(() => {
+    if (initialBankId) return initialBankId;
     if (!canOverride && managerDefaults?.bankAccountId) {
       return managerDefaults.bankAccountId;
     }
-    if (initialBankId) return initialBankId;
     if (managerDefaults?.bankAccountId) return managerDefaults.bankAccountId;
     if (documentType.includes('claim')) {
       const claimsBank = availableBanks.find((b) => b.id.includes('claims') || b.id.includes('natwest'));
@@ -258,10 +285,10 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   });
 
   useEffect(() => {
-    if (initialBankId && canOverride) {
+    if (initialBankId) {
       setSelectedBankId(initialBankId);
     }
-  }, [initialBankId, canOverride]);
+  }, [initialBankId]);
 
   const selectedBank = useMemo(
     () => availableBanks.find((b) => b.id === selectedBankId) || availableBanks[0],
@@ -313,13 +340,13 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
 
   // ── 3. DRAFT T&C AUTO-BINDING & TEMPLATES STATE ──
   const availableTemplates = useMemo(
-    () => getTemplatesForDocumentType(documentType, baseCompanyDetails),
-    [documentType, baseCompanyDetails]
+    () => getTemplatesForDocumentType(documentType, activeCompanyDetails, routingContext),
+    [documentType, activeCompanyDetails, routingContext]
   );
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
     if (initialTemplateId) return initialTemplateId;
-    const defTmpl = getDefaultTemplateForDocument(documentType, baseCompanyDetails);
+    const defTmpl = getDefaultTemplateForDocument(documentType, activeCompanyDetails, routingContext);
     return defTmpl?.id || availableTemplates[0]?.id || '';
   });
 
@@ -329,17 +356,59 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   );
 
   const [includeTrailingTC, setIncludeTrailingTC] = useState<boolean>(true);
-  const [customTermsTitle, setCustomTermsTitle] = useState<string>('');
-  const [draftTermsContent, setDraftTermsContent] = useState<string>('');
+  const [customTermsTitle, setCustomTermsTitle] = useState<string>(() => initialCustomTermsTitle || selectedTemplate?.title || 'Terms and Conditions');
+  const [draftTermsContent, setDraftTermsContent] = useState<string>(() => initialCustomTermsContent || selectedTemplate?.content || '');
 
   useEffect(() => {
-    if (selectedTemplate) {
+    if (initialTemplateId) {
+      setSelectedTemplateId(initialTemplateId);
+    }
+  }, [initialTemplateId]);
+
+  useEffect(() => {
+    if (initialCustomTermsTitle) {
+      setCustomTermsTitle(initialCustomTermsTitle);
+    } else if (selectedTemplate) {
       setCustomTermsTitle(selectedTemplate.title || 'Terms and Conditions');
+    }
+  }, [initialCustomTermsTitle, selectedTemplate]);
+
+  useEffect(() => {
+    if (initialCustomTermsContent) {
+      setDraftTermsContent(initialCustomTermsContent);
+    } else if (selectedTemplate) {
       setDraftTermsContent(selectedTemplate.content || '');
     }
-  }, [selectedTemplate]);
+  }, [initialCustomTermsContent, selectedTemplate]);
 
-  // ── 4. RIGHT-SIDE TABS NAVIGATION ──
+  // ── 4. ADJUSTMENT PANEL VISIBILITY (LOCKED & HIDDEN BY DEFAULT) ──
+  const [showAdjustmentPanel, setShowAdjustmentPanel] = useState<boolean>(false);
+  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
+
+  const handleSaveSettings = async () => {
+    if (!onSaveRentalSettings) return;
+    setIsSavingSettings(true);
+    try {
+      await onSaveRentalSettings({
+        entityKey: selectedEntityKey,
+        entityName: customCompanyName || selectedEntity.fullName,
+        entityLogo: customLogoUrl || selectedEntity.logoUrl,
+        bankId: selectedBankId,
+        bankDetails: selectedBank,
+        templateId: selectedTemplateId,
+        templateTitle: customTermsTitle,
+        templateContent: draftTermsContent,
+      });
+      toast.success('Rental settings saved and updated!');
+    } catch (err: any) {
+      console.error('Error saving rental settings:', err);
+      toast.error(`Failed to save settings: ${err?.message || err}`);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // ── 5. RIGHT-SIDE TABS NAVIGATION ──
   const [activeTab, setActiveTab] = useState<'entity' | 'layouts' | 'bank' | 'terms' | 'extra'>('entity');
 
   // ── 5. PDF CANVAS STATE & NAVIGATION ──
@@ -355,7 +424,7 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
   // Build the effective company details with all real-time overrides
   const effectiveCompanyDetails = useMemo(() => {
     const isP3Active = includeTrailingTC && pageTemplateMapping.includePage3 && pageTemplateMapping.page3Template !== 'none';
-    return buildEffectiveDocumentCompanyDetails(baseCompanyDetails, selectedEntity, {
+    return buildEffectiveDocumentCompanyDetails(activeCompanyDetails, selectedEntity, {
       fullName: customCompanyName,
       tradingName: customTradingName,
       registrationNumber: customRegNumber,
@@ -627,7 +696,7 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
           {/* ══════════════════════════════════════════════════════════════
               LEFT SIDE: LIVE PDF PREVIEW CANVAS & PAGE NAVIGATION
              ══════════════════════════════════════════════════════════════ */}
-          <div className="flex-1 lg:flex-[1.4] flex flex-col border-b lg:border-b-0 lg:border-r border-slate-800 bg-slate-950 relative min-h-0">
+          <div className={`flex-1 flex flex-col border-b lg:border-b-0 ${showAdjustmentPanel ? 'lg:flex-[1.4] lg:border-r border-slate-800' : 'w-full'} bg-slate-950 relative min-h-0`}>
             {/* Canvas Navigation Sub-Bar */}
             <div className="flex items-center justify-between px-3 py-2 bg-slate-900/90 border-b border-slate-800 text-xs text-slate-300">
               {/* Page-by-Page Navigation Controls */}
@@ -714,6 +783,22 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
                 >
                   Fit
                 </button>
+
+                <div className="h-3 w-px bg-slate-700 mx-1" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustmentPanel((prev) => !prev)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded transition cursor-pointer ${
+                    showAdjustmentPanel
+                      ? 'bg-indigo-600 text-white font-bold'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                  title={showAdjustmentPanel ? 'Hide Document Settings' : 'Edit Rental Settings'}
+                >
+                  <SlidersHorizontal className="w-3 h-3 text-indigo-400" />
+                  <span>{showAdjustmentPanel ? 'Hide Settings' : 'Rental Settings'}</span>
+                </button>
               </div>
             </div>
 
@@ -770,8 +855,49 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
 
           {/* ══════════════════════════════════════════════════════════════
               RIGHT SIDE: DOCUMENT CONTROLS, BRANDING, BANK & T&C SETTINGS
+              (Hidden by default; revealed via "Edit Rental Settings" button)
              ══════════════════════════════════════════════════════════════ */}
-          <div className="flex-1 lg:flex-[1.0] flex flex-col bg-slate-900 overflow-hidden min-h-0">
+          {showAdjustmentPanel && (
+          <div className="flex-1 lg:flex-[1.0] lg:max-w-xl flex flex-col bg-slate-900 overflow-hidden min-h-0 border-l border-slate-800">
+            {/* Settings Header Bar with Save & Close */}
+            <div className="px-4 py-2.5 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1 rounded-md bg-indigo-500/20 text-indigo-400">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-white">Rental Settings &amp; Overrides</h3>
+                  <p className="text-[10px] text-slate-400">Re-select corporate entity, bank, or agreement terms</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {onSaveRentalSettings && (
+                  <button
+                    type="button"
+                    onClick={handleSaveSettings}
+                    disabled={isSavingSettings}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    title="Save current selections permanently to the rental record"
+                  >
+                    {isSavingSettings ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Save className="w-3 h-3" />
+                    )}
+                    <span>Save to Rental</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustmentPanel(false)}
+                  className="p-1 text-slate-400 hover:text-white rounded-md hover:bg-slate-700/60 cursor-pointer"
+                  title="Close settings panel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
             {/* Quick Entity Brand & Logo Selector Bar */}
             <div className="px-4 py-2.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1799,32 +1925,52 @@ export const SplitDocumentPreviewModal: React.FC<SplitDocumentPreviewModalProps>
             <div className="p-3.5 bg-slate-800/95 border-t border-slate-800 flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-3.5 py-2 text-xs font-bold text-slate-400 hover:text-slate-200 cursor-pointer"
+                onClick={() => setShowAdjustmentPanel(false)}
+                className="px-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-200 cursor-pointer"
               >
-                Cancel / Edit
+                Close Settings
               </button>
 
-              <button
-                type="button"
-                onClick={handleCommit}
-                disabled={isGeneratingPDF}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isGeneratingPDF ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Committing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Commit &amp; Generate PDF</span>
-                  </>
+              <div className="flex items-center gap-2">
+                {onSaveRentalSettings && (
+                  <button
+                    type="button"
+                    onClick={handleSaveSettings}
+                    disabled={isSavingSettings}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    title="Save current selections permanently to the rental record"
+                  >
+                    {isSavingSettings ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    <span>Save to Rental</span>
+                  </button>
                 )}
-              </button>
+
+                <button
+                  type="button"
+                  onClick={handleCommit}
+                  disabled={isGeneratingPDF}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isGeneratingPDF ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Committing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Commit &amp; Generate PDF</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

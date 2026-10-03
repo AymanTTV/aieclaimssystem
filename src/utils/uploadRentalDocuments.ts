@@ -211,6 +211,44 @@ export const uploadRentalDocuments = async (
       console.warn('Could not update documents field in Firestore:', updateErr);
     }
 
+    // --- Also save pre-generated PDFs directly under customer record ---
+    let targetCustomerId = '';
+    try {
+      const rentalSnap = await getDoc(rentalRef);
+      targetCustomerId = rentalSnap.data()?.customerId || '';
+    } catch (rErr) {
+      console.warn('Could not read customerId from rental:', rErr);
+    }
+
+    if (targetCustomerId) {
+      try {
+        const customerRef = doc(db, 'customers', targetCustomerId);
+        const custSnap = await getDoc(customerRef);
+        if (custSnap.exists()) {
+          const custData = custSnap.data() || {};
+          const existingCustDocs = custData.documents || {};
+          const existingCustAgreements = existingCustDocs.agreements || {};
+          const primaryAgreementUrl = Object.values(agreementUrls)[0] || claimDocumentUrls?.hireAgreement || '';
+
+          await updateDoc(customerRef, {
+            documents: {
+              ...existingCustDocs,
+              ...newDocsMap,
+              agreements: {
+                ...(typeof existingCustAgreements === 'object' ? existingCustAgreements : {}),
+                ...(newDocsMap.agreements || {})
+              }
+            },
+            ...(primaryAgreementUrl && { documentUrl: primaryAgreementUrl }),
+            updatedAt: new Date()
+          });
+          console.log('Customer record attached with pre-generated document pack');
+        }
+      } catch (custErr) {
+        console.warn('Could not attach documents to customer record:', custErr);
+      }
+    }
+
     return {
       agreementUrls,
       invoiceUrl,

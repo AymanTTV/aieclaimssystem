@@ -4,36 +4,44 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { Claim } from '../../../types';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import {
   getHireCommencementDate,
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  AIE_CLAIMS_FOOTER_TEXT
+  AIE_CLAIMS_FOOTER_TEXT,
+  getCompanyBrandingForPdf,
+  extractActiveCorporateEntityProfile,
 } from '../../../utils/legalDocumentUtils';
+import { resolveClaimDocumentTerms } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './PdfTermsWarningNotice';
 
 const localStyles = StyleSheet.create({
   signatureSectionStyle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 0,
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   refCard: {
     borderWidth: 1,
     borderColor: '#3B82F6',
     borderRadius: 6,
-    padding: 10,
-    marginBottom: 15,
+    padding: 8,
+    marginBottom: 10,
     backgroundColor: '#F8FAFC',
   },
   refRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   refItem: {
     flex: 1,
@@ -46,15 +54,15 @@ const localStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   refValue: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: '#1F2937',
     marginTop: 1,
   },
   paragraph: {
     fontSize: 9,
     color: '#374151',
-    lineHeight: 1.4,
-    marginBottom: 8,
+    lineHeight: 1.35,
+    marginBottom: 4.5,
     textAlign: 'justify',
   },
 });
@@ -120,60 +128,74 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
     claim?.rental?.claimRentalPrice ??
     340;
 
-  const defaultTerms = `(a) For the purpose of this agreement ${companyDetails?.fullName || 'the Lessor'} is referred to as the lessor.
-(b) "The Hirer" means the person, firm or organisation by or on behalf of whom this agreement is signed.
-(c) The Hirer shall take full responsibility for the hired vehicle during the hire period.
-(d) The Hirer shall ensure the vehicle is used in a lawful manner and is properly maintained during the hire period.
-(e) The Hirer is responsible for all fines, penalties, and legal costs incurred during the hire period.
-(f) The Hirer must return the vehicle in the same condition as received, reasonable wear and tear excepted.
-(g) In case of breakdown or accident, the Hirer must immediately notify the Lessor.
-(h) The Lessor reserves the right to terminate the agreement and repossess the vehicle at any time if the Hirer breaches any terms.
-(i) The Hirer shall be liable for any loss or damage to the vehicle, including theft, fire, or accident, regardless of fault.
-(j) The Hirer must possess a valid driving license for the entire hire period.
-(k) The vehicle must not be used for racing, rallying, or any illegal purposes.
-(l) The vehicle must not be taken outside the agreed geographical area without prior written consent from the Lessor.
-(m) The Hirer is responsible for checking fluid levels, tyre pressure, and general roadworthiness daily.
-(n) Any repairs or maintenance required due to Hirer's negligence will be charged to the Hirer.
-(o) The Lessor is not liable for any loss or damage to property left in the vehicle.
-(p) The Hirer must inform the Lessor of any change of address or contact details during the hire period.
-(q) The Hirer agrees to pay all charges on demand. Overdue payments may incur additional fees.
-(r) The Lessor may use personal data provided by the Hirer for the purpose of this agreement and for legal compliance.
-(s) This agreement is governed by the laws of England and Wales.`;
+  // Strict Dynamic T&C Resolution: Pulls Condition of Hire clauses directly from Claims tab
+  const termsResolution = resolveClaimDocumentTerms('conditionOfHire', companyDetails);
 
-  // Fetch from Company Profile settings
-  const rawTerms =
-    companyDetails?.conditionOfHireText ||
-    companyDetails?.termsAndConditions ||
-    defaultTerms;
-
-  // Dynamically interpolate template variables
-  const processedTerms = parseLegalVariables(rawTerms, {
-    companyName: 'AIE Claims LTD',
-    companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
-    companyPhone: '+442080505337',
-    companyEmail: 'claims@aieclaims.co.uk',
-    companyVat: companyDetails?.vatNumber || '',
-    companyRegistration: '15616639',
-    hirerName: clientName,
-    customerName: clientName,
-    hirerAddress: clientAddress,
-    customerAddress: clientAddress,
-    hirerPhone: clientPhone,
-    vehicleReg: vehicleReg,
-    vehicleMake: vehicleMake,
-    vehicleModel: vehicleModel,
-    vehicleMakeModel: vehicleMakeModel,
-    agreementNumber: agreementRef,
-    agreementRef: agreementRef,
-    claimRef: agreementRef,
-    startDate: hireStartDateFormatted,
-    hireStartDate: hireStartDateFormatted,
-    dailyRate: `£${Number(claimRate).toFixed(2)}`,
+  const branding = getCompanyBrandingForPdf(companyDetails, 'aie_claims');
+  const activeCompanyProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...claim?.rental,
+    corporateEntityKey: claim?.rental?.corporateEntityKey || claim?.corporateEntityKey,
+    corporateEntityName: claim?.rental?.corporateEntityName || claim?.corporateEntityName,
   });
+  const resolvedCompanyName =
+    claim?.rental?.corporateEntityName ||
+    claim?.corporateEntityName ||
+    activeCompanyProfile.companyName ||
+    branding.companyName;
+  const resolvedCompanyReg =
+    activeCompanyProfile.companyNumber ||
+    companyDetails?.registrationNumber ||
+    '15616639';
+  const resolvedCompanyVat =
+    activeCompanyProfile.vatNumber ||
+    companyDetails?.vatNumber ||
+    '453448875';
+  const resolvedCompanyAddress =
+    activeCompanyProfile.companyAddress ||
+    companyDetails?.officialAddress ||
+    branding.companyAddress;
+
+  // Dynamically interpolate template variables if configured
+  const processedTerms = termsResolution.isConfigured
+    ? parseLegalVariables(termsResolution.content, {
+        company_name: resolvedCompanyName,
+        companyName: resolvedCompanyName,
+        claims_team: activeCompanyProfile.claimsTeam,
+        claimsTeam: activeCompanyProfile.claimsTeam,
+        website: activeCompanyProfile.website || branding.website,
+        company_website: activeCompanyProfile.website || branding.website,
+        companyWebsite: activeCompanyProfile.website || branding.website,
+        company_phone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        companyPhone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        company_email: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        companyEmail: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        company_number: resolvedCompanyReg,
+        companyRegistration: resolvedCompanyReg,
+        company_address: resolvedCompanyAddress,
+        companyAddress: resolvedCompanyAddress,
+        vat_number: resolvedCompanyVat,
+        companyVat: resolvedCompanyVat,
+        hirerName: clientName,
+        customerName: clientName,
+        hirerAddress: clientAddress,
+        customerAddress: clientAddress,
+        hirerPhone: clientPhone,
+        vehicleReg: vehicleReg,
+        vehicleMake: vehicleMake,
+        vehicleModel: vehicleModel,
+        vehicleMakeModel: vehicleMakeModel,
+        agreementNumber: agreementRef,
+        agreementRef: agreementRef,
+        claimRef: agreementRef,
+        startDate: hireStartDateFormatted,
+        hireStartDate: hireStartDateFormatted,
+        dailyRate: `£${Number(claimRate).toFixed(2)}`,
+      })
+    : '';
 
   const paragraphs = splitParagraphs(processedTerms);
-
-  const footerText = AIE_CLAIMS_FOOTER_TEXT;
+  const footerText = branding.footerText;
 
   return (
     <Document>
@@ -181,13 +203,20 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
         {/* HEADER - fixed on all pages */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={aieClaimsLogo} style={styles.logo} />
+            <SafePdfLogo
+              src={branding.companyLogo || aieClaimsLogo}
+              companyName={resolvedCompanyName}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>AIE Claims LTD</Text>
-            <Text style={styles.companyDetail}>United House, 39-41 North Road, London, N7 9DP</Text>
-            <Text style={styles.companyDetail}>Tel: +442080505337</Text>
-            <Text style={styles.companyDetail}>Email: claims@aieclaims.co.uk</Text>
+            <Text style={styles.companyName}>{resolvedCompanyName}</Text>
+            <Text style={styles.companyDetail}>{resolvedCompanyAddress}</Text>
+            <Text style={styles.companyDetail}>Tel: {activeCompanyProfile.phone || branding.companyPhone || '+442080505337'}</Text>
+            <Text style={styles.companyDetail}>Email: {activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk'}</Text>
+            {Boolean(activeCompanyProfile.website || branding.website) && (
+              <Text style={styles.companyDetail}>Web: {activeCompanyProfile.website || branding.website}</Text>
+            )}
           </View>
         </View>
 
@@ -245,21 +274,25 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
         </View>
 
         {/* TERMS AND CONDITIONS */}
-        <View style={{ marginBottom: 15 }} wrap>
-          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          {paragraphs.map((p, idx) => (
-            <Text key={idx} style={localStyles.paragraph}>
-              {p}
-            </Text>
-          ))}
+        <View style={{ marginBottom: 10 }} wrap={true}>
+          <Text style={styles.sectionTitle}>{termsResolution.title || 'TERMS AND CONDITIONS'}</Text>
+          {termsResolution.isConfigured ? (
+            paragraphs.map((p, idx) => (
+              <Text key={idx} wrap={true} style={localStyles.paragraph}>
+                {p}
+              </Text>
+            ))
+          ) : (
+            <PdfTermsWarningNotice message={termsResolution.warningMessage} />
+          )}
         </View>
 
         {/* SIGNATURES - Strictly stamped with Hire Start Date */}
-        <View style={localStyles.signatureSectionStyle} wrap={false}>
+        <View style={localStyles.signatureSectionStyle} wrap={false} minPresenceAhead={150}>
           {/* Hirer’s Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Hirer’s Signature</Text>
-            {claim?.clientInfo?.signature && (
+            {isValidPdfImageSrc(claim?.clientInfo?.signature) && (
               <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
             <Text style={{ fontSize: 9, marginTop: 4 }}>{clientName}</Text>
@@ -271,10 +304,10 @@ const ConditionOfHire: React.FC<ConditionOfHireProps> = ({ claim, companyDetails
           {/* Authorized Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Authorized Signature</Text>
-            {companyDetails?.signature && (
+            {isValidPdfImageSrc(companyDetails?.signature) && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text style={{ fontSize: 9, marginTop: 4 }}>AIE Claims LTD</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>{resolvedCompanyName}</Text>
             <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
               Date: {hireStartDateFormatted}
             </Text>

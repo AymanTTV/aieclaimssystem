@@ -135,6 +135,14 @@ export default function AppRoutes() {
           </Suspense>
         }
       />
+      <Route
+        path="/doc/:rentalId"
+        element={
+          <Suspense fallback={spinner}>
+            <PublicDocumentViewer />
+          </Suspense>
+        }
+      />
       {/* Public Real-Time Mirror Routes - Read-Only Live Sync */}
       <Route path="/maintenance/live" element={<PublicMirror />} />
       <Route path="/maintenance-public" element={<PublicMirror />} />
@@ -601,6 +609,10 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Redirects for removed Share & Attach Documents Workflow routes */}
+      <Route path="/share-documents" element={<Navigate to="/rentals" replace />} />
+      <Route path="/share-workflow" element={<Navigate to="/rentals" replace />} />
 
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

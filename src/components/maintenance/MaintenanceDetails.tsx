@@ -686,105 +686,134 @@ const MaintenanceDetails: React.FC<MaintenanceDetailsProps> = ({ log, vehicle, o
                   </div>
 
                   {/* Card 3: Net Profit (£) Display Badge */}
-                  <div
-                    className={`p-3.5 rounded-xl border transition-all ${
-                      profitMetrics.netProfit > 0
-                        ? 'bg-emerald-50/90 border-emerald-300'
-                        : profitMetrics.netProfit < 0
-                        ? 'bg-rose-50/90 border-rose-300'
-                        : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`text-xs font-bold block uppercase tracking-wider ${
-                          profitMetrics.netProfit > 0
-                            ? 'text-emerald-800'
+                  {(() => {
+                    const isDirect = subcontractorCost <= 0;
+                    return (
+                      <div
+                        className={`p-3.5 rounded-xl border transition-all ${
+                          isDirect
+                            ? 'bg-slate-50 border-slate-200'
+                            : profitMetrics.netProfit > 0
+                            ? 'bg-emerald-50/90 border-emerald-300'
                             : profitMetrics.netProfit < 0
-                            ? 'text-rose-800'
-                            : 'text-slate-600'
+                            ? 'bg-rose-50/90 border-rose-300'
+                            : 'bg-slate-50 border-slate-200'
                         }`}
                       >
-                        Net Profit (£)
-                      </span>
-                      {profitMetrics.netProfit > 0 ? (
-                        <TrendingUp className="w-4 h-4 text-emerald-600" />
-                      ) : profitMetrics.netProfit < 0 ? (
-                        <TrendingDown className="w-4 h-4 text-rose-600" />
-                      ) : (
-                        <DollarSign className="w-4 h-4 text-slate-400" />
-                      )}
-                    </div>
-                    <span
-                      className={`text-xl font-mono font-black mt-1 block ${
-                        profitMetrics.netProfit > 0
-                          ? 'text-emerald-700'
-                          : profitMetrics.netProfit < 0
-                          ? 'text-rose-700'
-                          : 'text-slate-800'
-                      }`}
-                    >
-                      {profitMetrics.netProfit >= 0 ? '+' : ''}
-                      {formatCurrency(profitMetrics.netProfit)}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase ${
-                        profitMetrics.netProfit > 0
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : profitMetrics.netProfit < 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {profitMetrics.netProfit > 0
-                        ? '✓ Profitable'
-                        : profitMetrics.netProfit < 0
-                        ? '⚠ Net Loss'
-                        : 'Break-even'}
-                    </span>
-                  </div>
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-xs font-bold block uppercase tracking-wider ${
+                              isDirect
+                                ? 'text-slate-600'
+                                : profitMetrics.netProfit > 0
+                                ? 'text-emerald-800'
+                                : profitMetrics.netProfit < 0
+                                ? 'text-rose-800'
+                                : 'text-slate-600'
+                            }`}
+                          >
+                            {isDirect ? 'Net Profit / Mark-Up' : 'Net Profit (£)'}
+                          </span>
+                          {isDirect ? (
+                            <DollarSign className="w-4 h-4 text-slate-400" />
+                          ) : profitMetrics.netProfit > 0 ? (
+                            <TrendingUp className="w-4 h-4 text-emerald-600" />
+                          ) : profitMetrics.netProfit < 0 ? (
+                            <TrendingDown className="w-4 h-4 text-rose-600" />
+                          ) : (
+                            <DollarSign className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+                        <span
+                          className={`text-xl font-mono font-black mt-1 block ${
+                            isDirect
+                              ? 'text-slate-700'
+                              : profitMetrics.netProfit > 0
+                              ? 'text-emerald-700'
+                              : profitMetrics.netProfit < 0
+                              ? 'text-rose-700'
+                              : 'text-slate-800'
+                          }`}
+                        >
+                          {isDirect ? '£0.00' : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase ${
+                            isDirect
+                              ? 'bg-slate-200 text-slate-700'
+                              : profitMetrics.netProfit > 0
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : profitMetrics.netProfit < 0
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {isDirect
+                            ? 'N/A (Direct Transaction)'
+                            : profitMetrics.netProfit > 0
+                            ? '✓ Profitable'
+                            : profitMetrics.netProfit < 0
+                            ? '⚠ Net Loss'
+                            : 'Break-even'}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Card 4: Profit Margin (%) Display Badge */}
-                  <div
-                    className={`p-3.5 rounded-xl border transition-all ${
-                      profitMetrics.profitMarginPercent > 0
-                        ? 'bg-indigo-50/90 border-indigo-300'
-                        : profitMetrics.profitMarginPercent < 0
-                        ? 'bg-rose-50/90 border-rose-300'
-                        : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`text-xs font-bold block uppercase tracking-wider ${
-                          profitMetrics.profitMarginPercent > 0
-                            ? 'text-indigo-800'
+                  {(() => {
+                    const isDirect = subcontractorCost <= 0;
+                    return (
+                      <div
+                        className={`p-3.5 rounded-xl border transition-all ${
+                          isDirect
+                            ? 'bg-slate-50 border-slate-200'
+                            : profitMetrics.profitMarginPercent > 0
+                            ? 'bg-indigo-50/90 border-indigo-300'
                             : profitMetrics.profitMarginPercent < 0
-                            ? 'text-rose-800'
-                            : 'text-slate-600'
+                            ? 'bg-rose-50/90 border-rose-300'
+                            : 'bg-slate-50 border-slate-200'
                         }`}
                       >
-                        Profit Margin (%)
-                      </span>
-                      <Percent className="w-4 h-4 text-indigo-600" />
-                    </div>
-                    <span
-                      className={`text-xl font-mono font-black mt-1 block ${
-                        profitMetrics.profitMarginPercent > 0
-                          ? 'text-indigo-700'
-                          : profitMetrics.profitMarginPercent < 0
-                          ? 'text-rose-700'
-                          : 'text-slate-800'
-                      }`}
-                    >
-                      {profitMetrics.profitMarginPercent.toFixed(1)}%
-                    </span>
-                    <span className="text-[11px] text-slate-500 mt-0.5 block">
-                      {customerBilled > 0
-                        ? `${profitMetrics.profitMarginPercent.toFixed(1)}% margin on billed`
-                        : 'No billing recorded'}
-                    </span>
-                  </div>
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-xs font-bold block uppercase tracking-wider ${
+                              isDirect
+                                ? 'text-slate-600'
+                                : profitMetrics.profitMarginPercent > 0
+                                ? 'text-indigo-800'
+                                : profitMetrics.profitMarginPercent < 0
+                                ? 'text-rose-800'
+                                : 'text-slate-600'
+                            }`}
+                          >
+                            Profit Margin (%)
+                          </span>
+                          <Percent className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <span
+                          className={`text-xl font-mono font-black mt-1 block ${
+                            isDirect
+                              ? 'text-slate-700'
+                              : profitMetrics.profitMarginPercent > 0
+                              ? 'text-indigo-700'
+                              : profitMetrics.profitMarginPercent < 0
+                              ? 'text-rose-700'
+                              : 'text-slate-800'
+                          }`}
+                        >
+                          {isDirect ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
+                        </span>
+                        <span className="text-[11px] text-slate-500 mt-0.5 block">
+                          {isDirect
+                            ? 'N/A (Direct Transaction)'
+                            : customerBilled > 0
+                            ? `${profitMetrics.profitMarginPercent.toFixed(1)}% margin on billed`
+                            : 'No billing recorded'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

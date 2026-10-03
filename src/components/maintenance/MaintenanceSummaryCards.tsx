@@ -114,28 +114,34 @@ const MaintenanceSummaryCards: React.FC<MaintenanceSummaryCardsProps> = ({
     let totalSubCost = 0;
     let totalBilled = 0;
     let totalNetProfit = 0;
+    let profitTrackingBilled = 0;
 
     itemsToCalculate.forEach((l) => {
       const billed = l.customerBilled !== undefined ? Number(l.customerBilled) : Number(l.cost || 0);
-      const isProfitEdited = l.isProfitEdited === true;
+      const rawSub = l.subcontractorCost !== undefined ? Number(l.subcontractorCost) : undefined;
+      const hasSub = rawSub !== undefined && !isNaN(rawSub) && rawSub > 0;
+      const isPassThrough = Boolean(
+        l.isPassThrough ||
+        l.passThrough ||
+        l.isPassThroughMaintenance ||
+        (hasSub && Math.abs(billed - rawSub!) < 0.01)
+      );
 
-      // 1. DEFAULT PROFIT EXCLUSION (IGNORE UNTIL EDITED & SAVED):
-      // For all newly created/unedited data records, default Dealer Cost to match Total price (Profit £0.00 / 0.0% Margin).
-      // The system IGNORES profit calculation UNTIL a user manually opens the record, clicks "Edit", updates info, and hits "Save" / "Update".
-      const sub = isProfitEdited
-        ? (l.subcontractorCost !== undefined ? Number(l.subcontractorCost) : billed)
-        : billed;
-
-      const profit = isProfitEdited
-        ? (l.netProfit !== undefined ? Number(l.netProfit) : (billed - sub))
-        : 0;
+      // Subcontractor-Only Profit Trigger:
+      // Only execute Net Profit and Profit Margin (%) calculations when a positive Dealer/Subcontractor Cost is explicitly entered (Dealer Cost > 0).
+      // When Subcontractor Cost = £0 (or left blank): Net Profit is £0.00 and does NOT inflate Net Profit!
+      const sub = hasSub ? rawSub! : 0;
+      const profit = hasSub && !isPassThrough ? Math.max(0, billed - sub) : 0;
 
       totalBilled += isNaN(billed) ? 0 : billed;
-      totalSubCost += isNaN(sub) ? 0 : sub;
-      totalNetProfit += isNaN(profit) ? 0 : profit;
+      if (hasSub) {
+        totalSubCost += sub;
+        totalNetProfit += profit;
+        profitTrackingBilled += billed;
+      }
     });
 
-    const totalProfitMargin = totalBilled > 0 ? (totalNetProfit / totalBilled) * 100 : 0;
+    const totalProfitMargin = profitTrackingBilled > 0 ? (totalNetProfit / profitTrackingBilled) * 100 : 0;
 
     return {
       totalNet: isNaN(totalNet) ? 0 : totalNet,

@@ -88,8 +88,33 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => {
     if (transaction) {
       setCurrentType(transaction.type);
+    } else {
+      setCurrentType(initialType);
     }
-  }, [transaction]);
+  }, [transaction, initialType]);
+
+  const handleTypeChange = (newType: 'income' | 'expense') => {
+    if (newType === currentType) return;
+    setCurrentType(newType);
+
+    setFormData((prev) => {
+      const updated = { ...prev };
+      if (newType === 'income') {
+        if (!updated.accountTo && updated.accountFrom) {
+          updated.accountTo = updated.accountFrom;
+        } else if (!updated.accountTo && accounts.length > 0) {
+          updated.accountTo = defaultCompanyAccount?.id || accounts[0]?.id || '';
+        }
+      } else {
+        if (!updated.accountFrom && updated.accountTo) {
+          updated.accountFrom = updated.accountTo;
+        } else if (!updated.accountFrom && accounts.length > 0) {
+          updated.accountFrom = defaultCompanyAccount?.id || accounts[0]?.id || '';
+        }
+      }
+      return updated;
+    });
+  };
 
   const isEditing = useMemo(() => !!transaction?.id, [transaction]);
   const isEditingMultiAccount = useMemo(() =>
@@ -116,6 +141,28 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
        .finally(() => { if (isMounted) setCatsLoading(false); });
      return () => { isMounted = false; };
   }, []);
+
+  const prioritizedCategories = useMemo(() => {
+    const incomeCategoryKeywords = ['rent', 'hire', 'income', 'sale', 'lease', 'claim', 'received', 'client', 'revenue', 'deposit', 'customer'];
+    const expenseCategoryKeywords = ['maint', 'repair', 'service', 'mot', 'tyre', 'brake', 'fuel', 'tax', 'wash', 'accident', 'part', 'cost', 'expense', 'provided', 'subcontractor', 'fee', 'charge', 'utility', 'toll', 'fine'];
+
+    const list = financeCategories.length > 0
+      ? [...financeCategories]
+      : currentType === 'income'
+      ? ['Rental Payment', 'Vehicle Hire', 'Vehicle Leasing', 'Service & MOT', 'Insurance Claim', 'Loan Received', 'Other Income']
+      : ['Maintenance', 'Repair', 'Subcontractor Cost', 'Service & MOT', 'Fuel', 'Tyres & Brakes', 'Insurance', 'Licensing & Road Tax', 'Other Expense'];
+
+    return list.sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+      const keywords = currentType === 'income' ? incomeCategoryKeywords : expenseCategoryKeywords;
+      const aMatch = keywords.some(k => aLower.includes(k));
+      const bMatch = keywords.some(k => bLower.includes(k));
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return a.localeCompare(b);
+    });
+  }, [financeCategories, currentType]);
 
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
@@ -549,7 +596,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           onClose();
 
           // Execute Firestore update in the background
-          updateDoc(doc(db, 'transactions', transaction.id), updatePayload).catch((bgErr) => {
+          const cleanUpdatePayload: any = {};
+          for (const [k, v] of Object.entries(updatePayload)) {
+            if (v !== undefined) cleanUpdatePayload[k] = v;
+          }
+          updateDoc(doc(db, 'transactions', transaction.id), cleanUpdatePayload).catch((bgErr) => {
             console.error('Background transaction update error:', bgErr);
             toast.error('Failed to sync transaction update to server');
           });
@@ -568,6 +619,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         const debitSideString = [primaryName, secondaryName].filter(Boolean).join(', ');
         const creditSideString = getAccName(contraAccountId);
 
+        const sanitizeData = (rawObj: any) => {
+          const sanitized: any = {};
+          for (const [k, v] of Object.entries(rawObj)) {
+            if (v !== undefined) sanitized[k] = v;
+          }
+          return sanitized;
+        };
+
         if (mainPrimaryId) {
             const ref = doc(collection(db, 'transactions'));
             const data: any = {
@@ -576,7 +635,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 type: currentType,
                 createdAt: new Date(),
                 createdBy: user.name || user.email || '',
-                relatedAccountName: contraAccountId ? creditSideString : undefined,
+                relatedAccountName: contraAccountId ? (creditSideString || null) : null,
             };
 
             if (currentType === 'income') {
@@ -587,7 +646,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 data.accountsTo = [];
             }
 
-            batch.set(ref, data);
+            batch.set(ref, sanitizeData(data));
             optimisticCreatedList.push(data);
             operationCount++;
         }
@@ -600,7 +659,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 type: currentType,
                 createdAt: new Date(),
                 createdBy: user.name || user.email || '',
-                relatedAccountName: contraAccountId ? creditSideString : undefined,
+                relatedAccountName: contraAccountId ? (creditSideString || null) : null,
             };
 
             if (currentType === 'income') {
@@ -611,7 +670,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 data.accountsTo = [];
             }
 
-            batch.set(ref, data);
+            batch.set(ref, sanitizeData(data));
             optimisticCreatedList.push(data);
             operationCount++;
         }
@@ -632,14 +691,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             if (contraType === 'income') {
                 contraData.accountsTo = [formData.accountThird];
                 contraData.accountsFrom = [];
-                contraData.relatedAccountName = debitSideString; 
+                contraData.relatedAccountName = debitSideString || null; 
             } else {
                 contraData.accountsFrom = [formData.accountThird];
                 contraData.accountsTo = [];
-                contraData.relatedAccountName = creditSideString; 
+                contraData.relatedAccountName = creditSideString || null; 
             }
 
-            batch.set(ref, contraData);
+            batch.set(ref, sanitizeData(contraData));
             optimisticCreatedList.push(contraData);
             operationCount++;
         }
@@ -688,6 +747,51 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* INTERACTIVE TRANSACTION TYPE SELECTOR */}
+      {!transaction && (
+        <div className="p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200 grid grid-cols-2 gap-2 shadow-inner">
+          <button
+            type="button"
+            onClick={() => handleTypeChange('income')}
+            className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+              currentType === 'income'
+                ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
+                : 'text-slate-600 hover:text-emerald-700 hover:bg-white/70'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg ${currentType === 'income' ? 'bg-emerald-700/60 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div className="text-left leading-tight">
+              <span className="block font-black tracking-wide">Income / Credit</span>
+              <span className={`text-[10px] block font-medium ${currentType === 'income' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                Inflow &amp; Receivables
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTypeChange('expense')}
+            className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+              currentType === 'expense'
+                ? 'bg-rose-600 text-white shadow-md ring-2 ring-rose-500/20 scale-[1.01]'
+                : 'text-slate-600 hover:text-rose-700 hover:bg-white/70'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg ${currentType === 'expense' ? 'bg-rose-700/60 text-white' : 'bg-rose-100 text-rose-700'}`}>
+              <TrendingDown className="w-4 h-4" />
+            </div>
+            <div className="text-left leading-tight">
+              <span className="block font-black tracking-wide">Expense / Debit</span>
+              <span className={`text-[10px] block font-medium ${currentType === 'expense' ? 'text-rose-100' : 'text-slate-500'}`}>
+                Outflow &amp; Subcontractors
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* 1. PERMISSION-GATED PAYMENT SELECTOR (REGULAR vs PROFIT SHARE) */}
       {canProcessProfitPayout && !isEditing && (
         <div className="p-4 bg-linear-to-r from-slate-50 to-indigo-50/50 border-2 border-indigo-100 rounded-2xl shadow-xs space-y-3">
@@ -1145,29 +1249,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       ) : (
         /* 3. STANDARD REGULAR INCOME / EXPENSE TRANSACTION FORM */
         <form onSubmit={handleSubmit} className="space-y-6">
-          {!transaction && initialIsRecurring && (
-            <div className="grid grid-cols-2 gap-4 p-1 bg-gray-100 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setCurrentType('income')}
-                className={`py-2 text-sm font-medium rounded-md transition-all ${
-                  currentType === 'income' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Income
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrentType('expense')}
-                className={`py-2 text-sm font-medium rounded-md transition-all ${
-                  currentType === 'expense' ? 'bg-white shadow text-red-700' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Expense
-              </button>
-            </div>
-          )}
-
           {restrictAccountFields && (
             <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-md">
               <div className="flex">
@@ -1236,7 +1317,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
           <FormField
             type="number"
-            label="Amount"
+            label={currentType === 'income' ? 'Income Amount (£)' : 'Expense Amount (£)'}
             value={formData.amount}
             onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
             min="0"
@@ -1317,7 +1398,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {currentType === 'income' ? 'Primary Receiving Account (Debited)' : 'Primary Paying Account (Credited)'}
+                {currentType === 'income' ? 'Primary Receiving Account (Credit / Inflow)' : 'Primary Paying Account (Debit / Outflow)'}
               </label>
               <select
                 value={currentType === 'income' ? formData.accountTo : formData.accountFrom}
@@ -1342,7 +1423,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Secondary Account (Optional)
+                {currentType === 'income' ? 'Secondary Receiving Account (Optional)' : 'Secondary Paying Account (Optional)'}
               </label>
               <select
                 value={currentType === 'income' ? formData.accountTo2 : formData.accountFrom2}
@@ -1392,10 +1473,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 <div className="text-sm text-gray-500">Loading...</div>
               ) : (
                 <SearchableSelect
-                  options={financeCategories.map((c) => ({ id: c, label: c }))}
+                  options={prioritizedCategories.map((c) => ({ id: c, label: c }))}
                   value={formData.category}
                   onChange={(v) => setFormData({ ...formData, category: v || '' })}
-                  placeholder="Select category..."
+                  placeholder={`Select ${currentType} category...`}
                   required
                 />
               )}
@@ -1503,19 +1584,21 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   }}
                   className="rounded border-gray-300 text-primary focus:ring-primary"
                 /> 
-                <span className="text-sm text-gray-700">Enter Customer Manually</span>
+                <span className="text-sm text-gray-700">
+                  {currentType === 'income' ? 'Enter Customer Manually' : 'Enter Payee / Supplier Manually'}
+                </span>
               </label>
             </div>
             {manualEntry ? (
               <FormField
-                label="Customer Name"
+                label={currentType === 'income' ? 'Customer Name' : 'Payee / Supplier Name'}
                 value={formData.customerName}
                 onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                placeholder="Enter customer name"
+                placeholder={currentType === 'income' ? 'Enter customer name' : 'Enter payee or supplier name'}
               />
             ) : (
               <SearchableSelect
-                label="Customer (Optional)"
+                label={currentType === 'income' ? 'Customer (Optional)' : 'Payee / Customer (Optional)'}
                 options={customers.map((c) => ({
                   id: c.id,
                   label: c.name,
@@ -1526,7 +1609,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   const c = customers.find((cu) => cu.id === id);
                   setFormData({ ...formData, customerId: id || '', customerName: c?.name || '' });
                 }}
-                placeholder="Search customers..."
+                placeholder={currentType === 'income' ? 'Search customers...' : 'Search payees / customers...'}
                 isClearable
               />
             )}
@@ -1610,9 +1693,19 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark disabled:opacity-50 cursor-pointer"
+              className={`px-5 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white transition-all cursor-pointer disabled:opacity-50 ${
+                currentType === 'income'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/20'
+                  : 'bg-rose-600 hover:bg-rose-700 ring-2 ring-rose-500/20'
+              }`}
             >
-              {loading ? 'Saving...' : transaction ? 'Update Transaction' : 'Create Transaction'}
+              {loading
+                ? 'Saving...'
+                : transaction
+                ? 'Update Transaction'
+                : currentType === 'income'
+                ? '+ Record Income / Credit'
+                : '+ Record Expense / Debit'}
             </button>
           </div>
         </form>

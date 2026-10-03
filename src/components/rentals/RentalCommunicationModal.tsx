@@ -32,7 +32,8 @@ import {
   Scale,
   Award,
   Lock,
-  Loader2
+  Loader2,
+  PenTool
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatWhatsAppNumber, buildWaMeLink, openWhatsAppLink } from '../../utils/whatsapp';
@@ -41,12 +42,40 @@ import { logWhatsappHistory } from '../../hooks/useWhatsappHistory';
 import { logEmailHistory } from '../../hooks/useEmailHistory';
 import { logCommunication } from '../../services/communicationLogService';
 import { generateRentalDocuments } from '../../utils/generateRentalDocuments';
+import { resolveCustomerOrUserSignature } from '../../utils/signatureStorage';
 import { uploadRentalDocuments } from '../../utils/uploadRentalDocuments';
 import { emailTemplates } from '../../constants/emailTemplates';
 import { usePermissions } from '../../hooks/usePermissions';
 import { loadTemplatesForCategory } from '../../utils/templateManager';
 import { CustomAttachmentUploader } from '../common/CustomAttachmentUploader';
 import { CustomAttachment } from '../../utils/attachmentUpload';
+import {
+  getManagerDefaultsForDocType,
+  getDefaultEntityKeyForDocument,
+} from '../../utils/entityBranding';
+import defaultSkylineLogo from '../../assets/logo.png';
+import defaultClaimsLogo from '../../assets/aieclaim.png';
+
+const DOCUMENT_ENTITY_OPTIONS = [
+  {
+    key: 'aie_skyline',
+    name: 'AIE Skyline Limited',
+    tradingName: 'AIE Skyline',
+    logoUrl: defaultSkylineLogo,
+  },
+  {
+    key: 'aie_claims',
+    name: 'AIE Claims LTD',
+    tradingName: 'AIE Claims Ltd.',
+    logoUrl: defaultClaimsLogo,
+  },
+  {
+    key: 'skyline_cabs',
+    name: 'Skyline Cabs',
+    tradingName: 'Skyline Cabs',
+    logoUrl: defaultSkylineLogo,
+  },
+];
 
 export interface RentalCommunicationModalProps {
   isOpen: boolean;
@@ -1057,24 +1086,17 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     const effCustomer = (internalCustomer || customer || (rental as any)?.customer || (rental as any)?.driver || {}) as any;
     const rawCustomerType = String(effCustomer?.type || rental?.customerType || '').trim().toLowerCase();
     const rawRentalType = String(rental.type || (rental as any).rentalType || (rental as any).billingType || '').trim().toLowerCase();
+    const rawReason = String(rental.reason || '').trim().toLowerCase();
 
-    // Explicit Non-Claim check: Weekly, Daily, Standard, Non-Claim, Customer, Company
-    const isNonClaimCustomer =
-      rawCustomerType === 'weekly' ||
-      rawCustomerType === 'daily' ||
-      rawCustomerType === 'standard' ||
-      rawCustomerType === 'non-claim' ||
-      rawCustomerType === 'customer' ||
-      rawCustomerType === 'company' ||
-      rawRentalType === 'weekly' ||
-      rawRentalType === 'daily' ||
-      rawRentalType === 'standard' ||
-      rawRentalType === 'non-claim';
-
-    const isClaimRental = !isNonClaimCustomer && Boolean(
-      rawCustomerType === 'claim' ||
+    // Inspect assigned Rental / Hire Type:
+    // a) Standard Weekly / Daily Hire: rawRentalType === 'weekly' || rawRentalType === 'daily'
+    // b) Claim Hire (Credit Hire / GTA): rawRentalType === 'claim' || rawReason === 'claim' || rawReason === 'credit-hire' || rawReason === 'gta' || rawCustomerType === 'claim' || Boolean(rental.claimId)
+    const isClaimRental = Boolean(
       rawRentalType === 'claim' ||
-      String(rental.reason || '').trim().toLowerCase() === 'claim' ||
+      rawReason === 'claim' ||
+      rawReason === 'credit-hire' ||
+      rawReason === 'gta' ||
+      rawCustomerType === 'claim' ||
       Boolean(rental.claimId)
     );
 
@@ -1089,13 +1111,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
 
     if (isClaimRental) {
       // ────────────────────────────────────────────────────────────
-      // FOR CLAIM CUSTOMERS (Customer Type = "Claim"):
-      // Automatically map and include all 5 specific Claim Documents:
+      // FOR CLAIM HIRE (Credit Hire / GTA):
+      // Automatically map and bundle ALL 6 required Claim Documents:
       // 1. Hire Agreement
       // 2. Credit Hire Mitigation
       // 3. Credit Storage and Recovery
       // 4. Right to Cancel
       // 5. Condition of Hire
+      // 6. Satisfaction Notice (Generated upon rental completion / vehicle return)
       // ────────────────────────────────────────────────────────────
 
       // 1. Hire Agreement
@@ -1147,6 +1170,16 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         existingUrl: docs.conditionOfHire || undefined,
         category: 'claim',
         icon: CheckSquare,
+      });
+
+      // 6. Satisfaction Notice (Generated upon rental completion / vehicle return)
+      items.push({
+        id: 'satisfaction_notice',
+        docType: 'satisfactionNotice',
+        label: 'Satisfaction Notice',
+        existingUrl: docs.satisfactionNotice || undefined,
+        category: 'claim',
+        icon: CheckCircle2,
       });
 
       // View Invoice (optional utility if present)
@@ -1213,6 +1246,17 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
           icon: MapPin,
         });
       }
+
+      // Dedicated E-Signature Request Link option
+      if (rental?.customerId || (customer as any)?.id || (internalCustomer as any)?.id) {
+        items.push({
+          id: 'signRequest',
+          docType: 'signRequest',
+          label: '✍️ Dedicated E-Signature Request Link',
+          category: 'signature',
+          icon: PenTool,
+        });
+      }
     }
 
     return items;
@@ -1224,13 +1268,48 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     setSelectedDocIds((prev) => prev.filter((id) => validIds.has(id)));
   }, [availableDocs]);
 
-  // Canonical permanent public document viewer URL generator
+  // Document-Level Entity & Logo Mapping inherited from Company Settings
+  const [companySettings, setCompanySettings] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const snap = await getDoc(doc(db, 'companySettings', 'details'));
+        if (snap.exists()) {
+          setCompanySettings(snap.data());
+        }
+      } catch (err) {
+        console.warn('Failed to load companySettings in RentalCommunicationModal:', err);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  // Canonical permanent public document viewer URL generator with dynamic entity binding
   const getPublicDocUrl = useCallback((item: RentalDocItem): string => {
     if (!rental?.id) return '';
     const origin = window.location.origin;
-    const keyParam = item.key ? `?key=${encodeURIComponent(item.key)}` : '';
-    return `${origin}/doc/${encodeURIComponent(rental.id)}/${encodeURIComponent(item.docType)}${keyParam}`;
-  }, [rental?.id]);
+
+    if (item.id === 'signRequest' || item.docType === 'signRequest') {
+      const custId = rental?.customerId || (customer as any)?.id || (internalCustomer as any)?.id || '';
+      return `${origin}/sign/${encodeURIComponent(custId)}?rentalId=${encodeURIComponent(rental.id)}`;
+    }
+
+    const keyParam = item.key ? `key=${encodeURIComponent(item.key)}` : '';
+    let entityKey = item.docType.toLowerCase().includes('hire') ? 'aie_skyline' : 'aie_claims';
+    if (companySettings) {
+      const defaults = getManagerDefaultsForDocType(item.docType, companySettings);
+      if (defaults?.entityKey) {
+        entityKey = defaults.entityKey;
+      } else {
+        const fallback = getDefaultEntityKeyForDocument(item.docType, companySettings);
+        if (fallback) entityKey = fallback;
+      }
+    }
+    const entityParam = `entity=${encodeURIComponent(entityKey)}`;
+    const queryString = [keyParam, entityParam].filter(Boolean).join('&');
+    return `${origin}/doc/${encodeURIComponent(rental.id)}/${encodeURIComponent(item.docType)}${queryString ? `?${queryString}` : ''}`;
+  }, [rental?.id, rental?.customerId, customer, internalCustomer, companySettings]);
 
   // Sync existing document URLs into local state
   useEffect(() => {
@@ -1299,6 +1378,14 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
     async (item: RentalDocItem): Promise<string> => {
       if (!rental) return '';
 
+      // Direct handling for dedicated Signature Request Link
+      if (item.id === 'signRequest' || item.docType === 'signRequest') {
+        const signUrl = getPublicDocUrl(item);
+        setDocUrls((prev) => ({ ...prev, [item.id]: signUrl }));
+        setVerifiedDocIds((prev) => ({ ...prev, [item.id]: true }));
+        return signUrl;
+      }
+
       setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: true }));
       setIsLinkValidating((prev) => ({ ...prev, [item.id]: true }));
       setVerifiedDocIds((prev) => ({ ...prev, [item.id]: false }));
@@ -1334,6 +1421,22 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
         if (!effCustomer || !effVehicle) {
           console.warn('Customer or Vehicle not yet loaded for doc generation');
           throw new Error('Customer or vehicle details not yet available');
+        }
+
+        // Strict Signature Requirement for Agreement Document Generation
+        const isAgreementDoc = item.docType.toLowerCase().includes('hire') || item.docType.toLowerCase().includes('agreement');
+        if (isAgreementDoc) {
+          const hasSig = await resolveCustomerOrUserSignature({
+            customerId: effCustomer.id,
+            customer: effCustomer,
+            rental,
+          });
+          if (!hasSig) {
+            toast.error('Signature Required: Please execute signature before generating or sharing final agreement documents.', { duration: 6000 });
+            setIsGeneratingDocs((prev) => ({ ...prev, [item.id]: false }));
+            setIsLinkValidating((prev) => ({ ...prev, [item.id]: false }));
+            return '';
+          }
         }
 
         // Dynamically populate with latest up-to-date rental info
@@ -2616,29 +2719,49 @@ export const RentalCommunicationModal: React.FC<RentalCommunicationModalProps> =
                       <span className="text-sm font-bold text-slate-900 leading-snug block break-words">
                         {docItem.label}
                       </span>
-                      {isReady && isSelected && (
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          {docUrls[docItem.id] && (
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {(docUrls[docItem.id] || docItem.existingUrl) && (
+                          <>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                window.open(getPublicDocUrl(docItem) || docUrls[docItem.id], '_blank', 'noopener,noreferrer');
+                                const url = getPublicDocUrl(docItem) || docUrls[docItem.id] || docItem.existingUrl;
+                                if (url) window.open(url, '_blank', 'noopener,noreferrer');
                               }}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
-                              title="Open and view link in new tab"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors cursor-pointer"
+                              title="Open and view document"
                             >
                               <ExternalLink className="w-3 h-3 text-indigo-600" />
-                              View Link
+                              View
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                const url = getPublicDocUrl(docItem) || docUrls[docItem.id] || docItem.existingUrl;
+                                if (url) {
+                                  const pWin = window.open(url, '_blank');
+                                  if (pWin) pWin.focus();
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-300 transition-colors cursor-pointer"
+                              title="Print document"
+                            >
+                              <Printer className="w-3 h-3 text-slate-600" />
+                              Print
+                            </button>
+                          </>
+                        )}
+                        {isReady && isSelected && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
                             <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                            Ready & Active
+                            Active
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       {isProcessing && (
                         <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 animate-pulse">
                           <Loader2 className="w-3 h-3 animate-spin text-amber-700" />

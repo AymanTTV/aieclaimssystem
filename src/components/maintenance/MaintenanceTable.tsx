@@ -693,14 +693,19 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
         // 1. DEFAULT PROFIT EXCLUSION (IGNORE UNTIL EDITED & SAVED):
         // For all newly created/unedited data records, default Dealer Cost to match Total price (Profit £0.00 / 0.0% Margin).
         // The system IGNORES profit calculation UNTIL a user manually opens the record, clicks "Edit", updates info, and hits "Save" / "Update".
-        const hasEditedProfit = isProfitEdited === true;
-        const sub = hasEditedProfit
-          ? (subcontractorCost !== undefined ? Number(subcontractorCost) : billed)
-          : billed;
-        const profitMetrics = hasEditedProfit
+        const rawSub = subcontractorCost !== undefined ? Number(subcontractorCost) : undefined;
+        const hasExplicitSub = rawSub !== undefined && !isNaN(rawSub) && rawSub > 0;
+        const sub = hasExplicitSub ? rawSub : 0;
+        const isPassThrough = Boolean(
+          row.original.isPassThrough ||
+          row.original.passThrough ||
+          row.original.isPassThroughMaintenance ||
+          (hasExplicitSub && Math.abs(billed - sub) < 0.01)
+        );
+        const profitMetrics = hasExplicitSub
           ? calculateProfitMetrics(billed, sub)
-          : { customerBilled: billed, subcontractorCost: billed, netProfit: 0, profitMarginPercent: 0 };
-        const hasSubcontractorCost = hasEditedProfit && sub > 0 && sub !== billed;
+          : { customerBilled: billed, subcontractorCost: 0, netProfit: 0, profitMarginPercent: 0 };
+        const hasSubcontractorCost = hasExplicitSub && sub > 0 && !isPassThrough;
 
         return (
           <div className="space-y-0.5 text-xs w-28">
@@ -749,6 +754,13 @@ const MaintenanceTable: React.FC<MaintenanceTableProps> = ({
                   }`}
                 >
                   {profitMetrics.profitMarginPercent.toFixed(1)}% Margin
+                </span>
+              </div>
+            )}
+            {isPassThrough && (
+              <div className="flex justify-end pt-0.5">
+                <span className="inline-block px-1.5 py-0.2 text-[9px] font-bold rounded border bg-amber-50 text-amber-800 border-amber-200">
+                  Pass-Through (£0.00 Profit)
                 </span>
               </div>
             )}

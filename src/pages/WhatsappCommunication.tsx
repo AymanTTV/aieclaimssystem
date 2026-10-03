@@ -486,7 +486,7 @@ export default function WhatsappCommunication() {
     }
 
     return matched;
-  }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, isManager, accounts, vehicles, transactions]);
+  }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, accounts, vehicles, transactions]);
 
   const relatedRecordsOptions = useMemo(() => {
     if (selectedRecipients.length !== 1) return [];

@@ -18,6 +18,9 @@ import {
 } from '../components/pdf/documents';
 import MaintenanceInvoice from '../components/pdf/MaintenanceInvoice'; 
 import { InvoiceDocument } from '../components/pdf/documents'; // Ensure InvoiceDocument is imported
+import RentalAgreement from '../components/pdf/RentalAgreement';
+import { generateAllClaimDocumentBlobs } from './claimDocuments';
+import { AIE_SKYLINE_LOGO_BASE64, resolveCompanyLogo } from './companyLogoResolver';
 
 // Helper function to get company details with robust default fallback
 export const getCompanyDetails = async () => {
@@ -26,7 +29,11 @@ export const getCompanyDetails = async () => {
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
-      return docSnap.data();
+      const data = docSnap.data();
+      return {
+        ...data,
+        logoUrl: resolveCompanyLogo(data, data.fullName),
+      };
     }
   } catch (error) {
     console.warn('Could not fetch companySettings/details, using safe fallback defaults:', error);
@@ -45,7 +52,8 @@ export const getCompanyDetails = async () => {
     accountName: 'AIE Skyline Limited',
     accountNumber: '12345678',
     sortCode: '20-00-00',
-    iban: 'GB29BARC20000012345678'
+    iban: 'GB29BARC20000012345678',
+    logoUrl: AIE_SKYLINE_LOGO_BASE64,
   };
 };
 
@@ -243,4 +251,55 @@ export const generateMaintenanceInvoiceDocument = async (record: any) => {
     'maintenanceLogs',
     'invoiceUrl' // This works because it's a string (caught by logic above)
   );
+};
+
+/**
+ * Automated Document Pack Generation: Standard Weekly/Daily Rentals
+ * Compiles ONLY the Standard Hire Agreement pack:
+ * (Page 1 Summary, Page 2 Inspection, Page 3 Mapped Weekly/Daily T&Cs, Page 4 Trailing Signature Page)
+ */
+export const generateStandardHireAgreementPack = async (
+  rental: any,
+  vehicle: any,
+  customer: any,
+  options: { includeImages?: boolean } = { includeImages: true }
+): Promise<Blob> => {
+  const companyDetails = await getCompanyDetails();
+  const pdfBlob = await pdf(
+    createElement(RentalAgreement, {
+      rental,
+      vehicle,
+      customer,
+      companyDetails,
+      includeImages: options.includeImages ?? true,
+    })
+  ).toBlob();
+  return pdfBlob;
+};
+
+/**
+ * Automated Document Pack Generation: Claims (Credit Hire / GTA)
+ * Automatically compiles and bundles ALL 6 legal claim documents:
+ * 1. Credit Hire Agreement
+ * 2. Credit Hire Mitigation Statement
+ * 3. Credit Storage and Recovery Notice
+ * 4. Right to Cancel Notice
+ * 5. Condition of Hire Report
+ * 6. Satisfaction Notice (Generated upon vehicle check-in/return or completion)
+ *
+ * Each document dynamically binds to its designated T&C template mapped in the Claims tab.
+ */
+export const generateClaimsDocumentPack = async (
+  claim: any,
+  companyDetails?: any
+): Promise<{
+  hireAgreement: Blob;
+  creditHireAgreement: Blob;
+  creditHireMitigation: Blob;
+  creditStorageAndRecovery: Blob;
+  noticeOfRightToCancel: Blob;
+  conditionOfHire: Blob;
+  satisfactionNotice: Blob;
+}> => {
+  return generateAllClaimDocumentBlobs(claim, companyDetails);
 };

@@ -10,14 +10,22 @@ import {
 import { format } from 'date-fns';
 import { resolveNameFields, resolveAddressFields, combineFullName } from '../../../utils/nameAddressUtils';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import defaultSkylineLogo from '../../../assets/logo.png';
+import SafePdfLogo from '../SafePdfLogo';
 import { styles } from '../styles';
 import {
   getHireCommencementDate,
+  formatExecutionDateTime,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  AIE_CLAIMS_FOOTER_TEXT
+  AIE_CLAIMS_FOOTER_TEXT,
+  extractActiveCorporateEntityProfile,
+  getCompanyBrandingForPdf,
 } from '../../../utils/legalDocumentUtils';
+import { getAvailableCompanyEntities } from '../../../utils/entityBranding';
+import { resolveClaimDocumentTerms } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './PdfTermsWarningNotice';
 
 const isValidPdfImageSrc = (v: any): v is string => {
   if (typeof v !== 'string') return false;
@@ -44,12 +52,14 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 36,
   },
   signatureSection: {
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     breakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   compactBox: {
     padding: 6,
@@ -254,6 +264,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
     ? (claim.clientInfo?.name || claim.rental?.customerName || 'N/A')
     : (combineFullName(hirerNameFields.firstName, hirerNameFields.middleName, hirerNameFields.lastName) || claim.clientInfo?.name || claim.rental?.customerName || 'N/A');
   const signatureDate = getHireCommencementDate(claim);
+  const signatureExecutionDateFormatted = formatExecutionDateTime(claim, 'dd/MM/yyyy HH:mm');
 
   const vehicleDetails = getVehicleDetails(claim);
   const vehRegistration = vehicleDetails.registration;
@@ -303,33 +314,63 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
     },
   ];
 
-  const defaultTerms = `The hire rate of £${rate.toFixed(
-    2
-  )}/day applies for up to 3 months. Payment is due in full within eleven months from this date.`;
+  // Requirement 1 & 3: Dynamic Entity & Logo Resolution
+  const availableEntities = getAvailableCompanyEntities(companyDetails);
+  const targetEntityKey =
+    claim?.rental?.corporateEntityKey ||
+    claim?.corporateEntityKey ||
+    (companyDetails as any)?.entityKey ||
+    (companyDetails as any)?.key ||
+    'aie_skyline';
+  const matchedEntity =
+    availableEntities.find(
+      (e) =>
+        e.key === targetEntityKey ||
+        e.id === targetEntityKey ||
+        (claim?.rental?.corporateEntityName &&
+          (e.fullName.toLowerCase() === claim.rental.corporateEntityName.toLowerCase() ||
+           e.tradingName.toLowerCase() === claim.rental.corporateEntityName.toLowerCase())) ||
+        (claim?.corporateEntityName &&
+          (e.fullName.toLowerCase() === claim.corporateEntityName.toLowerCase() ||
+           e.tradingName.toLowerCase() === claim.corporateEntityName.toLowerCase())) ||
+        (targetEntityKey.includes('sayarah') && e.key.includes('sayarah'))
+    ) || availableEntities[0];
 
-  const companyName = 'AIE Claims LTD';
-  const companyReg = '15616639';
-  const companyAddress = 'United House, 39-41 North Road, London, N7 9DP';
-  const companyPhone = '+442080505337';
-  const companyEmail = 'claims@aieclaims.co.uk';
-  const footerText = AIE_CLAIMS_FOOTER_TEXT;
+  const branding = getCompanyBrandingForPdf({
+    ...companyDetails,
+    ...matchedEntity,
+    entityKey: matchedEntity?.key || targetEntityKey,
+  }, 'aie_skyline');
+
+  const activeCompanyProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...matchedEntity,
+    ...claim?.rental,
+    corporateEntityKey: matchedEntity?.key || targetEntityKey,
+    corporateEntityName: matchedEntity?.fullName,
+  });
+
+  const companyName = activeCompanyProfile.companyName || branding.companyName;
+  const companyAddress = activeCompanyProfile.companyAddress || branding.companyAddress;
+  const companyPhone = activeCompanyProfile.phone || branding.companyPhone;
+  const companyEmail = activeCompanyProfile.email || branding.companyEmail;
+  const companyWebsite = activeCompanyProfile.website || branding.website;
+  const companyLogo = matchedEntity?.logoUrl || branding.companyLogo;
+  const footerText = matchedEntity?.footerDisclaimer || branding.footerText;
 
   const renderHeader = () => (
     <View style={styles.header} fixed>
       <View style={styles.headerLeft}>
-        <Image src={aieClaimsLogo} style={styles.logo} cache={false} />
+        <SafePdfLogo src={companyLogo} companyName={companyName} style={styles.logo} cache={false} />
       </View>
       <View style={styles.headerRight}>
         <Text style={styles.companyName}>{companyName}</Text>
-        <Text style={styles.companyDetail}>
-          {companyAddress}
-        </Text>
-        <Text style={styles.companyDetail}>
-          Tel: {companyPhone}
-        </Text>
-        <Text style={styles.companyDetail}>
-          Email: {companyEmail}
-        </Text>
+        <Text style={styles.companyDetail}>{companyAddress}</Text>
+        <Text style={styles.companyDetail}>Tel: {companyPhone}</Text>
+        <Text style={styles.companyDetail}>Email: {companyEmail}</Text>
+        {Boolean(companyWebsite) && (
+          <Text style={styles.companyDetail}>Web: {companyWebsite}</Text>
+        )}
       </View>
     </View>
   );
@@ -397,7 +438,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
             <View style={[styles.card, { width: '48%', marginBottom: 0, padding: 8 }]}>
               <Text style={styles.cardTitle}>Vehicle &amp; Hire Details</Text>
               {[
-                ['Registration', vehRegistration],
+                ['Registration', vehRegistration || 'N/A'],
                 ['Vehicle Make', vehMake || '-'],
                 ['Vehicle Model', vehModel || '-'],
                 ['Start Date', formatDate(d.startDate)],
@@ -499,39 +540,70 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
         {renderHeader()}
 
         {/* TERMS */}
-        <View style={[styles.card, { marginBottom: 15 }]}>
-          <Text style={styles.cardTitle}>TERMS &amp; CONDITIONS</Text>
-          {splitParagraphs(
-            parseLegalVariables(
-              companyDetails?.hireAgreementText || companyDetails?.termsAndConditions || defaultTerms,
-              {
-                companyName: 'AIE Claims LTD',
-                companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
-                companyPhone: '+442080505337',
-                companyEmail: 'claims@aieclaims.co.uk',
-                companyVat: companyDetails?.vatNumber || '',
-                companyRegistration: '15616639',
-                hirerName,
-                customerName: hirerName,
-                vehicleReg: vehRegistration,
-                vehicleMake: vehMake,
-                vehicleModel: vehModel,
-                startDate: formatDate(hireStartDate),
-                hireStartDate: formatDate(hireStartDate),
-                dailyRate: `£${rate.toFixed(2)}`,
-                agreementNumber: displayAgreementNumber,
-                agreementRef: displayAgreementNumber,
-              }
-            )
-          ).map((p, idx) => (
-            <Text key={idx} style={[styles.text, { marginBottom: 6 }]}>
-              {p}
-            </Text>
-          ))}
-        </View>
+        {(() => {
+          // Strict Dynamic T&C Resolution: Pulls Credit Hire Agreement clauses directly from Rental Page scope
+          const termsResolution = resolveClaimDocumentTerms('hireAgreement', {
+            ...companyDetails,
+            ...matchedEntity,
+            corporateEntityKey: matchedEntity?.key || targetEntityKey,
+            corporateEntityName: companyName,
+          });
+          const resolvedCompanyName = companyName || activeCompanyProfile.companyName || companyDetails?.fullName || 'AIE Skyline Limited';
+          const resolvedCompanyReg = activeCompanyProfile.companyNumber || companyDetails?.registrationNumber || '15616639';
+          const resolvedCompanyVat = activeCompanyProfile.vatNumber || companyDetails?.vatNumber || '453448875';
+          const resolvedCompanyAddress = companyAddress || activeCompanyProfile.companyAddress || companyDetails?.officialAddress || 'United House, 39-41 North Road, London, N7 9DP';
+
+          return (
+            <View style={[styles.card, { marginBottom: 10, padding: 8 }]} wrap={true}>
+              <Text style={styles.cardTitle}>{termsResolution.title || 'TERMS & CONDITIONS'}</Text>
+              {termsResolution.isConfigured ? (
+                splitParagraphs(
+                  parseLegalVariables(
+                    termsResolution.content,
+                    {
+                      company_name: resolvedCompanyName,
+                      companyName: resolvedCompanyName,
+                      claims_team: activeCompanyProfile.claimsTeam,
+                      claimsTeam: activeCompanyProfile.claimsTeam,
+                      website: companyWebsite,
+                      company_website: companyWebsite,
+                      companyWebsite: companyWebsite,
+                      company_email: companyEmail,
+                      companyEmail: companyEmail,
+                      company_phone: companyPhone,
+                      companyPhone: companyPhone,
+                      company_number: resolvedCompanyReg,
+                      companyRegistration: resolvedCompanyReg,
+                      company_address: resolvedCompanyAddress,
+                      companyAddress: resolvedCompanyAddress,
+                      vat_number: resolvedCompanyVat,
+                      companyVat: resolvedCompanyVat,
+                      hirerName,
+                      customerName: hirerName,
+                      vehicleReg: vehRegistration,
+                      vehicleMake: vehMake,
+                      vehicleModel: vehModel,
+                      startDate: formatDate(hireStartDate),
+                      hireStartDate: formatDate(hireStartDate),
+                      dailyRate: `£${rate.toFixed(2)}`,
+                      agreementNumber: displayAgreementNumber,
+                      agreementRef: displayAgreementNumber,
+                    }
+                  )
+                ).map((p, idx) => (
+                  <Text key={idx} wrap={true} style={[styles.text, { fontSize: 9, lineHeight: 1.35, marginBottom: 4.5, textAlign: 'justify' }]}>
+                    {p}
+                  </Text>
+                ))
+              ) : (
+                <PdfTermsWarningNotice message={termsResolution.warningMessage} />
+              )}
+            </View>
+          );
+        })()}
 
         {/* SIGNATURES - Matches Rental Agreement signature design */}
-        <View style={localStyles.signatureSection} wrap={false}>
+        <View style={localStyles.signatureSection} wrap={false} minPresenceAhead={150}>
           <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
             {isValidPdfImageSrc(hirerSignature) && (
               <Image
@@ -541,7 +613,7 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
             )}
             <Text style={[styles.signatureLine, localStyles.compactLine]}>Hirer’s Signature</Text>
             <Text style={localStyles.compactText}>{hirerName}</Text>
-            <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
+            <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
           </View>
 
           <View style={[styles.signatureBox, localStyles.compactBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
@@ -552,8 +624,8 @@ const HireAgreement: React.FC<HireAgreementProps> = ({
               />
             )}
             <Text style={[styles.signatureLine, localStyles.compactLine]}>Authorized Signature</Text>
-            <Text style={localStyles.compactText}>AIE Claims LTD</Text>
-            <Text style={localStyles.compactText}>Date: {formatDate(signatureDate)}</Text>
+            <Text style={localStyles.compactText}>{companyName}</Text>
+            <Text style={localStyles.compactText}>Date: {signatureExecutionDateFormatted}</Text>
           </View>
         </View>
 

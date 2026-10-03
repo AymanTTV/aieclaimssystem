@@ -3,6 +3,8 @@ import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import defaultCompanySignature from '../../../assets/signiture.png';
 import defaultCompanyLogo from '../../../assets/logo.png';
+import SafePdfLogo from '../SafePdfLogo';
+import { extractActiveCorporateEntityProfile } from '../../../utils/legalDocumentUtils';
 
 // Helper to safely check and validate image sources for @react-pdf/renderer
 const isValidPdfImageSrc = (v: any): boolean => {
@@ -364,10 +366,12 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
     }
   };
 
-  const companyName = companyDetails?.fullName || companyDetails?.tradingName || 'AIE Skyline Limited';
-  const companyAddress = companyDetails?.officialAddress || 'Unit 4, Business Park, London, UK';
-  const companyPhone = companyDetails?.phone || '+44 20 8123 4567';
-  const companyEmail = companyDetails?.email || 'info@aieskyline.co.uk';
+  const activeProfile = extractActiveCorporateEntityProfile(companyDetails);
+  const companyName = activeProfile.companyName || companyDetails?.fullName || companyDetails?.tradingName || 'Fleet Operator';
+  const companyAddress = activeProfile.companyAddress || companyDetails?.officialAddress || 'United Kingdom';
+  const companyPhone = activeProfile.phone || companyDetails?.phone || '+44 20 8123 4567';
+  const companyEmail = activeProfile.email || companyDetails?.email || 'info@aieskyline.co.uk';
+  const companyWebsite = activeProfile.website || companyDetails?.website || '';
 
   // Automatically resolve company signature and logo with fallbacks
   const companySignature = isValidPdfImageSrc(companyDetails?.signature)
@@ -388,13 +392,14 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
         {/* HEADER ROW */}
         <View style={styles.headerRow}>
           <View style={styles.logoContainer}>
-            {companyLogo ? (
-              <Image src={companyLogo} style={styles.companyLogo} />
-            ) : (
-              <Text style={styles.companyTitle}>{companyName}</Text>
-            )}
+            <SafePdfLogo
+              src={companyLogo}
+              companyName={companyName}
+              style={styles.companyLogo}
+              textStyle={styles.companyTitle}
+            />
             <Text style={styles.companySubText}>{companyAddress}</Text>
-            <Text style={styles.companySubText}>Tel: {companyPhone} | Email: {companyEmail}</Text>
+            <Text style={styles.companySubText}>Tel: {companyPhone} | Email: {companyEmail}{Boolean(companyWebsite) ? ` | Web: ${companyWebsite}` : ''}</Text>
           </View>
 
           <View style={styles.receiptBadgeContainer}>
@@ -555,7 +560,7 @@ export const PayoutReceiptDocument: React.FC<PayoutReceiptDocumentProps> = ({
             {/* Authorised Company Signature (Finance Office) */}
             <View style={styles.signCol}>
               <View style={styles.signatureImageContainer}>
-                {companySignature ? (
+                {isValidPdfImageSrc(companySignature) ? (
                   <Image src={companySignature} style={styles.signatureImage} />
                 ) : (
                   <View style={{ height: 40 }} />

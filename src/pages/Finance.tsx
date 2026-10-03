@@ -28,6 +28,8 @@ import { ProfitPayoutActionBar } from '../components/finance/ProfitPayoutActionB
 import { ProfitPayoutModal } from '../components/finance/ProfitPayoutModal';
 import RecentAccountTransfers from '../components/finance/RecentAccountTransfers';
 import { AccountStatementModal } from '../components/finance/AccountStatementModal';
+import { WhatsAppDispatchModal } from '../components/finance/WhatsAppDispatchModal';
+import { EmailDispatchModal } from '../components/finance/EmailDispatchModal';
 
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { pdf } from '@react-pdf/renderer'; 
@@ -44,7 +46,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSharedAccounts } from '../hooks/useSharedAccounts';
 import financeGroupService, { FinanceGroup } from '../services/financeGroup.service';
 import financeCategoryService from '../services/financeCategory.service';
-import { Edit2, Trash2, AlertTriangle, FileUp, Layers, Receipt, Wallet, PieChart, ArrowLeftRight } from 'lucide-react';
+import { Edit2, Trash2, AlertTriangle, AlertCircle, FileUp, Layers, Receipt, Wallet, PieChart, ArrowLeftRight } from 'lucide-react';
 import { addDays, addWeeks, addMonths, addYears, isBefore, format } from 'date-fns'; 
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -466,8 +468,8 @@ const Finance: React.FC = () => {
   const [showAssignAccountModal, setShowAssignAccountModal] = useState(false);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showAddIncome, setShowAddIncome] = useState(false);
-  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [transactionModalType, setTransactionModalType] = useState<'income' | 'expense'>('income');
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false); 
@@ -532,11 +534,75 @@ const Finance: React.FC = () => {
     setShowProfitPayoutModal(true);
   }, []);
 
+  // Action Column Controls & Dispatches (WhatsApp Launcher, Email Dispatch)
+  const [showWhatsAppDispatchModal, setShowWhatsAppDispatchModal] = useState<boolean>(false);
+  const [showEmailDispatchModal, setShowEmailDispatchModal] = useState<boolean>(false);
+  const [selectedActionTransaction, setSelectedActionTransaction] = useState<Transaction | null>(null);
+
+  const handleOpenWhatsApp = useCallback((txn: Transaction) => {
+    setSelectedActionTransaction(txn);
+    setShowWhatsAppDispatchModal(true);
+  }, []);
+
+  const handleOpenEmail = useCallback((txn: Transaction) => {
+    setSelectedActionTransaction(txn);
+    setShowEmailDispatchModal(true);
+  }, []);
+
+  // Compute chronological running balance for the currently selected action transaction
+  const actionRunningBalance = useMemo(() => {
+    if (!selectedActionTransaction) return undefined;
+    let balance = 0;
+    const sorted = [...transactions]
+      .filter((t) => {
+        const tAcc = t.type === 'income' ? t.accountsTo?.[0] : t.accountsFrom?.[0];
+        const targetAcc = selectedActionTransaction.type === 'income' 
+          ? selectedActionTransaction.accountsTo?.[0] 
+          : selectedActionTransaction.accountsFrom?.[0];
+        if (targetAcc && tAcc) {
+          return tAcc === targetAcc;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const da = a.date instanceof Date ? a.date.getTime() : new Date(a.date).getTime();
+        const db = b.date instanceof Date ? b.date.getTime() : new Date(b.date).getTime();
+        return da - db;
+      });
+
+    for (const t of sorted) {
+      const isCredit = t.type === 'income' || t.entryType === 'CREDIT';
+      const amt = Number(t.amount || 0);
+      if (isCredit) balance += amt;
+      else balance -= amt;
+      if (t.id === selectedActionTransaction.id) {
+        return balance;
+      }
+    }
+    return selectedActionTransaction.amount;
+  }, [selectedActionTransaction, transactions]);
+
   const [showCatModal, setShowCatModal] = useState(false);
   const [financeCategories, setFinanceCategories] = useState<{ id: string; name: string }[]>([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
-  const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  // Clear any legacy filter persistence keys on mount so Finance always loads in a 100% clean, unfiltered state
+  useEffect(() => {
+    try {
+      const legacyKeys = [
+        'finance_filters',
+        'finance_filter',
+        'finance_owner_filter',
+        'finance_category_filter',
+        'finance_account_filter',
+        'finance_vehicle_filter',
+        'finance_date_range',
+        'finance_search',
+        'finance_type_filter',
+      ];
+      legacyKeys.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     setLoadingCats(true);
@@ -548,7 +614,7 @@ const Finance: React.FC = () => {
   }, []);
 
   const enrichedTransactions = useMemo(() => {
-    return transactions.map((txn) => {
+    const mapped = transactions.map((txn) => {
       let enriched = enrichTransactionWithMaintenance(txn, maintenanceLogs);
       // Link with invoice if applicable
       const linkedInvoice = invoices.find(inv =>
@@ -611,13 +677,31 @@ const Finance: React.FC = () => {
       const isSubMode = (enriched.isEdited === true || enriched.isProfitEdited === true) && hasExplicitCost;
       const dCost = hasExplicitCost ? rawCost : 0;
 
-      // CASH-BASIS / REALIZED PROFIT MODEL FOR ROW ENTRIES:
-      // Formula strictly equal: Collected Amount (Paid) - Dealer Cost (Do NOT use Gross Billed)
-      const statusStr = String(enriched.paymentStatus || '').toLowerCase();
-      let realizedNetProfit: number | undefined = undefined;
-      let realizedMargin: number | undefined = undefined;
+      // Equal Income & Expense (At-Cost / Pass-Through) Accounting:
+      // When a job has equal Income and Expense amounts (e.g. Billed = £1,200.00, Expense = £1,200.00):
+      // Set the Net Profit contribution for that job to exactly £0.00.
+      const isEqualCostAndBilled = hasExplicitCost && (Math.abs(grossVal - dCost) < 0.01 || (paidVal > 0 && Math.abs(paidVal - dCost) < 0.01));
+      const isPassThroughRecord = Boolean(
+        enriched.isPassThrough ||
+        enriched.passThrough ||
+        enriched.isPassThroughMaintenance ||
+        enriched.category === 'Pass-Through Maintenance' ||
+        (enriched as any).customCategory === 'Pass-Through Maintenance' ||
+        isEqualCostAndBilled
+      );
 
-      if (hasExplicitCost) {
+      // CASH-BASIS / REALIZED PROFIT MODEL FOR ROW ENTRIES:
+      // Subcontractor Cost = £0 (or left blank):
+      // • Do NOT calculate or display 100.0% Profit Margin or set Net Profit equal to the full Customer Billed amount.
+      // • Treat the transaction as Standard Income / Revenue (or Standard Expense), setting the "Net Profit / Mark-Up" field to £0.00 or "N/A (Direct Transaction)".
+      const statusStr = String(enriched.paymentStatus || '').toLowerCase();
+      let realizedNetProfit = 0;
+      let realizedMargin = 0;
+
+      if (isPassThroughRecord) {
+        realizedNetProfit = 0;
+        realizedMargin = 0;
+      } else if (hasExplicitCost) {
         if (paidVal <= 0 || statusStr === 'unpaid') {
           realizedNetProfit = 0;
           realizedMargin = 0;
@@ -628,20 +712,122 @@ const Finance: React.FC = () => {
         }
       }
 
+      const isDebitRow = enriched.type === 'expense' || enriched.entryType === 'DEBIT' || String((enriched as any).transactionType || '').toUpperCase() === 'EXPENSE';
+      const actualAmount = (isDebitRow && hasExplicitCost && dCost > 0 && !isPassThroughRecord)
+        ? dCost
+        : enriched.amount;
+
       return {
         ...enriched,
+        amount: actualAmount,
         grossBilling: Number(grossVal || 0),
         paid: Number(paidVal || 0),
         owing: Number(owingVal || 0),
-        dealerCost: hasExplicitCost ? dCost : undefined,
-        subcontractorCost: hasExplicitCost ? dCost : undefined,
-        netProfit: realizedNetProfit,
-        profitMarginPercent: realizedMargin,
-        realizedProfit: realizedNetProfit,
+        dealerCost: hasExplicitCost ? dCost : 0,
+        subcontractorCost: hasExplicitCost ? dCost : 0,
+        customerBilled: grossVal,
+        netProfit: isPassThroughRecord ? 0 : (hasExplicitCost ? realizedNetProfit : 0),
+        profitMarginPercent: isPassThroughRecord ? 0 : (hasExplicitCost ? realizedMargin : 0),
+        realizedProfit: isPassThroughRecord ? 0 : (hasExplicitCost ? realizedNetProfit : 0),
+        isDirectTransaction: !hasExplicitCost && !isPassThroughRecord,
+        hasSubcontractorCost: hasExplicitCost,
+        isPassThrough: isPassThroughRecord,
+        passThrough: isPassThroughRecord,
+        isPassThroughMaintenance: isPassThroughRecord,
+        category: isPassThroughRecord ? 'Pass-Through Maintenance' : enriched.category,
+        customCategory: isPassThroughRecord ? 'Pass-Through Maintenance' : (enriched as any).customCategory,
+        passThroughTag: isPassThroughRecord ? 'Pass-Through (£0.00 Profit)' : undefined,
         isProfitEdited: isSubMode,
         isEdited: isSubMode,
       };
-    }).filter((txn) => {
+    });
+
+    // Parent-child job linking: Link both Income & Expense rows to reflect identical Net Profit & actual Dealer Cost
+    const orderKeyMap = new Map<string, any[]>();
+
+    mapped.forEach(t => {
+      const orderKey = (t.referenceId || t.orderId || t.orderNumber || t.linkedInvoiceRef || t.linkedExpense || '')
+        .toString().trim().toUpperCase();
+      if (orderKey) {
+        if (!orderKeyMap.has(orderKey)) orderKeyMap.set(orderKey, []);
+        orderKeyMap.get(orderKey)!.push(t);
+      }
+    });
+
+    orderKeyMap.forEach((group) => {
+      if (group.length < 2) return;
+      const inc = group.find(t => t.type === 'income' || t.transactionType === 'INCOME' || t.entryType === 'CREDIT');
+      const exp = group.find(t => t.type === 'expense' || t.transactionType === 'EXPENSE' || t.entryType === 'DEBIT');
+      if (inc && exp) {
+        const incAmt = Number(inc.customerBilled || inc.amount || 0);
+        const rawDealer = inc.dealerCost || inc.subcontractorCost || exp.dealerCost || exp.subcontractorCost || 0;
+        const expAmt = Number(rawDealer || exp.amount || 0);
+        const hasExplicitDealer = rawDealer > 0;
+
+        // If equal amounts or marked pass-through, ensure BOTH rows are tagged with Pass-Through (£0.00 Profit)
+        if (Math.abs(incAmt - expAmt) < 0.01 || inc.isPassThrough || exp.isPassThrough) {
+          inc.isPassThrough = true;
+          inc.passThrough = true;
+          inc.isPassThroughMaintenance = true;
+          inc.category = 'Pass-Through Maintenance';
+          inc.customCategory = 'Pass-Through Maintenance';
+          inc.dealerCost = expAmt;
+          inc.subcontractorCost = expAmt;
+          inc.customerBilled = incAmt;
+          inc.netProfit = 0;
+          inc.profitMarginPercent = 0;
+          inc.realizedProfit = 0;
+          inc.passThroughTag = 'Pass-Through (£0.00 Profit)';
+
+          exp.isPassThrough = true;
+          exp.passThrough = true;
+          exp.isPassThroughMaintenance = true;
+          exp.category = 'Pass-Through Maintenance';
+          exp.customCategory = 'Pass-Through Maintenance';
+          exp.dealerCost = expAmt;
+          exp.subcontractorCost = expAmt;
+          exp.customerBilled = incAmt;
+          exp.netProfit = 0;
+          exp.profitMarginPercent = 0;
+          exp.realizedProfit = 0;
+          exp.passThroughTag = 'Pass-Through (£0.00 Profit)';
+        } else if (hasExplicitDealer && expAmt > 0 && incAmt > 0) {
+          // Subcontractor Profit Margin Job (e.g. Base Dealer Cost = £60.00, Billed = £100.00):
+          // 1. Base Expense Debit on True Dealer/Subcontractor Cost (£60.00) rather than mirroring gross Billed (£100.00)
+          exp.amount = expAmt;
+          inc.amount = incAmt;
+
+          const jobNetProfit = Number((incAmt - expAmt).toFixed(2));
+          const jobMargin = Number(((jobNetProfit / incAmt) * 100).toFixed(1));
+
+          // 2. Single Parent-Child Transaction Linking:
+          // Assign Dealer/Subcontractor Cost & Profit Tracking block at parent job level
+          // so both the Income line and Expense line reflect the identical Net Profit & margin!
+          inc.customerBilled = incAmt;
+          inc.dealerCost = expAmt;
+          inc.subcontractorCost = expAmt;
+          inc.netProfit = jobNetProfit;
+          inc.profitMarginPercent = jobMargin;
+          inc.realizedProfit = jobNetProfit;
+          inc.isProfitEdited = true;
+          inc.isEdited = true;
+          inc.isPassThrough = false;
+
+          exp.customerBilled = incAmt;
+          exp.dealerCost = expAmt;
+          exp.subcontractorCost = expAmt;
+          exp.netProfit = jobNetProfit;
+          exp.profitMarginPercent = jobMargin;
+          exp.realizedProfit = jobNetProfit;
+          exp.isProfitEdited = true;
+          exp.isEdited = true;
+          exp.isPassThrough = false;
+        }
+      }
+    });
+
+    return mapped.filter((txn) => {
+
       const typeStr = (txn.type || '').toLowerCase();
       const txTypeStr = (txn.transactionType || '').toUpperCase();
       const entryTypeStr = (txn.entryType || '').toUpperCase();
@@ -660,8 +846,21 @@ const Finance: React.FC = () => {
         desc.includes('maintenance expense') ||
         (Array.isArray(maintenanceLogs) && maintenanceLogs.some(log => isMaintenanceOrderMatch(txn, log)));
 
+      // RETAIN unified maintenance records (linking subcontractor expense and customer billed income)
+      if (
+        txn.customerBilled !== undefined ||
+        txn.subcontractorCost !== undefined ||
+        txn.dealerCost !== undefined ||
+        txn.isPassThrough ||
+        txn.passThrough ||
+        txn.isPassThroughMaintenance ||
+        txn.netProfit !== undefined
+      ) {
+        return true;
+      }
+
       if (isMaintOrder) {
-        // Discard any paired/orphaned Income entries tied to maintenance orders
+        // Discard legacy unlinked orphaned paired duplicate income entries
         return false;
       }
       return true;
@@ -673,6 +872,7 @@ const Finance: React.FC = () => {
       type, setType, 
       category, setCategory, 
       groupFilter, setGroupFilter, 
+      departmentFilter, setDepartmentFilter,
       paymentStatus, setPaymentStatus, 
       dateRange, setDateRange, 
       selectedOwner, setSelectedOwner, 
@@ -684,25 +884,21 @@ const Finance: React.FC = () => {
       recurringFilter, setRecurringFilter, 
       recurringFrequency, setRecurringFrequency,
       profitTrackingFilter, setProfitTrackingFilter,
+      needsAttentionFilter, setNeedsAttentionFilter,
+      needsAttentionCount,
       accountSummary, 
       totalOwingFromOwners,
-      totalOwingFromAccounts 
+      totalOwingFromAccounts,
+      hasActiveFilter,
+      handleResetAll
   } = useFinanceFilters(
     enrichedTransactions,
     vehicles,
-    accounts
+    accounts,
+    groups.map((g) => ({ id: g.id, name: g.name }))
   );
 
-  // Apply Department Filter
-  const finalFilteredTransactions = useMemo(() => {
-    return filteredTransactions.filter((txn) => {
-      if (departmentFilter.length > 0) {
-        const dId = txn.departmentId || 'none';
-        if (!departmentFilter.includes(dId)) return false;
-      }
-      return true;
-    });
-  }, [filteredTransactions, departmentFilter]);
+  const finalFilteredTransactions = filteredTransactions;
 
   const handleOpenStatementModal = useCallback((customRange?: { start: Date | null; end: Date | null }, accId?: string, openPreview: boolean = false) => {
     if (accId) {
@@ -893,6 +1089,20 @@ const Finance: React.FC = () => {
   // 2. CARD 2: "TOTAL EXPENSES" (Soft Red) - Sum of all debit/expenses + ALL subcontractor/dealer costs
   // 3. CARD 3: "NET PROFIT" (Emerald Green / Red, Formula: Total Income - Total Expenses)
   const summaryMetrics = useMemo(() => {
+    // 2. Dynamic Top Summary Cards:
+    // Ensure the top KPI summary cards ("TOTAL INCOME", "TOTAL EXPENSES", "NET PROFIT") dynamically calculate the exact sum of these unassigned/reversal table rows.
+    // If 0 unassigned/reversal entries exist, display £0.00 and an empty table.
+    if (finalFilteredTransactions.length === 0) {
+      return {
+        totalIncome: 0,
+        totalExpenses: 0,
+        subcontractorCost: 0,
+        dealerCost: 0,
+        netProfit: 0,
+        profitTrackingIncome: 0,
+      };
+    }
+
     // Check if the current filter is strictly showing only expenses
     const isExpenseFilterActive =
       String(type || '').toUpperCase() === 'EXPENSE' ||
@@ -906,27 +1116,42 @@ const Finance: React.FC = () => {
           return isExp;
         }));
 
-    // 1. Identify all order/job reference keys for Income rows
+    // 1. Identify all order/job reference keys for Income and Expense rows
     const incomeJobKeys = new Set<string>();
+    const expenseOrderKeys = new Set<string>();
+
     finalFilteredTransactions.forEach((t: any) => {
       const isInc =
         t.type === 'INCOME' ||
         String(t.type || '').toUpperCase() === 'INCOME' ||
         String(t.entryType || '').toUpperCase() === 'CREDIT' ||
         String(t.transactionType || '').toUpperCase() === 'INCOME';
-      if (isInc) {
-        const ref = (t.referenceId || t.orderId || t.orderNumber || t.linkedInvoiceRef || t.maintenanceOrderId || t.maintenanceJobId || '')
-          .toString().trim().toUpperCase();
-        if (ref) incomeJobKeys.add(ref);
-      }
+      const isExp =
+        t.type === 'EXPENSE' ||
+        String(t.type || '').toUpperCase() === 'EXPENSE' ||
+        String(t.entryType || '').toUpperCase() === 'DEBIT' ||
+        String(t.transactionType || '').toUpperCase() === 'EXPENSE';
+
+      const ref = (t.referenceId || t.orderId || t.orderNumber || t.linkedInvoiceRef || t.maintenanceOrderId || t.maintenanceJobId || '')
+        .toString().trim().toUpperCase();
+
+      if (isInc && ref) incomeJobKeys.add(ref);
+      if (isExp && ref) expenseOrderKeys.add(ref);
     });
 
     const talliedDealerCostOrders = new Set<string>();
 
     const metrics = finalFilteredTransactions.reduce((acc, item: any) => {
-      const amount = Number(item.amount || item.customerBilled || item.billed || 0);
       const dealerCost = item.dealerCost != null ? Number(item.dealerCost) : (item.subcontractorCost != null ? Number(item.subcontractorCost) : 0); 
-      
+      const isPassThrough = Boolean(
+        item.isPassThrough ||
+        item.passThrough ||
+        item.isPassThroughMaintenance ||
+        item.category === 'Pass-Through Maintenance' ||
+        (item as any).customCategory === 'Pass-Through Maintenance' ||
+        (item as any).passThroughTag
+      );
+
       const isIncome =
         item.type === 'INCOME' ||
         String(item.type || '').toUpperCase() === 'INCOME' ||
@@ -939,81 +1164,74 @@ const Finance: React.FC = () => {
         String(item.entryType || '').toUpperCase() === 'DEBIT' ||
         String(item.transactionType || '').toUpperCase() === 'EXPENSE';
 
+      let amount = Number(item.amount || item.customerBilled || item.billed || 0);
+      if (isExpense && dealerCost > 0 && !isPassThrough) {
+        amount = dealerCost;
+      }
+
       const orderKey = (item.referenceId || item.orderId || item.orderNumber || item.linkedInvoiceRef || item.maintenanceOrderId || item.maintenanceJobId || '')
         .toString().trim().toUpperCase();
 
       if (isIncome) {
         acc.totalIncome += Math.abs(amount);
-        // Subcontractor costs tied to income are just expenses
+        const hasSeparateExpenseRow = Boolean(orderKey && expenseOrderKeys.has(orderKey));
+        // Subcontractor-Only Profit Trigger:
+        // Only execute Net Profit and Profit Margin calculations when Dealer Cost > 0.
+        // Direct customer billing registers as Standard Income without inflating Company Net Profit!
         if (dealerCost > 0) {
-          if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
-            acc.totalExpenses += dealerCost;
-            acc.subcontractorCost += dealerCost;
-            if (orderKey) talliedDealerCostOrders.add(orderKey);
-          }
-        }
-      } else if (isExpense) {
-        const isLinkedDuplicate = Boolean(
-          item.isLinkedExpense ||
-          item.isSplitLinked ||
-          item.isSplit ||
-          item.linkedExpense ||
-          item.description?.includes('Maintenance Expense') ||
-          (orderKey && incomeJobKeys.has(orderKey))
-        );
-
-        // If we are strictly viewing expenses OR it's a regular standalone expense, count it.
-        // We only ignore linked duplicates if we are looking at the combined ledger (to protect Net Profit).
-        if (isExpenseFilterActive || !isLinkedDuplicate) {
-          acc.totalExpenses += Math.abs(amount);
-
-          // Only add dealer cost if it wasn't already added by a paired income row
-          if (!isLinkedDuplicate) {
-            if (dealerCost > 0) {
-              if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
-                acc.totalExpenses += dealerCost;
-                acc.subcontractorCost += dealerCost;
-                if (orderKey) talliedDealerCostOrders.add(orderKey);
-              }
-            }
-          }
-        }
-      } else if (amount >= 0) {
-        acc.totalIncome += amount;
-        if (dealerCost > 0) {
-          if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
-            acc.totalExpenses += dealerCost;
-            acc.subcontractorCost += dealerCost;
-            if (orderKey) talliedDealerCostOrders.add(orderKey);
-          }
-        }
-      } else {
-        const isLinkedDuplicate = Boolean(
-          item.isLinkedExpense ||
-          item.isSplitLinked ||
-          item.isSplit ||
-          item.linkedExpense ||
-          item.description?.includes('Maintenance Expense') ||
-          (orderKey && incomeJobKeys.has(orderKey))
-        );
-        if (isExpenseFilterActive || !isLinkedDuplicate) {
-          acc.totalExpenses += Math.abs(amount);
-          if (!isLinkedDuplicate && dealerCost > 0) {
-            if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
+          if (!hasSeparateExpenseRow) {
+            if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
               acc.totalExpenses += dealerCost;
               acc.subcontractorCost += dealerCost;
               if (orderKey) talliedDealerCostOrders.add(orderKey);
             }
+          } else {
+            acc.subcontractorCost += dealerCost;
           }
+          acc.accruedNetProfit += Math.max(0, amount - dealerCost);
+          acc.profitTrackingIncome += amount;
         }
+      } else if (isExpense) {
+        acc.totalExpenses += Math.abs(amount);
+        acc.operatingExpenses += Math.abs(amount);
+      } else if (amount >= 0) {
+        acc.totalIncome += amount;
+        const hasSeparateExpenseRow = Boolean(orderKey && expenseOrderKeys.has(orderKey));
+        if (dealerCost > 0) {
+          if (!hasSeparateExpenseRow) {
+            if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
+              acc.totalExpenses += dealerCost;
+              acc.subcontractorCost += dealerCost;
+              if (orderKey) talliedDealerCostOrders.add(orderKey);
+            }
+          } else {
+            acc.subcontractorCost += dealerCost;
+          }
+          acc.accruedNetProfit += Math.max(0, amount - dealerCost);
+          acc.profitTrackingIncome += amount;
+        }
+      } else {
+        acc.totalExpenses += Math.abs(amount);
+        acc.operatingExpenses += Math.abs(amount);
       }
 
       return acc;
-    }, { totalIncome: 0, totalExpenses: 0, subcontractorCost: 0 });
+    }, {
+      totalIncome: 0,
+      totalExpenses: 0,
+      subcontractorCost: 0,
+      accruedNetProfit: 0,
+      operatingExpenses: 0,
+      profitTrackingIncome: 0,
+    });
 
     const totalIncome = Number(metrics.totalIncome.toFixed(2));
     const totalExpenses = Number(metrics.totalExpenses.toFixed(2));
-    const netProfit = Number((totalIncome - totalExpenses).toFixed(2));
+    // Correct Net Profit Card Math Formula:
+    // Formula: Net Profit = Total Income - Math.abs(Total Expenses)
+    // Example: Income (£11,391.72) - Expenses (£10,191.72) = +£1,200.00 Net Profit
+    // Stop the Net Profit card from copying the Total Expenses variable into the profit display box.
+    const netProfit = Number((totalIncome - Math.abs(totalExpenses)).toFixed(2));
 
     return {
       totalIncome,
@@ -1021,19 +1239,37 @@ const Finance: React.FC = () => {
       subcontractorCost: Number(metrics.subcontractorCost.toFixed(2)),
       dealerCost: Number(metrics.subcontractorCost.toFixed(2)),
       netProfit,
+      profitTrackingIncome: metrics.profitTrackingIncome,
     };
-  }, [finalFilteredTransactions, type]);
+  }, [finalFilteredTransactions, type, hasActiveFilter]);
 
-  // Simplified overall profit formula: Total Income - Total Expenses
-  const netProfit = summaryMetrics.totalIncome - summaryMetrics.totalExpenses;
+  // Company Net Profit: Total Income - Math.abs(Total Expenses)
+  const netProfit = summaryMetrics.netProfit;
 
-  const profitMargin = summaryMetrics.totalIncome > 0 
-    ? ((summaryMetrics.netProfit / summaryMetrics.totalIncome) * 100).toFixed(1) 
+  // Real Profit Margin (%): (Net Profit / Total Income) * 100
+  const profitMargin = summaryMetrics.totalIncome > 0
+    ? ((summaryMetrics.netProfit / summaryMetrics.totalIncome) * 100).toFixed(1)
     : "0.0";
 
   const legacySummaryMetrics = useMemo(() => {
+    if (finalFilteredTransactions.length === 0) {
+      return {
+        totalRevenue: 0,
+        totalIncomeNet: 0,
+        totalIncomeVat: 0,
+        totalCombinedExpenses: 0,
+        standardOperatingExpenses: 0,
+        verifiedSubcontractorExpenses: 0,
+        totalGrossExpenses: 0,
+        totalExpenseNet: 0,
+        totalExpenseVat: 0,
+        netProfit: 0,
+        profitMarginPercent: 0,
+        totalVatLiability: 0,
+      };
+    }
     return calculateFinanceSummaryCards(finalFilteredTransactions, maintenanceLogs, invoices);
-  }, [finalFilteredTransactions, maintenanceLogs, invoices]);
+  }, [hasActiveFilter, finalFilteredTransactions, maintenanceLogs, invoices]);
 
   const {
     totalRevenue,
@@ -1050,10 +1286,10 @@ const Finance: React.FC = () => {
     totalVatLiability,
   } = legacySummaryMetrics;
 
-  const totalIncomeGross = totalRevenue;
-  const totalExpenseGross = totalCombinedExpenses;
-  const netProfitGross = totalSubcontractorNetProfit;
-  const netProfitNet = totalSubcontractorNetProfit;
+  const totalIncomeGross = summaryMetrics.totalIncome;
+  const totalExpenseGross = summaryMetrics.totalExpenses;
+  const netProfitGross = summaryMetrics.netProfit;
+  const netProfitNet = summaryMetrics.netProfit;
 
   useEffect(() => {
     if (loading || transactions.length === 0 || hasRunRecurringCheck.current || isProcessingRecurring.current) return;
@@ -1464,8 +1700,9 @@ const Finance: React.FC = () => {
             onSearch={setSearchQuery} 
             onImport={handleImportClick} 
             onExport={handleExport} 
-            onAddIncome={() => setShowAddIncome(true)} 
-            onAddExpense={() => setShowAddExpense(true)} 
+            onNewTransaction={() => { setTransactionModalType('income'); setShowTransactionModal(true); }}
+            onAddIncome={() => { setTransactionModalType('income'); setShowTransactionModal(true); }} 
+            onAddExpense={() => { setTransactionModalType('expense'); setShowTransactionModal(true); }} 
             onAddRecurring={() => setShowRecurringModal(true)} 
             onOpenBIReport={() => setShowBIReportModal(true)}
             onOpenStatementModal={() => handleOpenStatementModal(dateRange)}
@@ -1499,6 +1736,11 @@ const Finance: React.FC = () => {
             recurringFrequency={recurringFrequency} onRecurringFrequencyChange={setRecurringFrequency}
             profitTrackingFilter={profitTrackingFilter} onProfitTrackingFilterChange={setProfitTrackingFilter}
             onOpenStatementModal={handleOpenStatementModal}
+            hasActiveFilter={hasActiveFilter}
+            onResetAll={handleResetAll}
+            needsAttentionFilter={needsAttentionFilter}
+            onNeedsAttentionChange={setNeedsAttentionFilter}
+            needsAttentionCount={needsAttentionCount}
           />
 
           {selectedTransactionIds.size > 0 && (can('finance', 'assign') || can('finance', 'delete')) && (
@@ -1546,6 +1788,27 @@ const Finance: React.FC = () => {
             </div>
           )}
 
+          {!hasActiveFilter && (
+            <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 flex items-start sm:items-center justify-between gap-3 text-slate-700 shadow-2xs animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4 text-amber-700" />
+                </div>
+                <div className="text-xs">
+                  {finalFilteredTransactions.length === 0 ? (
+                    <>
+                      <span className="font-bold text-amber-950">Initial Default View:</span> The ledger table and KPI cards are empty (£0.00 / 0 rows). No unassigned transactions found. Please select an Account, Vehicle, or Filter from the toolbar above to view assigned transactions.
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold text-amber-950">Initial Default View:</span> Displaying {finalFilteredTransactions.length} unassigned transaction{finalFilteredTransactions.length === 1 ? '' : 's'} (missing account assignment). All account-assigned transactions remain hidden until an Account, Vehicle, or Filter selection is made above.
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <TransactionTable 
             transactions={finalFilteredTransactions} 
             vehicles={vehicles} 
@@ -1559,6 +1822,8 @@ const Finance: React.FC = () => {
             onPrintReceipt={handlePrintReceipt} 
             onAssign={handleAssignTransaction} 
             onAssignDepartment={(txn) => { setSelectedTransaction(txn); setShowAssignDepartmentModal(true); }}
+            onWhatsApp={handleOpenWhatsApp}
+            onEmail={handleOpenEmail}
             
             isManager={can('finance', 'assign') || can('finance', 'delete')}
             selectedIds={selectedTransactionIds}
@@ -1604,7 +1869,7 @@ const Finance: React.FC = () => {
             transactions={transactions}
             onViewTransaction={handleViewTransaction}
             onEditTransaction={handleEditTransaction}
-            onNewTransfer={() => setShowAddExpense(true)}
+            onNewTransfer={() => { setTransactionModalType('expense'); setShowTransactionModal(true); }}
           />
         </div>
       )}
@@ -1678,8 +1943,8 @@ const Finance: React.FC = () => {
         }}
       />
 
-      <Modal isOpen={showAddIncome || showAddExpense} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} title={`Add ${showAddIncome ? 'Income' : 'Expense'}`} size="xl">
-        <TransactionForm type={showAddIncome ? 'income' : 'expense'} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} transactions={transactions} onClose={() => { setShowAddIncome(false); setShowAddExpense(false); }} />
+      <Modal isOpen={showTransactionModal} onClose={() => setShowTransactionModal(false)} title="Record Transaction" size="xl">
+        <TransactionForm type={transactionModalType} accounts={accounts} vehicles={vehicles} customers={customers} departments={departments} transactions={transactions} onClose={() => setShowTransactionModal(false)} />
       </Modal>
       
       <Modal isOpen={showRecurringModal} onClose={() => setShowRecurringModal(false)} title="Add Recurring Transaction" size="xl">
@@ -1781,6 +2046,40 @@ const Finance: React.FC = () => {
         initialEndDate={statementInitialEndDate}
         initialOpenPreview={statementInitialOpenPreview}
       />
+
+      {/* ── WHATSAPP WEB/APP PRE-FILLED LAUNCHER MODAL ── */}
+      {showWhatsAppDispatchModal && selectedActionTransaction && (
+        <WhatsAppDispatchModal
+          isOpen={showWhatsAppDispatchModal}
+          onClose={() => {
+            setShowWhatsAppDispatchModal(false);
+            setSelectedActionTransaction(null);
+          }}
+          transaction={selectedActionTransaction}
+          vehicles={vehicles}
+          accounts={accounts}
+          customers={customers}
+          runningBalance={actionRunningBalance}
+          transactions={transactions}
+        />
+      )}
+
+      {/* ── INLINE EMAIL DISPATCH MODAL ── */}
+      {showEmailDispatchModal && selectedActionTransaction && (
+        <EmailDispatchModal
+          isOpen={showEmailDispatchModal}
+          onClose={() => {
+            setShowEmailDispatchModal(false);
+            setSelectedActionTransaction(null);
+          }}
+          transaction={selectedActionTransaction}
+          vehicles={vehicles}
+          accounts={accounts}
+          customers={customers}
+          runningBalance={actionRunningBalance}
+          transactions={transactions}
+        />
+      )}
 
     </div>
   );

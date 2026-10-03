@@ -9,6 +9,7 @@ interface SignaturePadProps {
   width?: number;
   height?: number;
   theme?: 'default' | 'navy';
+  disabled?: boolean;
 }
 
 const SignaturePadComponent: React.FC<SignaturePadProps> = ({
@@ -17,7 +18,8 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
   className = '',
   width = 400,
   height = 200,
-  theme = 'default'
+  theme = 'default',
+  disabled = false,
 }) => {
   const padRef = useRef<SignaturePad>(null);
   const isNavy = theme === 'navy';
@@ -31,6 +33,7 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
   }, [value]);
 
   const handleClear = () => {
+    if (disabled) return;
     if (padRef.current) {
       padRef.current.clear();
       onChange('');
@@ -38,6 +41,7 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
   };
 
   const handleEnd = () => {
+    if (disabled) return;
     if (padRef.current) {
       const trimmedDataURL = padRef.current.getTrimmedCanvas().toDataURL('image/png');
       onChange(trimmedDataURL);
@@ -52,7 +56,7 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
     border: isNavy ? '1px solid #2B314E' : '1px solid #d1d5db',
     borderRadius: '0.75rem',
     overflow: 'hidden',
-    backgroundColor: '#ffffff'
+    backgroundColor: disabled ? '#f8fafc' : '#ffffff',
   };
 
   const signaturePadStyle: React.CSSProperties = {
@@ -61,38 +65,46 @@ const SignaturePadComponent: React.FC<SignaturePadProps> = ({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: '#ffffff'
+    backgroundColor: disabled ? '#f8fafc' : '#ffffff',
+    pointerEvents: disabled ? 'none' : 'auto',
   };
 
   return (
-    <div className={`relative w-full ${className}`}>
+    <div className={`relative w-full ${disabled ? 'opacity-60 pointer-events-none' : ''} ${className}`}>
       <div style={containerStyle} className={isNavy ? 'shadow-inner' : ''}>
         <SignaturePad
           ref={padRef}
           canvasProps={{
-            className: 'signature-canvas w-full h-full cursor-crosshair',
-            style: signaturePadStyle
+            className: `signature-canvas w-full h-full ${disabled ? 'cursor-not-allowed' : 'cursor-crosshair'}`,
+            style: signaturePadStyle,
           }}
           onEnd={handleEnd}
           penColor="#0f172a"
         />
       </div>
-      <button
-        type="button"
-        onClick={handleClear}
-        className={
-          isNavy
-            ? 'absolute top-2.5 right-2.5 flex items-center gap-1 text-xs font-semibold px-2.5 py-1 bg-[#1E2238] border border-[#2B314E] rounded-md shadow-xs text-slate-200 hover:text-rose-400 hover:bg-[#2B314E] transition-colors z-10 cursor-pointer'
-            : 'absolute top-2 right-2 flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-white border border-gray-300 rounded-md shadow-2xs text-gray-700 hover:text-red-600 hover:bg-gray-50 transition-colors z-10 cursor-pointer'
-        }
-        title="Clear signature"
-      >
-        <X className="w-3.5 h-3.5" />
-        <span>Clear</span>
-      </button>
-      {!value && (
+      {!disabled && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className={
+            isNavy
+              ? 'absolute top-2.5 right-2.5 flex items-center gap-1 text-xs font-semibold px-2.5 py-1 bg-[#1E2238] border border-[#2B314E] rounded-md shadow-xs text-slate-200 hover:text-rose-400 hover:bg-[#2B314E] transition-colors z-10 cursor-pointer'
+              : 'absolute top-2 right-2 flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-white border border-gray-300 rounded-md shadow-2xs text-gray-700 hover:text-red-600 hover:bg-gray-50 transition-colors z-10 cursor-pointer'
+          }
+          title="Clear signature"
+        >
+          <X className="w-3.5 h-3.5" />
+          <span>Clear</span>
+        </button>
+      )}
+      {!value && !disabled && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
           <span className="text-slate-400 font-medium text-xs sm:text-sm">Sign here using mouse, stylus, or touch</span>
+        </div>
+      )}
+      {disabled && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 bg-slate-50/70">
+          <span className="text-slate-400 font-medium text-xs sm:text-sm">Signature locked until consent is confirmed</span>
         </div>
       )}
     </div>

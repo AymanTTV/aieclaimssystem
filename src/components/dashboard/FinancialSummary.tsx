@@ -39,20 +39,33 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       .filter((t) => t.type === 'income')
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-    let totalSubcontractorExpenses = periodTransactions.reduce(
-      (sum, t) => sum + (Number(t.subcontractorCost) || 0),
-      0
-    );
+    let totalSubcontractorExpenses = 0;
+    let totalSubcontractorBilled = 0;
+    let totalNetProfit = 0;
+
+    periodTransactions.forEach((t) => {
+      const sub = Number(t.subcontractorCost || t.dealerCost || 0);
+      const billed = Number(t.customerBilled || t.amount || 0);
+      if (sub > 0) {
+        totalSubcontractorExpenses += sub;
+        totalSubcontractorBilled += billed;
+        totalNetProfit += Math.max(0, billed - sub);
+      }
+    });
 
     // 2. Add maintenance subcontractor costs & billed
     (maintenanceLogs || []).forEach((log) => {
       if (isInPeriod(log.date)) {
-        if (log.subcontractorCost && Number(log.subcontractorCost) > 0) {
-          totalSubcontractorExpenses += Number(log.subcontractorCost);
+        const sub = Number(log.subcontractorCost || 0);
+        const billed = Number(log.customerBilled || log.cost || 0);
+        if (sub > 0 && periodTransactions.length === 0) {
+          totalSubcontractorExpenses += sub;
+          totalSubcontractorBilled += billed;
+          totalNetProfit += Math.max(0, billed - sub);
         }
         // If customerBilled is recorded separately and not in transactions
-        if (log.customerBilled && Number(log.customerBilled) > 0 && periodTransactions.length === 0) {
-          totalRevenue += Number(log.customerBilled);
+        if (billed > 0 && periodTransactions.length === 0) {
+          totalRevenue += billed;
         }
       }
     });
@@ -60,8 +73,12 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     // 3. Add invoice subcontractor costs
     (invoices || []).forEach((inv) => {
       if (isInPeriod(inv.date)) {
-        if (inv.subcontractorCost && Number(inv.subcontractorCost) > 0) {
-          totalSubcontractorExpenses += Number(inv.subcontractorCost);
+        const sub = Number(inv.subcontractorCost || 0);
+        const billed = Number(inv.customerBilled || inv.total || 0);
+        if (sub > 0 && periodTransactions.length === 0) {
+          totalSubcontractorExpenses += sub;
+          totalSubcontractorBilled += billed;
+          totalNetProfit += Math.max(0, billed - sub);
         }
       }
     });
@@ -77,8 +94,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       totalRevenue = logsBilled + invBilled;
     }
 
-    const totalNetProfit = totalRevenue - totalSubcontractorExpenses;
-    const profitMargin = totalRevenue > 0 ? (totalNetProfit / totalRevenue) * 100 : 0;
+    const profitMargin = totalSubcontractorBilled > 0 ? (totalNetProfit / totalSubcontractorBilled) * 100 : 0;
 
     return {
       totalRevenue,

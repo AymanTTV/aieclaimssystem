@@ -328,10 +328,11 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
         notes: formData.notes,
         // Subcontractor Cost & Profit Tracking
         subcontractorCost: profitMetrics.subcontractorCost,
+        dealerCost: profitMetrics.subcontractorCost,
         customerBilled: costs.totalAmount,
-        netProfit: profitMetrics.netProfit,
-        profitMarginPercent: profitMetrics.profitMarginPercent,
-        isProfitEdited: true,
+        netProfit: profitMetrics.subcontractorCost > 0 && Math.abs(costs.totalAmount - profitMetrics.subcontractorCost) >= 0.01 ? profitMetrics.netProfit : 0,
+        profitMarginPercent: profitMetrics.subcontractorCost > 0 && Math.abs(costs.totalAmount - profitMetrics.subcontractorCost) >= 0.01 ? profitMetrics.profitMarginPercent : 0,
+        isProfitEdited: profitMetrics.subcontractorCost > 0,
         vatDetails: {
           partsVAT: parts.map(part => ({
             partName: part.name,
@@ -889,14 +890,18 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div
                 className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                  profitMetrics.netProfit >= 0
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'bg-slate-50 border-slate-200'
+                    : profitMetrics.netProfit >= 0
                     ? 'bg-emerald-50/80 border-emerald-200'
                     : 'bg-rose-50/80 border-rose-200'
                 }`}
               >
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
-                  <span>Live Net Profit</span>
-                  {profitMetrics.netProfit >= 0 ? (
+                  <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                  {profitMetrics.subcontractorCost <= 0 ? (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                  ) : profitMetrics.netProfit >= 0 ? (
                     <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                   ) : (
                     <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
@@ -904,18 +909,27 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                 </div>
                 <p
                   className={`text-base font-black font-mono mt-0.5 ${
-                    profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    profitMetrics.subcontractorCost <= 0
+                      ? 'text-slate-700'
+                      : profitMetrics.netProfit >= 0
+                      ? 'text-emerald-700'
+                      : 'text-rose-700'
                   }`}
                 >
-                  {profitMetrics.netProfit >= 0 ? '+' : ''}
-                  {formatCurrency(profitMetrics.netProfit)}
+                  {profitMetrics.subcontractorCost <= 0
+                    ? '£0.00'
+                    : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
                 </p>
-                <span className="text-[10px] text-slate-500">Billed – Dealer Cost</span>
+                <span className="text-[10px] text-slate-500">
+                  {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Billed – Dealer Cost'}
+                </span>
               </div>
 
               <div
                 className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                  profitMetrics.profitMarginPercent >= 0
+                  profitMetrics.subcontractorCost <= 0
+                    ? 'bg-slate-50 border-slate-200'
+                    : profitMetrics.profitMarginPercent >= 0
                     ? 'bg-indigo-50/80 border-indigo-200'
                     : 'bg-rose-50/80 border-rose-200'
                 }`}
@@ -926,12 +940,18 @@ const MaintenanceEditModal: React.FC<MaintenanceEditModalProps> = ({ log, vehicl
                 </div>
                 <p
                   className={`text-base font-black font-mono mt-0.5 ${
-                    profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                    profitMetrics.subcontractorCost <= 0
+                      ? 'text-slate-700'
+                      : profitMetrics.profitMarginPercent >= 0
+                      ? 'text-indigo-700'
+                      : 'text-rose-700'
                   }`}
                 >
-                  {profitMetrics.profitMarginPercent.toFixed(1)}%
+                  {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
                 </p>
-                <span className="text-[10px] text-slate-500">Margin on billed</span>
+                <span className="text-[10px] text-slate-500">
+                  {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Margin on billed'}
+                </span>
               </div>
             </div>
           </div>

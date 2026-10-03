@@ -11,13 +11,18 @@ import {
 import { Claim } from '../../../types';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import SafePdfLogo from '../SafePdfLogo';
 import {
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  AIE_CLAIMS_FOOTER_TEXT
+  AIE_CLAIMS_FOOTER_TEXT,
+  getCompanyBrandingForPdf,
+  extractActiveCorporateEntityProfile,
 } from '../../../utils/legalDocumentUtils';
+import { resolveClaimDocumentTerms } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './PdfTermsWarningNotice';
 
 interface NoticeOfRightToCancelProps {
   claim?: Claim | any;
@@ -95,13 +100,13 @@ const localStyles = StyleSheet.create({
   paragraph: {
     fontSize: 8.5,
     color: '#334155',
-    lineHeight: 1.45,
-    marginBottom: 5,
+    lineHeight: 1.35,
+    marginBottom: 4,
     textAlign: 'justify',
   },
   cancellationSlipContainer: {
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 0,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: '#94A3B8',
@@ -109,6 +114,9 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     padding: 8,
     breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   slipHeader: {
     borderBottomWidth: 1,
@@ -207,59 +215,58 @@ const NoticeOfRightToCancel: React.FC<NoticeOfRightToCancelProps> = ({
 
   const dateIssued = formatHireCommencementDate(claim);
 
-  const companyName = 'AIE Claims LTD';
-  const companyAddress = 'United House, 39-41 North Road, London, N7 9DP';
-  const companyPhone = '+442080505337';
-  const companyEmail = 'claims@aieclaims.co.uk';
-
-  const defaultNotice = `NOTICE OF RIGHT TO CANCEL
-(The Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013)
-
-1. Right to Cancel
-You have the right to cancel this contract within 14 calendar days without giving any reason. The cancellation period will expire after 14 calendar days from the date of the conclusion of the contract (the date on which this agreement is signed or the vehicle/service is supplied, whichever is earlier).
-
-2. How to Exercise the Right to Cancel
-To exercise the right to cancel, you must inform us (${companyName}, ${companyAddress}, Tel: ${companyPhone}, Email: ${companyEmail}) of your decision to cancel this contract by a clear statement (e.g. a letter sent by post or electronic mail). You may use the Cancellation Notice Slip provided below, but it is not obligatory.
-
-3. Timeliness of Communication
-To meet the cancellation deadline, it is sufficient for you to send your communication concerning your exercise of the right to cancel before the cancellation period has expired. Cancellation is deemed served once posted or sent electronically.
-
-4. Effects of Cancellation
-If you cancel this contract, we will reimburse to you all payments received from you, subject to the conditions set out below. We will make the reimbursement without undue delay, and not later than 14 days after the day on which we are informed about your decision to cancel this contract. We will make the reimbursement using the same means of payment as you used for the initial transaction, unless you have expressly agreed otherwise; in any event, you will not incur any fees as a result of the reimbursement.
-
-5. Performance of Services During the Cancellation Period
-If you requested us to begin the performance of credit hire or replacement vehicle services during the cancellation period, you shall pay us an amount which is in proportion to what has been performed until you have communicated us your cancellation of this contract, in comparison with the full coverage of the contract.
-
-6. Return of Hired Vehicle / Property
-Upon cancellation of this agreement, you must immediately make available and return any hired vehicle, goods, or equipment supplied to you in the same condition as received, reasonable fair wear and tear excepted.`;
-
-  const rawNoticeText =
-    companyDetails?.noticeOfRightToCancelText &&
-    companyDetails.noticeOfRightToCancelText.trim().length > 0
-      ? companyDetails.noticeOfRightToCancelText.trim()
-      : (companyDetails?.termsAndConditions || defaultNotice);
-
-  const processedNotice = parseLegalVariables(rawNoticeText, {
-    companyName,
-    companyAddress,
-    companyPhone,
-    companyEmail,
-    companyVat: companyDetails?.vatNumber || '',
-    companyRegistration: companyDetails?.registrationNumber || '',
-    hirerName,
-    customerName: hirerName,
-    hirerAddress,
-    customerAddress: hirerAddress,
-    vehicleReg,
-    vehicleMake,
-    vehicleModel,
-    vehicleMakeModel,
-    agreementRef,
-    agreementNumber: agreementRef,
-    dateIssued,
-    startDate: dateIssued,
-    hireStartDate: dateIssued,
+  const branding = getCompanyBrandingForPdf(companyDetails, 'aie_claims');
+  const activeCompanyProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...claim?.rental,
+    corporateEntityKey: claim?.rental?.corporateEntityKey || claim?.corporateEntityKey,
+    corporateEntityName: claim?.rental?.corporateEntityName || claim?.corporateEntityName,
   });
+  const companyName = activeCompanyProfile.companyName || branding.companyName;
+  const companyAddress = activeCompanyProfile.companyAddress || branding.companyAddress;
+  const companyPhone = activeCompanyProfile.phone || branding.companyPhone;
+  const companyEmail = activeCompanyProfile.email || branding.companyEmail;
+  const companyWebsite = activeCompanyProfile.website || branding.website;
+  const companyLogo = branding.companyLogo;
+  const footerText = branding.footerText || AIE_CLAIMS_FOOTER_TEXT;
+
+  // Strict Dynamic T&C Resolution: Pulls Right to Cancel clauses directly from Claims tab
+  const termsResolution = resolveClaimDocumentTerms('noticeOfRightToCancel', companyDetails);
+
+  const processedNotice = termsResolution.isConfigured
+    ? parseLegalVariables(termsResolution.content, {
+        company_name: companyName,
+        companyName,
+        claims_team: activeCompanyProfile.claimsTeam,
+        claimsTeam: activeCompanyProfile.claimsTeam,
+        website: companyWebsite,
+        company_website: companyWebsite,
+        companyWebsite,
+        company_phone: companyPhone,
+        companyPhone,
+        company_email: companyEmail,
+        companyEmail,
+        company_address: companyAddress,
+        companyAddress,
+        company_number: activeCompanyProfile.companyNumber || companyDetails?.registrationNumber || '',
+        companyRegistration: activeCompanyProfile.companyNumber || companyDetails?.registrationNumber || '',
+        vat_number: activeCompanyProfile.vatNumber || companyDetails?.vatNumber || '',
+        companyVat: activeCompanyProfile.vatNumber || companyDetails?.vatNumber || '',
+        hirerName,
+        customerName: hirerName,
+        hirerAddress,
+        customerAddress: hirerAddress,
+        vehicleReg,
+        vehicleMake,
+        vehicleModel,
+        vehicleMakeModel,
+        agreementRef,
+        agreementNumber: agreementRef,
+        dateIssued,
+        startDate: dateIssued,
+        hireStartDate: dateIssued,
+      })
+    : '';
 
   const paragraphs = splitParagraphs(processedNotice);
 
@@ -276,13 +283,16 @@ Upon cancellation of this agreement, you must immediately make available and ret
         {/* Fixed Header on all pages */}
         <View style={localStyles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={aieClaimsLogo} style={styles.logo} />
+            <SafePdfLogo src={companyLogo} companyName={companyName} style={styles.logo} />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{companyName}</Text>
-            <Text style={styles.companyDetail}>{companyAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {companyPhone}</Text>
-            <Text style={styles.companyDetail}>Email: {companyEmail}</Text>
+            <Text style={styles.companyName}>{companyName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyDetail}>{companyAddress || 'United House, 39-41 North Road, London, N7 9DP'}</Text>
+            <Text style={styles.companyDetail}>Tel: {companyPhone || '+442080505337'}</Text>
+            <Text style={styles.companyDetail}>Email: {companyEmail || 'claims@aieclaims.co.uk'}</Text>
+            {Boolean(companyWebsite) && (
+              <Text style={styles.companyDetail}>Web: {companyWebsite}</Text>
+            )}
           </View>
         </View>
 
@@ -318,25 +328,29 @@ Upon cancellation of this agreement, you must immediately make available and ret
         </View>
 
         {/* Body Text / Terms (Naturally wraps across pages) */}
-        <View style={localStyles.termsContainer} wrap>
-          {paragraphs.map((para: string, idx: number) => {
-            if (isHeading(para)) {
+        <View style={localStyles.termsContainer} wrap={true}>
+          {termsResolution.isConfigured ? (
+            paragraphs.map((para: string, idx: number) => {
+              if (isHeading(para)) {
+                return (
+                  <Text key={idx} wrap={true} style={localStyles.sectionHeading}>
+                    {para}
+                  </Text>
+                );
+              }
               return (
-                <Text key={idx} style={localStyles.sectionHeading}>
+                <Text key={idx} wrap={true} style={localStyles.paragraph}>
                   {para}
                 </Text>
               );
-            }
-            return (
-              <Text key={idx} style={localStyles.paragraph}>
-                {para}
-              </Text>
-            );
-          })}
+            })
+          ) : (
+            <PdfTermsWarningNotice message={termsResolution.warningMessage} />
+          )}
         </View>
 
         {/* Detachable Cancellation Notice Slip */}
-        <View style={localStyles.cancellationSlipContainer} wrap={false}>
+        <View style={localStyles.cancellationSlipContainer} wrap={false} minPresenceAhead={150}>
           <View style={localStyles.slipHeader}>
             <Text style={localStyles.slipTitle}>CANCELLATION NOTICE SLIP</Text>
             <Text style={localStyles.slipSubtitle}>
@@ -352,6 +366,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
             </Text>
             <Text style={localStyles.slipText}>
               Email: {companyEmail} | Tel: {companyPhone}
+              {Boolean(companyWebsite) && ` | Web: ${companyWebsite}`}
             </Text>
             <Text style={[localStyles.slipText, { marginTop: 3 }]}>
               I/We hereby give notice that I/we wish to cancel my/our credit
@@ -399,7 +414,7 @@ Upon cancellation of this agreement, you must immediately make available and ret
         {/* Fixed Footer across all pages */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>
-            {AIE_CLAIMS_FOOTER_TEXT}
+            {footerText}
           </Text>
           <Text
             style={styles.pageNumber}

@@ -7,8 +7,9 @@ interface FinanceHeaderProps {
   onSearch: (query: string) => void;
   onImport: () => void; 
   onExport: () => void;
-  onAddIncome: () => void;
-  onAddExpense: () => void;
+  onNewTransaction?: () => void;
+  onAddIncome?: () => void;
+  onAddExpense?: () => void;
   onGeneratePDF: () => void;
   onOpenStatementModal?: () => void;
   onOpenStatementPreview?: () => void;
@@ -26,7 +27,7 @@ interface FinanceHeaderProps {
 }
 
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
-  onSearch, onImport, onExport, onAddIncome, onAddExpense, onGeneratePDF,
+  onSearch, onImport, onExport, onNewTransaction, onAddIncome, onAddExpense, onGeneratePDF,
   onOpenStatementModal,
   onOpenStatementPreview,
   onManageGroups, onManageDepartments, onManageCategories, onManageAccounts,
@@ -114,8 +115,14 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
             {can('finance', 'export') && <button onClick={onExport} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><Download className="h-4 w-4 mr-2 text-[#64748B]" /> Export</button>}
             {(can('finance', 'singleDoc') || can('finance', 'export')) && <button onClick={onGeneratePDF} className="inline-flex items-center justify-center px-3.5 py-2.5 border border-[#CBD5E1] rounded-xl shadow-xs text-sm font-semibold text-[#1E293B] bg-white hover:bg-[#F8FAFC] transition-colors"><FileText className="h-4 w-4 mr-2 text-[#64748B]" /> PDF</button>}
             {can('finance', 'reoccurring') && <button onClick={onAddRecurring} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] transition-colors cursor-pointer"><Repeat className="h-4 w-4 mr-2" /> Recurring</button>}
-            {can('finance', 'create') && <button onClick={onAddIncome} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#059669] hover:bg-[#047857] transition-colors cursor-pointer"><Plus className="h-4 w-4 mr-2" /> Income</button>}
-            {can('finance', 'create') && <button onClick={onAddExpense} className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-[#DC2626] hover:bg-[#B91C1C] transition-colors cursor-pointer"><Plus className="h-4 w-4 mr-2" /> Expense</button>}
+            {can('finance', 'create') && (
+              <button 
+                onClick={onNewTransaction || onAddIncome} 
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl shadow-xs text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer"
+              >
+                <Plus className="h-4 w-4 mr-2" /> New Transaction
+              </button>
+            )}
         </div>
       </div>
     </div>

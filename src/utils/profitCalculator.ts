@@ -11,16 +11,22 @@ export interface ProfitMetrics {
   profitMargin: number;
   profitMarginPercent: number;
   vatAmount?: number;
+  hasSubcontractorCost?: boolean;
+  isDirectTransaction?: boolean;
+  formattedNetProfit?: string;
+  formattedMargin?: string;
 }
 
 /**
  * Calculates net profit and profit margin percentage
- * Formula:
- * Customer Billed = e.g. £250.00
- * Dealer / Subcontractor Cost = e.g. £200.00
- * Net Profit (£) = Customer Billed - Subcontractor Cost - VAT
- * Profit Margin (%) = (Net Profit / Customer Billed) * 100
- * If Customer Billed is 0: Net profit = -subcontractorCost, margin = 0%
+ * Subcontractor-Only Profit Trigger:
+ * - Only execute Net Profit and Profit Margin (%) calculations when a positive Dealer/Subcontractor Cost is explicitly entered (Dealer Cost > 0).
+ * - When "DEALER / SUBCONTRACTOR COST" is £0 (or left blank):
+ *   • Do NOT calculate or display 100.0% Profit Margin or set Net Profit equal to the full Customer Billed amount.
+ *   • Treat the transaction as Standard Income / Revenue (or Standard Expense), setting the "Net Profit / Mark-Up" field to £0.00 or "N/A (Direct Transaction)".
+ * - In that scenario (Dealer Cost > 0):
+ *   • Net Profit = Customer Billed - Dealer Cost - VAT
+ *   • Profit Margin (%) = (Net Profit / Customer Billed) * 100
  */
 export function calculateProfitMetrics(
   customerBilled: number = 0,
@@ -30,8 +36,17 @@ export function calculateProfitMetrics(
   const billed = Math.max(0, Number(customerBilled) || 0);
   const cost = Math.max(0, Number(subcontractorCost) || 0);
   const vat = Math.max(0, Number(vatAmount) || 0);
-  const netProfit = Number((billed - cost - vat).toFixed(2));
-  const profitMargin = billed > 0 ? Number(((netProfit / billed) * 100).toFixed(2)) : 0;
+
+  const hasSubcontractorCost = cost > 0;
+  const isDirectTransaction = !hasSubcontractorCost;
+
+  let netProfit = 0;
+  let profitMargin = 0;
+
+  if (hasSubcontractorCost) {
+    netProfit = Number((billed - cost - vat).toFixed(2));
+    profitMargin = billed > 0 ? Number(((netProfit / billed) * 100).toFixed(2)) : 0;
+  }
 
   return {
     customerBilled: billed,
@@ -41,20 +56,31 @@ export function calculateProfitMetrics(
     profitMargin,
     profitMarginPercent: profitMargin,
     vatAmount: vat,
+    hasSubcontractorCost,
+    isDirectTransaction,
+    formattedNetProfit: hasSubcontractorCost
+      ? (netProfit >= 0 ? `+£${netProfit.toFixed(2)}` : `-£${Math.abs(netProfit).toFixed(2)}`)
+      : '£0.00',
+    formattedMargin: hasSubcontractorCost
+      ? `${profitMargin.toFixed(1)}%`
+      : 'N/A (Direct Transaction)',
   };
 }
 
 /**
  * Calculates Cash-Basis / Realized Profit and Margin according to collection status:
  *
- * 1. UNPAID TRANSACTIONS (Paid == £0.00 or Payment Status == 'UNPAID'):
+ * 1. DIRECT TRANSACTIONS (subcontractorCost <= 0):
+ *    - No subcontractor cost entered -> Realized Profit = £0.00, Margin = 0.0% / N/A
+ *
+ * 2. UNPAID TRANSACTIONS (Paid == £0.00 or Payment Status == 'UNPAID'):
  *    - Realized Profit = £0.00 (0.0% Margin)
  *
- * 2. PARTIALLY PAID TRANSACTIONS (0 < Paid < Total Billed):
+ * 3. PARTIALLY PAID TRANSACTIONS (0 < Paid < Total Billed):
  *    - Proportional Subcontractor Cost = Dealer Cost * (Paid / Total Billed)
  *    - Realized Profit = Paid Amount - Proportional Subcontractor Cost
  *
- * 3. FULLY PAID TRANSACTIONS (Payment Status == 'PAID' or Owing == £0.00 or Paid >= Total Billed):
+ * 4. FULLY PAID TRANSACTIONS (Payment Status == 'PAID' or Owing == £0.00 or Paid >= Total Billed):
  *    - Recognize 100% of Net Profit = Total Billed - Dealer Cost
  */
 export function calculateRealizedProfit(
@@ -68,11 +94,26 @@ export function calculateRealizedProfit(
   isUnpaid: boolean;
   isFullyPaid: boolean;
   isPartiallyPaid: boolean;
+  hasSubcontractorCost?: boolean;
+  isDirectTransaction?: boolean;
 } {
   const billed = Math.max(0, Number(customerBilled) || 0);
   const cost = Math.max(0, Number(subcontractorCost) || 0);
   const statusStr = String(paymentStatus || '').toLowerCase();
   const paid = Math.max(0, Number(paidAmount || 0));
+
+  // If there is NO positive subcontractor cost, do not execute profit/margin calculations
+  if (cost <= 0) {
+    return {
+      realizedProfit: 0,
+      realizedMargin: 0,
+      isUnpaid: paid <= 0 || statusStr === 'unpaid',
+      isFullyPaid: statusStr === 'paid' || paid >= billed,
+      isPartiallyPaid: false,
+      hasSubcontractorCost: false,
+      isDirectTransaction: true,
+    };
+  }
 
   const isUnpaid = paid <= 0 || statusStr === 'unpaid';
   const isFullyPaid =
@@ -89,6 +130,8 @@ export function calculateRealizedProfit(
       isUnpaid: true,
       isFullyPaid: false,
       isPartiallyPaid: false,
+      hasSubcontractorCost: true,
+      isDirectTransaction: false,
     };
   }
 
@@ -101,6 +144,8 @@ export function calculateRealizedProfit(
       isUnpaid: false,
       isFullyPaid: true,
       isPartiallyPaid: false,
+      hasSubcontractorCost: true,
+      isDirectTransaction: false,
     };
   }
 
@@ -114,6 +159,8 @@ export function calculateRealizedProfit(
     isUnpaid: false,
     isFullyPaid: false,
     isPartiallyPaid: true,
+    hasSubcontractorCost: true,
+    isDirectTransaction: false,
   };
 }
 
@@ -261,7 +308,7 @@ export function calculateAggregateProfitMetrics(
     isProfitEdited?: boolean;
   }>
 ): AggregateProfitSummary {
-  const map = new Map<string, { maxRevenue: number; subCost: number }>();
+  const map = new Map<string, { maxRevenue: number; subCost: number; hasExplicitDealer: boolean }>();
 
   records.forEach((rec, idx) => {
     // Determine deduplication key across linked systems
@@ -272,39 +319,48 @@ export function calculateAggregateProfitMetrics(
     
     const sub = hasEditedProfit && hasExplicitDealer
       ? Number(rec.subcontractorCost)
-      : (hasEditedProfit ? Number(rec.subcontractorCost ?? rev) : rev);
+      : (hasExplicitDealer ? Number(rec.subcontractorCost) : 0);
 
     const existing = map.get(primaryKey);
     if (!existing) {
       map.set(primaryKey, {
         maxRevenue: Math.max(0, rev),
-        subCost: Math.max(0, sub),
+        subCost: hasExplicitDealer ? Math.max(0, sub) : 0,
+        hasExplicitDealer,
       });
     } else {
       existing.maxRevenue = Math.max(existing.maxRevenue, rev);
-      // When multiple records exist for the same job, prefer the real explicit dealer cost
       if (hasExplicitDealer && sub > 0) {
         existing.subCost = existing.subCost > 0 ? Math.min(existing.subCost, sub) : sub;
+        existing.hasExplicitDealer = true;
       }
     }
   });
 
   let totalRevenue = 0;
   let totalSubcontractorExpenses = 0;
+  let totalNetProfit = 0;
+  let profitTrackingRevenue = 0;
 
-  map.forEach(({ maxRevenue, subCost }) => {
+  map.forEach(({ maxRevenue, subCost, hasExplicitDealer }) => {
     totalRevenue += maxRevenue;
-    totalSubcontractorExpenses += subCost;
+    // Subcontractor-Only Profit Trigger:
+    // Only execute Net Profit and Profit Margin (%) calculations when a positive Dealer/Subcontractor Cost is explicitly entered (Dealer Cost > 0).
+    // Direct customer billing registers as Standard Income without inflating Company Net Profit!
+    if (hasExplicitDealer && subCost > 0) {
+      totalSubcontractorExpenses += subCost;
+      totalNetProfit += Math.max(0, maxRevenue - subCost);
+      profitTrackingRevenue += maxRevenue;
+    }
   });
 
-  const totalNetProfit = Number((totalRevenue - totalSubcontractorExpenses).toFixed(2));
   const profitMarginPercent =
-    totalRevenue > 0 ? Number(((totalNetProfit / totalRevenue) * 100).toFixed(2)) : 0;
+    profitTrackingRevenue > 0 ? Number(((totalNetProfit / profitTrackingRevenue) * 100).toFixed(2)) : 0;
 
   return {
     totalRevenue: Number(totalRevenue.toFixed(2)),
     totalSubcontractorExpenses: Number(totalSubcontractorExpenses.toFixed(2)),
-    totalNetProfit,
+    totalNetProfit: Number(totalNetProfit.toFixed(2)),
     profitMarginPercent,
     recordCount: map.size,
   };
@@ -349,6 +405,17 @@ export function calculateFinanceSummaryCards(
   maintenanceLogs: any[] = [],
   invoices: any[] = []
 ): FinanceSummaryMetrics {
+  const isPassThroughTxn = (t: any) => Boolean(
+    t.isPassThrough ||
+    t.passThrough ||
+    t.isPassThroughMaintenance ||
+    t.category === 'Pass-Through Maintenance' ||
+    t.customCategory === 'Pass-Through Maintenance' ||
+    ((t.entityType === 'MAINTENANCE' || String(t.category || '').toLowerCase() === 'maintenance') &&
+      Number(t.subcontractorCost || t.dealerCost || 0) > 0 &&
+      Math.abs(Number(t.amount || t.customerBilled || 0) - Number(t.subcontractorCost || t.dealerCost || 0)) < 0.01)
+  );
+
   // 1. Card 1: TOTAL REVENUE / INCOME -> Sum of all Gross Income entries
   const incomeTxns = transactions.filter((t) => t.type === 'income');
   const totalRevenue = Number(
@@ -375,7 +442,7 @@ export function calculateFinanceSummaryCards(
 
   // 2. Identify Verified Subcontractor / Dealer Costs (ONLY Subcontractor Tracking Mode)
   // Deduplicate by job identifier so multiple transactions for the same job don't double count dealer costs
-  const verifiedJobDealerMap = new Map<string, number>();
+  const verifiedJobDealerMap = new Map<string, { dealerCost: number; billedAmount: number }>();
 
   transactions.forEach((txn, idx) => {
     const isSubMode = txn.isProfitEdited === true || txn.isEdited === true;
@@ -392,6 +459,8 @@ export function calculateFinanceSummaryCards(
     );
 
     let explicitDealer: number | undefined = undefined;
+    let jobBilled: number = Number(txn.customerBilled || txn.grossBilling || txn.amount || 0);
+
     if (txn.dealerCost !== undefined && Number(txn.dealerCost) > 0 && isSubMode) {
       explicitDealer = Number(txn.dealerCost);
     } else if (txn.subcontractorCost !== undefined && Number(txn.subcontractorCost) > 0 && isSubMode) {
@@ -399,8 +468,10 @@ export function calculateFinanceSummaryCards(
     } else if (linkedInv && (linkedInv.isEdited === true || linkedInv.isProfitEdited === true)) {
       if (linkedInv.dealerCost !== undefined && Number(linkedInv.dealerCost) > 0) {
         explicitDealer = Number(linkedInv.dealerCost);
+        jobBilled = Number(linkedInv.customerBilled || linkedInv.total || jobBilled);
       } else if (linkedInv.subcontractorCost !== undefined && Number(linkedInv.subcontractorCost) > 0) {
         explicitDealer = Number(linkedInv.subcontractorCost);
+        jobBilled = Number(linkedInv.customerBilled || linkedInv.total || jobBilled);
       }
     }
 
@@ -415,17 +486,25 @@ export function calculateFinanceSummaryCards(
         `sub_${idx}`;
       const existing = verifiedJobDealerMap.get(jobKey);
       if (existing === undefined) {
-        verifiedJobDealerMap.set(jobKey, explicitDealer);
+        verifiedJobDealerMap.set(jobKey, { dealerCost: explicitDealer, billedAmount: Math.max(0, jobBilled) });
       } else {
-        verifiedJobDealerMap.set(jobKey, Math.min(existing, explicitDealer));
+        verifiedJobDealerMap.set(jobKey, {
+          dealerCost: Math.min(existing.dealerCost, explicitDealer),
+          billedAmount: Math.max(existing.billedAmount, jobBilled),
+        });
       }
     }
   });
 
-  // Verified Subcontractor / Dealer Charges total
+  // Verified Subcontractor / Dealer Charges total and accrued mark-up profit
   let verifiedSubcontractorExpenses = 0;
-  verifiedJobDealerMap.forEach((cost) => {
-    verifiedSubcontractorExpenses += cost;
+  let markUpProfitFromSubcontractors = 0;
+  let subcontractorBilledRevenue = 0;
+
+  verifiedJobDealerMap.forEach(({ dealerCost, billedAmount }) => {
+    verifiedSubcontractorExpenses += dealerCost;
+    subcontractorBilledRevenue += billedAmount;
+    markUpProfitFromSubcontractors += Math.max(0, billedAmount - dealerCost);
   });
   verifiedSubcontractorExpenses = Number(verifiedSubcontractorExpenses.toFixed(2));
 
@@ -499,10 +578,12 @@ export function calculateFinanceSummaryCards(
     (standardExpenseNet + verifiedSubcontractorExpenses).toFixed(2)
   );
 
-  // 4. Card 3: Real Net Profit = Billed Revenue - Total Deductions
-  const netProfit = Number((totalRevenue - totalCombinedExpenses).toFixed(2));
+  // 4. Card 3: Real Company Net Profit
+  // Formula: Net Profit = Total Income - Math.abs(Total Expenses)
+  // Stop copying Total Expenses into Net Profit
+  const netProfit = Number((totalRevenue - Math.abs(totalCombinedExpenses)).toFixed(2));
 
-  // Real Margin % = (Real Net Profit / Billed Revenue) * 100
+  // Real Margin % = (Net Profit / Total Revenue) * 100
   const profitMarginPercent =
     totalRevenue > 0
       ? Number(((netProfit / totalRevenue) * 100).toFixed(1))
@@ -596,24 +677,23 @@ export function calculatePnLSummaryMetrics(
   let totalIncome = 0;
   let totalExpenses = 0;
   let totalDealerCost = 0;
+  let accruedMarkUpProfit = 0;
+  let standardOperatingExpenses = 0;
   let netProfit = 0;
 
-  // Gather all job/order reference keys for Income rows to isolate linked maintenance expense duplicates
+  // Gather all job/order reference keys for Income and Expense rows
   const incomeJobKeys = new Set<string>();
+  const expenseOrderKeys = new Set<string>();
   transactions.forEach((t: any) => {
-    if (isIncome(t)) {
-      if (t.referenceId) incomeJobKeys.add(String(t.referenceId).trim().toUpperCase());
-      if (t.orderId) incomeJobKeys.add(String(t.orderId).trim().toUpperCase());
-      if (t.orderNumber) incomeJobKeys.add(String(t.orderNumber).trim().toUpperCase());
-      if (t.linkedInvoiceRef) incomeJobKeys.add(String(t.linkedInvoiceRef).trim().toUpperCase());
-      if (t.maintenanceOrderId) incomeJobKeys.add(String(t.maintenanceOrderId).trim().toUpperCase());
-      if (t.maintenanceJobId) incomeJobKeys.add(String(t.maintenanceJobId).trim().toUpperCase());
-    }
+    const isInc = isIncome(t);
+    const isExp = isExpense(t);
+    const ref = (t.referenceId || t.orderId || t.orderNumber || t.linkedInvoiceRef || t.maintenanceOrderId || t.maintenanceJobId || '')
+      .toString().trim().toUpperCase();
+    if (isInc && ref) incomeJobKeys.add(ref);
+    if (isExp && ref) expenseOrderKeys.add(ref);
   });
 
   const talliedDealerCostOrders = new Set<string>();
-
-  const isExpenseFilterActive = transactions.length > 0 && transactions.every(isExpense);
 
   transactions.forEach((item) => {
     const amt = getRowAmount(item);
@@ -621,47 +701,52 @@ export function calculatePnLSummaryMetrics(
     const orderKey = (item.referenceId || item.orderId || item.orderNumber || item.linkedInvoiceRef || item.maintenanceOrderId || item.maintenanceJobId || '')
       .toString().trim().toUpperCase();
 
-    // 1. TOTAL INCOME:
+    // 1. TOTAL INCOME (Pass-Through, Mark-Up Jobs & Standard Income):
+    // Pass-Through Jobs: Included in Total Income and Total Expenses, with £0.00 Net Profit contribution.
+    // Mark-Up Jobs (Client Billed > Subcontractor Cost):
+    // Record Billed Amount as Income (e.g. £350.00).
+    // Record Subcontractor Cost as Expense (e.g. £200.00).
+    // Accrue Net Profit (£150.00) directly to the Finance Dashboard.
+    // Direct Customer Billing (Subcontractor Cost = 0 or left blank):
+    // Registers as Standard Income without inflating Company Net Profit!
     if (isIncome(item)) {
       totalIncome += amt;
-      // Subcontractor costs tied to income are treated as expenses in 3-Card P&L model
+      const hasSeparateExpenseRow = Boolean(orderKey && expenseOrderKeys.has(orderKey));
       if (cost > 0) {
-        if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
-          totalExpenses += cost;
-          totalDealerCost += cost;
-          if (orderKey) talliedDealerCostOrders.add(orderKey);
-        }
-      }
-    }
-    // 2. TOTAL EXPENSES:
-    else if (isExpense(item)) {
-      const isLinkedDuplicate = Boolean(
-        item.isLinkedExpense ||
-        item.isSplitLinked ||
-        item.isSplit ||
-        item.linkedExpense ||
-        item.description?.includes('Maintenance Expense') ||
-        (orderKey && incomeJobKeys.has(orderKey))
-      );
-
-      // If strictly viewing expenses OR regular standalone expense, count it
-      if (isExpenseFilterActive || !isLinkedDuplicate) {
-        totalExpenses += amt;
-        if (!isLinkedDuplicate && cost > 0) {
-          if (!orderKey || (!incomeJobKeys.has(orderKey) && !talliedDealerCostOrders.has(orderKey))) {
+        if (!hasSeparateExpenseRow) {
+          if (!orderKey || !talliedDealerCostOrders.has(orderKey)) {
             totalExpenses += cost;
             totalDealerCost += cost;
             if (orderKey) talliedDealerCostOrders.add(orderKey);
           }
+        } else {
+          totalDealerCost += cost;
         }
+        accruedMarkUpProfit += Math.max(0, amt - cost);
       }
+    }
+    // 2. TOTAL EXPENSES:
+    else if (isExpense(item)) {
+      const isPassThrough = Boolean(
+        item.isPassThrough ||
+        item.passThrough ||
+        item.isPassThroughMaintenance ||
+        item.category === 'Pass-Through Maintenance' ||
+        item.customCategory === 'Pass-Through Maintenance' ||
+        item.passThroughTag
+      );
+      const effectiveExpense = (cost > 0 && !isPassThrough) ? cost : amt;
+      totalExpenses += effectiveExpense;
+      standardOperatingExpenses += effectiveExpense;
     }
   });
 
   totalIncome = Number(totalIncome.toFixed(2));
   totalExpenses = Number(totalExpenses.toFixed(2));
   totalDealerCost = Number(totalDealerCost.toFixed(2));
-  netProfit = Number((totalIncome - totalExpenses).toFixed(2));
+  // Formula: Net Profit = Total Income - Math.abs(Total Expenses)
+  // Example: Income (£11,391.72) - Expenses (£10,191.72) = +£1,200.00 Net Profit
+  netProfit = Number((totalIncome - Math.abs(totalExpenses)).toFixed(2));
 
   return {
     totalIncome,

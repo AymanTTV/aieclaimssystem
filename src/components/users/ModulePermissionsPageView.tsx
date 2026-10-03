@@ -54,7 +54,10 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
-  Tv
+  Tv,
+  FileSignature,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -236,6 +239,7 @@ export const PERMISSION_METADATA: Record<PermissionAction, { label: string; desc
   restore: { label: 'Restore from Recycle Bin', description: 'Allows restoring deleted items back to active state.', category: 'Governance & Workflow' },
   deletePermanently: { label: 'Delete Permanently', description: 'Permits permanently and irretrievably destroying archived items.', category: 'Governance & Workflow' },
   share: { label: 'Share System Link', description: 'Enables sharing system links with social preview cards and QR codes.', category: 'Governance & Workflow' },
+  manageDynamicTerms: { label: 'Manage Dynamic T&Cs', description: 'Grant full access to create, edit, and delete legal templates in the T&C Manager.', category: 'Governance & Workflow' },
 };
 
 export const getModuleIcon = (modKey: keyof RolePermissions, className: string = 'w-5 h-5') => {
@@ -294,6 +298,8 @@ export interface ModulePermissionsPageViewProps {
   onSelectModule?: (moduleKey: keyof RolePermissions) => void;
   onSave?: () => void;
   saving?: boolean;
+  allowDocumentOverrides?: boolean;
+  onToggleDocumentOverrides?: (val: boolean) => void;
 }
 
 export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps> = ({
@@ -308,6 +314,8 @@ export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps>
   onSelectModule: externalOnSelectModule,
   onSave,
   saving = false,
+  allowDocumentOverrides = false,
+  onToggleDocumentOverrides,
 }) => {
   // Navigation & View Mode: 'grid' (bird's-eye view of all modules) or 'detail' (deep dive into selected module)
   const [navViewMode, setNavViewMode] = useState<'detail' | 'grid'>('detail');
@@ -606,6 +614,33 @@ export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps>
                 <option value="member">Member</option>
               </select>
             </div>
+          )}
+
+          {/* Document Overrides Toggle */}
+          {onToggleDocumentOverrides && (
+            <button
+              type="button"
+              disabled={!isManager}
+              onClick={() => onToggleDocumentOverrides(!allowDocumentOverrides)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                allowDocumentOverrides
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs'
+                  : 'bg-white border-slate-300 text-slate-700 shadow-2xs hover:bg-slate-50'
+              }`}
+              title={
+                allowDocumentOverrides
+                  ? 'Allow Document Overrides: Enabled. Users with this role can adjust corporate branding, logos, bank accounts, and layout templates during document generation.'
+                  : 'Allow Document Overrides: Locked to Manager Defaults. Click to enable document customization for this role.'
+              }
+            >
+              <FileSignature className={`w-3.5 h-3.5 ${allowDocumentOverrides ? 'text-emerald-600' : 'text-slate-400'}`} />
+              <span className="text-[11px] font-bold">Doc Overrides:</span>
+              <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                allowDocumentOverrides ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {allowDocumentOverrides ? 'Enabled' : 'Locked'}
+              </span>
+            </button>
           )}
 
         </div>
@@ -1148,6 +1183,78 @@ export const ModulePermissionsPageView: React.FC<ModulePermissionsPageViewProps>
                               <span>Preview</span>
                               <ExternalLink className="w-2.5 h-2.5" />
                             </a>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Specialized Dynamic T&C Mapping Engine Callout Banner for System Settings */}
+              {activeModuleKey === 'settings' && (
+                <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 shadow-md text-white space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-indigo-500/20">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-indigo-200">
+                          Dynamic T&amp;C Mapping Engine Permissions
+                        </h4>
+                        <p className="text-[11px] text-slate-300">
+                          Dedicated permission governing legal templates, clause authoring, version tracking, and PDF mappings.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-950/80 border border-indigo-500/30 text-indigo-300 font-bold self-start sm:self-auto">
+                      System Settings • Legal Engine
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(() => {
+                      const isTermsGranted = Boolean((customPermissions.settings as any)?.manageDynamicTerms);
+                      return (
+                        <div
+                          onClick={() => isManager && onChangePermission('settings', 'manageDynamicTerms', !isTermsGranted)}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
+                            isTermsGranted
+                              ? 'bg-indigo-950/70 border-indigo-500/60 ring-1 ring-indigo-400/30 shadow-xs'
+                              : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                <span className="text-xs font-black text-indigo-100">Manage Dynamic T&amp;Cs</span>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isTermsGranted}
+                                  onChange={(e) => isManager && onChangePermission('settings', 'manageDynamicTerms', e.target.checked)}
+                                  disabled={!isManager}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-500 peer-disabled:opacity-50"></div>
+                              </label>
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-snug">
+                              Grant full access to create, edit, and delete legal templates in the T&amp;C Manager.
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                            <span className={`font-bold px-1.5 py-0.5 rounded ${
+                              isTermsGranted ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {isTermsGranted ? 'Granted' : 'Revoked'}
+                            </span>
+                            <span className="text-indigo-400 font-semibold flex items-center gap-1">
+                              <span>Links to Edit &amp; Delete in T&amp;C Engine</span>
+                            </span>
                           </div>
                         </div>
                       );

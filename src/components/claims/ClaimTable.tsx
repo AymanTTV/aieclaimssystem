@@ -8,6 +8,9 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { format, differenceInDays } from 'date-fns';
 import { deriveDisplayStatus } from '../../utils/claimProgress'; 
 import { resolveLegalHandlerDetails } from '../../utils/claimCommunication';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import toast from 'react-hot-toast';
 
 interface ClaimTableProps {
   claims: Claim[];

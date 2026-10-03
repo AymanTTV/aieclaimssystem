@@ -1213,3 +1213,49 @@
   .text-financial-loss { color: var(--color-loss) !important; }
 }
 
+@keyframes tvCarouselFade {
+  0% {
+    opacity: 0;
+    transform: scale(0.992);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-tv-carousel {
+  animation: tvCarouselFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* TV Kiosk & Fullscreen Display Scrollbar Suppression */
+:fullscreen,
+::backdrop,
+html:fullscreen,
+body:fullscreen,
+.public-mirror-root,
+.public-mirror-root * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+:fullscreen::-webkit-scrollbar,
+html:fullscreen::-webkit-scrollbar,
+body:fullscreen::-webkit-scrollbar,
+.public-mirror-root::-webkit-scrollbar,
+.public-mirror-root *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+

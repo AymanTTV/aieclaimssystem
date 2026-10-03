@@ -621,7 +621,7 @@ export default function BulkEmail() {
         return name.includes(q) || email.includes(q) || phone.includes(q) || label.includes(q);
     });
 
-  }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, isManager, accounts, vehicles, transactions]);
+  }, [emailType, searchQuery, recipientFilter, customers, serviceCenters, legalHandlers, invoices, accounts, vehicles, transactions]);
 
   function getRelatedRecords(recipientId: string) {
     switch (emailType) {

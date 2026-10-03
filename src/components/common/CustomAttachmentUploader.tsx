@@ -16,7 +16,7 @@ import { CustomAttachment, formatFileSize, uploadCustomAttachment } from '../../
 interface CustomAttachmentUploaderProps {
   attachments: CustomAttachment[];
   onChange: (attachments: CustomAttachment[]) => void;
-  moduleContext: 'rentals' | 'invoices' | 'claims' | 'maintenance';
+  moduleContext: 'rentals' | 'invoices' | 'claims' | 'maintenance' | 'finance';
   recordId?: string;
   className?: string;
 }

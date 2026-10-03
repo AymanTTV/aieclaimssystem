@@ -43,6 +43,7 @@ const Users = () => {
   const [activePageTab, setActivePageTab] = useState<'users' | 'permissions'>('users');
   const [pageRole, setPageRole] = useState<User['role']>('admin');
   const [pagePermissions, setPagePermissions] = useState<RolePermissions>(() => normalizePermissions('admin'));
+  const [pageAllowDocumentOverrides, setPageAllowDocumentOverrides] = useState<boolean>(() => pageRole === 'manager' || pageRole === 'superadmin');
   const [pageSelectedModule, setPageSelectedModule] = useState<keyof RolePermissions>('vehicles');
   const [pageSaving, setPageSaving] = useState(false);
 
@@ -50,13 +51,25 @@ const Users = () => {
   const loadRolePermissions = async (targetRole: User['role']) => {
     try {
       const docSnap = await getDoc(doc(db, 'roleTemplates', targetRole));
-      if (docSnap.exists() && docSnap.data().permissions) {
-        setPagePermissions(normalizePermissions(targetRole, docSnap.data().permissions));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.permissions) {
+          setPagePermissions(normalizePermissions(targetRole, data.permissions));
+        } else {
+          setPagePermissions(normalizePermissions(targetRole));
+        }
+        setPageAllowDocumentOverrides(
+          targetRole === 'manager' ||
+          targetRole === 'superadmin' ||
+          Boolean(data.allowDocumentOverrides || data.permissions?.allowDocumentOverrides)
+        );
       } else {
         setPagePermissions(normalizePermissions(targetRole));
+        setPageAllowDocumentOverrides(targetRole === 'manager' || targetRole === 'superadmin');
       }
     } catch {
       setPagePermissions(normalizePermissions(targetRole));
+      setPageAllowDocumentOverrides(targetRole === 'manager' || targetRole === 'superadmin');
     }
   };
 
@@ -104,7 +117,12 @@ const Users = () => {
         roleDocRef,
         {
           role: pageRole,
-          permissions: pagePermissions,
+          permissions: {
+            ...pagePermissions,
+            allowDocumentOverrides: pageAllowDocumentOverrides,
+          },
+          allowDocumentOverrides: pageAllowDocumentOverrides,
+          allow_document_overrides: pageAllowDocumentOverrides,
           updatedAt: new Date(),
         },
         { merge: true }
@@ -115,7 +133,12 @@ const Users = () => {
       const usersSnap = await getDocs(usersQuery);
       usersSnap.docs.forEach((uDoc) => {
         batch.update(uDoc.ref, {
-          permissions: pagePermissions,
+          permissions: {
+            ...pagePermissions,
+            allowDocumentOverrides: pageAllowDocumentOverrides,
+          },
+          allowDocumentOverrides: pageAllowDocumentOverrides,
+          allow_document_overrides: pageAllowDocumentOverrides,
           updatedAt: new Date(),
         });
       });
@@ -372,6 +395,8 @@ const Users = () => {
             onSelectModule={setPageSelectedModule}
             onSave={handleSavePagePermissions}
             saving={pageSaving}
+            allowDocumentOverrides={pageAllowDocumentOverrides}
+            onToggleDocumentOverrides={setPageAllowDocumentOverrides}
           />
         </div>
       )}

@@ -249,6 +249,12 @@ export interface Rental {
   payments?: RentalPayment[];
 
   signature?: string | null;
+  customerSignature?: string | null;
+  signatureTimestamp?: string | null;
+  customerSignatureDate?: Date | null;
+  signedAt?: Date | null;
+  isSigned?: boolean;
+  documentStatus?: string | null;
 
   checkOutCondition?: VehicleCondition;
   checkInCondition?: VehicleCondition;
@@ -284,6 +290,23 @@ export interface Rental {
   vatAmount?: number;
   vatType?: string;
   completionStatus?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+  // Pre-Set Corporate Entity, Bank Account & Agreement T&C Settings
+  corporateEntityKey?: string;
+  corporateEntityName?: string;
+  corporateEntityLogo?: string;
+  bankAccountId?: string;
+  bankAccountDetails?: {
+    bankName: string;
+    accountNumber: string;
+    sortCode: string;
+    accountName: string;
+    iban?: string;
+    bic?: string;
+  };
+  agreementTemplateId?: string;
+  agreementTemplateTitle?: string;
+  agreementTemplateContent?: string;
 }
 
 export const DEFAULT_RENTAL_PRICES = {

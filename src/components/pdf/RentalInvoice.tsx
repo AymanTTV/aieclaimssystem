@@ -4,14 +4,18 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { Rental, Vehicle, Customer } from '../../types';
 import { format, differenceInHours, isAfter } from 'date-fns';
 import { resolveNameFields, resolveAddressFields } from '../../utils/nameAddressUtils';
-import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
-import { styles } from './styles';
+import { formatInlineCompanyFooter, sanitizeAndInterpolateTerms, extractActiveCorporateEntityProfile } from '../../utils/legalDocumentUtils';
+import { getAvailableCompanyEntities } from '../../utils/entityBranding';
 import {
   calculateOverdueCost,
   calculateRentalCostDetailed,
   RENTAL_RATES,
   getOverdueUnits,
 } from '../../utils/rentalCalculations';
+import { getResolvedTermsContent } from '../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './claims/PdfTermsWarningNotice';
+import SafePdfLogo from './SafePdfLogo';
+import { styles } from './styles';
 
 interface RentalInvoiceProps {
   rental: Rental;
@@ -232,9 +236,53 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
     ? `#${rental.rentalAgreementNumber}` 
     : `AIE-${rental.id.slice(-8).toUpperCase()}`;
 
-  const page1Entity = (companyDetails as any)?.page1Entity || companyDetails;
-  const page2Entity = (companyDetails as any)?.page2Entity || companyDetails;
-  const page3Entity = (companyDetails as any)?.page3Entity || companyDetails;
+  const availableEntities = getAvailableCompanyEntities(companyDetails);
+  const targetEntityKey =
+    rental?.corporateEntityKey ||
+    (companyDetails as any)?.corporateEntityKey ||
+    (companyDetails as any)?.entityKey ||
+    (rental?.type === 'claim' ? 'aie_claims' : 'aie_skyline');
+  const matchedEntity =
+    availableEntities.find(
+      (e) =>
+        e.key === targetEntityKey ||
+        e.id === targetEntityKey ||
+        (rental?.corporateEntityName &&
+          (e.fullName.toLowerCase() === rental.corporateEntityName.toLowerCase() ||
+           e.tradingName.toLowerCase() === rental.corporateEntityName.toLowerCase())) ||
+        (targetEntityKey.includes('sayarah') && e.key.includes('sayarah'))
+    ) || availableEntities[0];
+
+  const hasRentalSpecificEntity = Boolean(rental?.corporateEntityKey || rental?.corporateEntityName);
+  const page1Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page1Entity) || matchedEntity || companyDetails;
+  const page2Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page2Entity) || matchedEntity || companyDetails;
+  const page3Entity = (hasRentalSpecificEntity ? matchedEntity : (companyDetails as any)?.page3Entity) || matchedEntity || companyDetails;
+
+  const activeProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...matchedEntity,
+    corporateEntityKey: matchedEntity?.key || targetEntityKey,
+    corporateEntityName: rental?.corporateEntityName || matchedEntity?.fullName,
+  });
+
+  const effectiveCompanyDetails = {
+    ...companyDetails,
+    ...matchedEntity,
+    fullName: activeProfile.companyName,
+    officialAddress: activeProfile.companyAddress,
+    phone: activeProfile.phone,
+    email: activeProfile.email,
+    website: activeProfile.website,
+    claimsTeam: activeProfile.claimsTeam,
+    companyNumber: activeProfile.companyNumber,
+    vatNumber: activeProfile.vatNumber,
+    entityKey: matchedEntity?.key,
+    corporateEntityKey: matchedEntity?.key,
+    corporateEntityName: activeProfile.companyName,
+    page1Entity,
+    page2Entity,
+    page3Entity,
+  };
 
   const pageMapping = (companyDetails as any)?.pageTemplateMapping;
   const page1Template = pageMapping?.page1Template || 'standard_rental_invoice';
@@ -244,6 +292,27 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
   const isCompany = customer?.type === 'company';
   const nameFields = resolveNameFields(customer);
   const addressFields = resolveAddressFields(customer);
+
+  const isClaimRental = Boolean(
+    rental.type === 'claim' ||
+    customer?.type === 'claim' ||
+    (rental as any)?.customerType === 'claim' ||
+    (rental as any)?.claimId ||
+    String(rental.reason || '').toLowerCase().includes('claim')
+  );
+
+  const resolvedTermsData = getResolvedTermsContent(
+    {
+      documentScope: 'invoice',
+      hireType: rental.type,
+      customerType: customer?.type,
+      rentalStatus: rental.status,
+      paymentStatus: (rental as any).paymentStatus,
+      targetPagePosition: 'page_3_terms',
+      isClaim: isClaimRental,
+    },
+    effectiveCompanyDetails
+  );
 
   const page1FooterText = formatInlineCompanyFooter(page1Entity);
   const page2FooterText = formatInlineCompanyFooter(page2Entity);
@@ -259,20 +328,26 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
       <Page size="A4" style={[styles.page, { paddingBottom: 40 }]}>
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {isValidPdfImageSrc(page1Entity?.logoUrl) && (
-              <Image src={page1Entity.logoUrl} style={styles.logo} cache={false} />
-            )}
+            <SafePdfLogo
+              src={page1Entity?.logoUrl}
+              companyName={page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+              style={styles.logo}
+              cache={false}
+            />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>{page1Entity.fullName || 'AIE Skyline Limited'}</Text>
+            <Text style={styles.companyName}>{page1Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
             {Boolean(page1Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
               <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
                 {page1Entity?.headerDisclaimer || companyDetails?.customHeaderText}
               </Text>
             )}
-            <Text style={styles.companyDetail}>{page1Entity.officialAddress}</Text>
-            <Text style={styles.companyDetail}>Tel: {page1Entity.phone}</Text>
-            <Text style={styles.companyDetail}>Email: {page1Entity.email}</Text>
+            <Text style={styles.companyDetail}>{page1Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Tel: {page1Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+            <Text style={styles.companyDetail}>Email: {page1Entity?.email || activeProfile.email || 'N/A'}</Text>
+            {Boolean(page1Entity?.website || activeProfile.website) && (
+              <Text style={styles.companyDetail}>Web: {page1Entity?.website || activeProfile.website}</Text>
+            )}
           </View>
         </View>
 
@@ -438,7 +513,7 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
                     <View style={compactCardStyles.row}>
                       <Text style={compactCardStyles.label}>Account Name:</Text>
                       <Text style={compactCardStyles.value}>
-                        {activeBank.accountName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
+                        {activeBank.accountName || page1Entity?.fullName || activeProfile.companyName || companyDetails?.fullName || 'AIE SKYLINE LIMITED'}
                       </Text>
                     </View>
                     <View style={compactCardStyles.row}>
@@ -557,15 +632,21 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <Page key={idx} size="A4" style={styles.page}>
           <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(page2Entity?.logoUrl) && (
-                <Image src={page2Entity.logoUrl} style={styles.logo} cache={false} />
-              )}
+              <SafePdfLogo
+                src={page2Entity?.logoUrl}
+                companyName={page2Entity?.fullName || 'AIE Skyline Limited'}
+                style={styles.logo}
+                cache={false}
+              />
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{page2Entity.fullName || 'AIE Skyline Limited'}</Text>
-              <Text style={styles.companyDetail}>{page2Entity.officialAddress}</Text>
-              <Text style={styles.companyDetail}>Tel: {page2Entity.phone}</Text>
-              <Text style={styles.companyDetail}>Email: {page2Entity.email}</Text>
+              <Text style={styles.companyName}>{page2Entity?.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyDetail}>{page2Entity?.officialAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page2Entity?.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page2Entity?.email || 'N/A'}</Text>
+              {Boolean(page2Entity?.website) && (
+                <Text style={styles.companyDetail}>Web: {page2Entity?.website}</Text>
+              )}
             </View>
           </View>
 
@@ -601,42 +682,47 @@ const RentalInvoice: React.FC<RentalInvoiceProps> = ({
         <Page size="A4" style={styles.page}>
            <View style={styles.header} fixed>
             <View style={styles.headerLeft}>
-              {isValidPdfImageSrc(page3Entity?.logoUrl) && (
-                <Image src={page3Entity.logoUrl} style={styles.logo} cache={false} />
-              )}
+              <SafePdfLogo
+                src={page3Entity?.logoUrl}
+                companyName={page3Entity?.fullName || activeProfile.companyName || 'Rental Company'}
+                style={styles.logo}
+                cache={false}
+              />
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.companyName}>{page3Entity.fullName || 'AIE Skyline Limited'}</Text>
+              <Text style={styles.companyName}>{page3Entity?.fullName || activeProfile.companyName || 'Rental Company'}</Text>
               {Boolean(page3Entity?.headerDisclaimer || companyDetails?.customHeaderText) && (
                 <Text style={[styles.companyDetail, { fontStyle: 'italic', color: '#4B5563', marginBottom: 2 }]}>
                   {page3Entity?.headerDisclaimer || companyDetails?.customHeaderText}
                 </Text>
               )}
-              <Text style={styles.companyDetail}>{page3Entity.officialAddress}</Text>
-              <Text style={styles.companyDetail}>Tel: {page3Entity.phone}</Text>
-              <Text style={styles.companyDetail}>Email: {page3Entity.email}</Text>
+              <Text style={styles.companyDetail}>{page3Entity?.officialAddress || activeProfile.companyAddress || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Tel: {page3Entity?.phone || activeProfile.phone || 'N/A'}</Text>
+              <Text style={styles.companyDetail}>Email: {page3Entity?.email || activeProfile.email || 'N/A'}</Text>
+              {Boolean(page3Entity?.website || activeProfile.website) && (
+                <Text style={styles.companyDetail}>Web: {page3Entity?.website || activeProfile.website}</Text>
+              )}
             </View>
           </View>
 
           <View style={{ marginTop: 10 }}>
             <Text style={tcStyles.termTitle}>
-              {page3Template === 'strict_net30_terms'
-                ? 'COMMERCIAL DEBT RECOVERY & NET-30 TERMS'
-                : companyDetails.customTermsTitle || 'Rental Invoice Terms'}
+              {resolvedTermsData.isConfigured
+                ? resolvedTermsData.title
+                : 'COMMERCIAL INVOICE TERMS & CONDITIONS'}
             </Text>
 
             {/* DYNAMIC TERMS INJECTED HERE */}
-            <View style={tcStyles.termSection}>
-              {(page3Template === 'strict_net30_terms'
-                ? '1. PAYMENT WINDOW & STATUTORY INTEREST: Payment is due strictly within 30 calendar days from invoice date. Under the Late Payment of Commercial Debts (Interest) Act 1998, statutory interest at 8% plus Bank of England base rate applies to overdue balances.\n2. COMPENSATION & DEBT RECOVERY: The Creditor reserves statutory compensation entitlement (£40 - £100 per late invoice) and all third-party legal recovery disbursements.\n3. DISPUTE TIMELINE: Any billing dispute must be registered in writing within 7 business days of receipt.'
-                : companyDetails.customTermsText || companyDetails.rentalInvoiceTerms || 'Standard terms and conditions apply. By signing below, the Hirer acknowledges and agrees to the terms set forth in this agreement.'
-              )
-                .split(/\r?\n+/)
-                .map((para: string, idx: number) => (
-                  <Text key={idx} style={[tcStyles.termText, { marginBottom: 5 }]}>
+            <View style={tcStyles.termSection} wrap={true}>
+              {resolvedTermsData.isConfigured && resolvedTermsData.paragraphs.length > 0 ? (
+                resolvedTermsData.paragraphs.map((para: string, idx: number) => (
+                  <Text key={idx} wrap={true} style={[tcStyles.termText, { marginBottom: 3 }]}>
                     {para.trim()}
                   </Text>
-                ))}
+                ))
+              ) : (
+                <PdfTermsWarningNotice message={resolvedTermsData.warningMessage} />
+              )}
             </View>
           </View>
 
@@ -712,11 +798,14 @@ const localStyles = StyleSheet.create({
   },
   signatureSection: {
     marginTop: 5,
-    marginBottom: 10,
+    marginBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     breakInside: 'avoid',
+    pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   compactBox: {
     padding: 5,

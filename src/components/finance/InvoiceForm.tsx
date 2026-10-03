@@ -1,6 +1,6 @@
 // src/components/finance/InvoiceForm.tsx
 import React, { useState, useEffect } from 'react';
-import { addDoc, collection, updateDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
+import { addDoc, collection, updateDoc, doc, getDocs, query, orderBy, setDoc } from 'firebase/firestore';
 import { db, storage } from '../../lib/firebase';
 import { Vehicle, Customer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -16,14 +16,15 @@ import productService from '../../services/product.service';
 import unifiedCategoryService from '../../services/unifiedCategory.service';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
 import ProductFormModal from '../products/ProductFormModal';
-import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, UserCheck, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2, TrendingUp, TrendingDown, Percent, DollarSign, Eye, Landmark } from 'lucide-react';
+import { PlusCircle, CheckCircle, MessageCircle, Mail, Printer, Users, UserCheck, Receipt, CreditCard, Paperclip, ArrowRight, ArrowLeft, Car, FileText, Plus, Building2, Trash2, TrendingUp, TrendingDown, Percent, DollarSign, Eye, Landmark, Download } from 'lucide-react';
 import Modal from '../ui/Modal';
 import InvoiceCommunicationModal from './InvoiceCommunicationModal';
 import { calculateProfitMetrics } from '../../utils/profitCalculator';
 import { syncInvoiceRecord } from '../../services/unifiedSync.service';
 import { useCompanyDetails } from '../../hooks/useCompanyDetails';
+import { getAvailableCompanyEntities, buildEffectiveDocumentCompanyDetails } from '../../utils/entityBranding';
 import { getEffectiveBankAccounts, CompanyBankAccount, formatBankAllocationLabel } from '../../utils/bankAccountAllocation';
-import SplitDocumentPreviewModal from '../common/SplitDocumentPreviewModal';
+import { getCompanyDetails } from '../../utils/documentGenerator';
 import { InvoiceDocument } from '../pdf/documents';
 import { pdf } from '@react-pdf/renderer';
 import { saveAs } from 'file-saver';
@@ -190,16 +191,52 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
     bankAllocation: null as CompanyBankAccount | null,
     isRecurring: false,
     recurringFrequency: 'monthly',
+    companyId: 'entity_aie_skyline',
+    issuingEntity: 'aie_skyline',
+    corporateEntityKey: 'aie_skyline',
+    corporateEntityName: 'AIE Skyline Limited',
     uploadedDocument: null as File | null
   });
 
   const { companyDetails } = useCompanyDetails();
+  const availableEntities = React.useMemo(
+    () => getAvailableCompanyEntities(companyDetails),
+    [companyDetails]
+  );
+
+  useEffect(() => {
+    if (availableEntities.length > 0) {
+      const primary = availableEntities.find(e => e.isDefault || e.key === 'aie_skyline') || availableEntities[0];
+      if (!formData.issuingEntity || formData.issuingEntity === 'aie_skyline') {
+        setFormData(prev => ({
+          ...prev,
+          companyId: prev.companyId || primary.id || primary.key,
+          issuingEntity: prev.issuingEntity || primary.key,
+          corporateEntityKey: prev.corporateEntityKey || primary.key,
+          corporateEntityName: prev.corporateEntityName || primary.fullName,
+        }));
+      }
+    }
+  }, [availableEntities]);
+
+  const handleEntityChange = (entityKey: string) => {
+    const ent = availableEntities.find(x => x.key === entityKey);
+    if (ent) {
+      setFormData(p => ({
+        ...p,
+        companyId: ent.id || ent.key,
+        issuingEntity: ent.key,
+        corporateEntityKey: ent.key,
+        corporateEntityName: ent.fullName,
+      }));
+    }
+  };
+
   const availableBankAccounts = React.useMemo(
     () => getEffectiveBankAccounts(companyDetails),
     [companyDetails]
   );
   const [selectedBankId, setSelectedBankId] = useState<string>('');
-  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
 
   const handleBankAllocationChange = (bankId: string) => {
     setSelectedBankId(bankId);
@@ -209,6 +246,53 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
       bankAccountId: bankId,
       bankAllocation: bank,
     }));
+  };
+
+  const handleDirectDownloadPDF = async () => {
+    const toastId = toast.loading('Generating Invoice PDF...');
+    try {
+      const chosenBank =
+        availableBankAccounts.find((b) => b.id === selectedBankId) ||
+        formData.bankAllocation ||
+        availableBankAccounts[0];
+      const activeInv = buildActiveInvoice(chosenBank);
+      const vehicle = vehicles.find((v) => v.id === formData.vehicleId);
+      const customer =
+        customers.find((c) => c.id === formData.customerId) ||
+        (formData.useCustomCustomer
+          ? ({ name: formData.customerName, mobile: formData.customerPhone, email: formData.customerEmail } as any)
+          : undefined);
+
+      const effectiveCompanyDetails = companyDetails || (await getCompanyDetails());
+      const chosenEntity = availableEntities.find(e => e.key === (formData.issuingEntity || formData.corporateEntityKey)) || availableEntities[0];
+      const brandedCompanyDetails = buildEffectiveDocumentCompanyDetails(effectiveCompanyDetails, chosenEntity, {
+        selectedBank: chosenBank,
+      });
+
+      const blob = await pdf(
+        <InvoiceDocument
+          data={{
+            ...activeInv,
+            vehicle,
+            customer,
+            bankAllocation: chosenBank,
+            bankName: chosenBank?.bankName,
+            accountName: chosenBank?.accountName,
+            accountNumber: chosenBank?.accountNumber,
+            sortCode: chosenBank?.sortCode,
+            iban: chosenBank?.iban,
+          }}
+          companyDetails={brandedCompanyDetails}
+        />
+      ).toBlob();
+
+      const fileName = `Invoice_${(activeInv.invoiceNumber || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      saveAs(blob, fileName);
+      toast.success('Invoice PDF downloaded successfully!', { id: toastId });
+    } catch (err: any) {
+      console.error('Error downloading invoice PDF:', err);
+      toast.error('Failed to generate PDF', { id: toastId });
+    }
   };
 
   useEffect(() => {
@@ -535,6 +619,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           accountNumber: allocatedBank?.accountNumber || null,
           sortCode: allocatedBank?.sortCode || null,
           iban: allocatedBank?.iban || null,
+          companyId: formData.companyId || 'entity_aie_skyline',
+          issuingEntity: formData.issuingEntity || formData.corporateEntityKey || 'aie_skyline',
+          corporateEntityKey: formData.corporateEntityKey || formData.issuingEntity || 'aie_skyline',
+          corporateEntityName: formData.corporateEntityName || 'AIE Skyline Limited',
           isRecurring: formData.isRecurring,
           recurringFrequency: formData.isRecurring ? (formData.recurringFrequency as any) : null,
           createdAt: new Date(),
@@ -617,20 +705,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           try {
             await setDoc(invoiceDocRef, payload);
 
-            let documentUrl = '';
+            const companyId = payload.companyId || payload.issuingEntity || payload.corporateEntityKey || 'entity_aie_skyline';
+            const blob = await generateInvoicePDF(
+               { id: newInvoiceId, ...payload } as any,
+               vehicles.find(v => v.id === formData.vehicleId)!
+            );
+            const stRef = ref(storage, `invoices/${companyId}/${newInvoiceId}.pdf`);
+            const snap = await uploadBytes(stRef, blob, {
+              contentType: 'application/pdf',
+              contentDisposition: `inline; filename="Invoice_${(payload.invoiceNumber || newInvoiceId).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf"`
+            });
+            const documentUrl = await getDownloadURL(snap.ref);
+
             if (formData.uploadedDocument) {
-                 const stRef = ref(storage, `invoices/${newInvoiceId}/${formData.uploadedDocument.name}`);
-                 const snap = await uploadBytes(stRef, formData.uploadedDocument);
-                 documentUrl = await getDownloadURL(snap.ref);
-            } else {
-                 const blob = await generateInvoicePDF(
-                    { id: newInvoiceId, ...payload } as any,
-                    vehicles.find(v => v.id === formData.vehicleId)!
-                 );
-                 const stRef = ref(storage, `invoices/${newInvoiceId}/invoice.pdf`);
-                 const snap = await uploadBytes(stRef, blob);
-                 documentUrl = await getDownloadURL(snap.ref);
+                 const uploadRef = ref(storage, `invoices/${companyId}/${newInvoiceId}_attachment_${formData.uploadedDocument.name}`);
+                 await uploadBytes(uploadRef, formData.uploadedDocument);
             }
+
             await updateDoc(invoiceDocRef, { documentUrl: documentUrl });
 
             const groupsByVehicle = new Map<string, { net: number, vat: number, gross: number, vehicleName: string }>();
@@ -711,7 +802,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                 }
             }
 
-            if (!formData.isLoan && paidNow > 0) {
+            const isMaintenanceLinked = Boolean(
+              payload.orderNumber ||
+              payload.orderId ||
+              payload.referenceId ||
+              payload.entityType === 'MAINTENANCE' ||
+              (payload.category && String(payload.category).toLowerCase() === 'maintenance')
+            );
+
+            if (!formData.isLoan && paidNow > 0 && !isMaintenanceLinked) {
                 for (const [vId, totals] of groupsByVehicle.entries()) {
                     const targetVehicle = vehicles.find(v => v.id === vId);
                     const vehicleOwner = targetVehicle?.owner 
@@ -839,6 +938,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
       accountNumber: allocatedBank?.accountNumber,
       sortCode: allocatedBank?.sortCode,
       iban: allocatedBank?.iban,
+      companyId: formData.companyId || 'entity_aie_skyline',
+      issuingEntity: formData.issuingEntity || formData.corporateEntityKey || 'aie_skyline',
+      corporateEntityKey: formData.corporateEntityKey || formData.issuingEntity || 'aie_skyline',
+      corporateEntityName: formData.corporateEntityName || 'AIE Skyline Limited',
       payments: paidNow > 0 ? [{
         id: 'init_payment',
         date: new Date(),
@@ -1440,6 +1543,66 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     )}
                   </div>
 
+                  {/* Issuing Company / Entity Selector */}
+                  <div className="bg-slate-50/90 p-3.5 rounded-xl border border-[#E2E8F0] space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          Issuing Company / Entity
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                        Document Branding
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Select Issuing Corporate Entity
+                      </label>
+                      <select
+                        value={formData.issuingEntity || formData.corporateEntityKey || 'aie_skyline'}
+                        onChange={(e) => handleEntityChange(e.target.value)}
+                        className="block w-full px-3 py-2 bg-white text-slate-900 font-medium border border-slate-300 rounded-lg shadow-2xs text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                      >
+                        {availableEntities.map((ent) => (
+                          <option key={ent.key} value={ent.key}>
+                            {ent.tradingName} — {ent.fullName} {ent.registrationNumber ? `(Co. #${ent.registrationNumber})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Selected Entity Visual Badge / Preview */}
+                    {(() => {
+                      const curEnt = availableEntities.find(x => x.key === (formData.issuingEntity || formData.corporateEntityKey)) || availableEntities[0];
+                      if (!curEnt) return null;
+                      return (
+                        <div className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center gap-3">
+                          <div className="w-9 h-9 bg-slate-50 rounded-md border border-slate-200 p-1 flex items-center justify-center shrink-0">
+                            {curEnt.logoUrl ? (
+                              <img src={curEnt.logoUrl} alt={curEnt.tradingName} className="w-full h-full object-contain" />
+                            ) : (
+                              <Building2 className="w-4 h-4 text-slate-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 truncate">{curEnt.fullName}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {curEnt.tradingName}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {curEnt.officialAddress}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   {/* Notes / Description */}
                   <div className="bg-slate-50/90 p-3 rounded-xl border border-[#E2E8F0] space-y-1.5 shadow-2xs">
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -1708,14 +1871,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     {/* Live Profit Preview Badges */}
                     <div
                       className={`p-2 rounded-lg border flex flex-col justify-between ${
-                        profitMetrics.netProfit >= 0
+                        profitMetrics.subcontractorCost <= 0
+                          ? 'bg-slate-50 border-slate-200'
+                          : profitMetrics.netProfit >= 0
                           ? 'bg-emerald-50/80 border-emerald-200'
                           : 'bg-rose-50/80 border-rose-200'
                       }`}
                     >
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
-                        <span>Live Net Profit</span>
-                        {profitMetrics.netProfit >= 0 ? (
+                        <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                        {profitMetrics.subcontractorCost <= 0 ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                        ) : profitMetrics.netProfit >= 0 ? (
                           <TrendingUp className="w-3 h-3 text-emerald-600" />
                         ) : (
                           <TrendingDown className="w-3 h-3 text-rose-600" />
@@ -1723,18 +1890,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       </div>
                       <p
                         className={`text-sm font-black font-mono mt-0.5 ${
-                          profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                          profitMetrics.subcontractorCost <= 0
+                            ? 'text-slate-700'
+                            : profitMetrics.netProfit >= 0
+                            ? 'text-emerald-700'
+                            : 'text-rose-700'
                         }`}
                       >
-                        {profitMetrics.netProfit >= 0 ? '+' : ''}
-                        {formatCurrency(profitMetrics.netProfit)}
+                        {profitMetrics.subcontractorCost <= 0
+                          ? '£0.00'
+                          : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
                       </p>
-                      <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+                      <span className="text-[9px] text-slate-500">
+                        {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Customer Billed – Dealer Cost'}
+                      </span>
                     </div>
 
                     <div
                       className={`p-2 rounded-lg border flex flex-col justify-between ${
-                        profitMetrics.profitMarginPercent >= 0
+                        profitMetrics.subcontractorCost <= 0
+                          ? 'bg-slate-50 border-slate-200'
+                          : profitMetrics.profitMarginPercent >= 0
                           ? 'bg-indigo-50/80 border-indigo-200'
                           : 'bg-rose-50/80 border-rose-200'
                       }`}
@@ -1745,12 +1921,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                       </div>
                       <p
                         className={`text-sm font-black font-mono mt-0.5 ${
-                          profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                          profitMetrics.subcontractorCost <= 0
+                            ? 'text-slate-700'
+                            : profitMetrics.profitMarginPercent >= 0
+                            ? 'text-indigo-700'
+                            : 'text-rose-700'
                         }`}
                       >
-                        {profitMetrics.profitMarginPercent.toFixed(1)}%
+                        {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
                       </p>
-                      <span className="text-[9px] text-slate-500">(Net Profit / Billed) * 100</span>
+                      <span className="text-[9px] text-slate-500">
+                        {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : '(Net Profit / Billed) * 100'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1826,14 +2008,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                     <div className="grid grid-cols-2 gap-2">
                       <div
                         className={`p-2 rounded-lg border flex flex-col justify-between ${
-                          profitMetrics.netProfit >= 0
+                          profitMetrics.subcontractorCost <= 0
+                            ? 'bg-slate-50 border-slate-200'
+                            : profitMetrics.netProfit >= 0
                             ? 'bg-emerald-50/80 border-emerald-200'
                             : 'bg-rose-50/80 border-rose-200'
                         }`}
                       >
                         <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 uppercase">
-                          <span>Live Net Profit</span>
-                          {profitMetrics.netProfit >= 0 ? (
+                          <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                          {profitMetrics.subcontractorCost <= 0 ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                          ) : profitMetrics.netProfit >= 0 ? (
                             <TrendingUp className="w-3 h-3 text-emerald-600" />
                           ) : (
                             <TrendingDown className="w-3 h-3 text-rose-600" />
@@ -1841,18 +2027,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                         </div>
                         <p
                           className={`text-sm font-black font-mono mt-0.5 ${
-                            profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                            profitMetrics.subcontractorCost <= 0
+                              ? 'text-slate-700'
+                              : profitMetrics.netProfit >= 0
+                              ? 'text-emerald-700'
+                              : 'text-rose-700'
                           }`}
                         >
-                          {profitMetrics.netProfit >= 0 ? '+' : ''}
-                          {formatCurrency(profitMetrics.netProfit)}
+                          {profitMetrics.subcontractorCost <= 0
+                            ? '£0.00'
+                            : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
                         </p>
-                        <span className="text-[9px] text-slate-500">Customer Billed – Dealer Cost</span>
+                        <span className="text-[9px] text-slate-500">
+                          {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Customer Billed – Dealer Cost'}
+                        </span>
                       </div>
 
                       <div
                         className={`p-2 rounded-lg border flex flex-col justify-between ${
-                          profitMetrics.profitMarginPercent >= 0
+                          profitMetrics.subcontractorCost <= 0
+                            ? 'bg-slate-50 border-slate-200'
+                            : profitMetrics.profitMarginPercent >= 0
                             ? 'bg-indigo-50/80 border-indigo-200'
                             : 'bg-rose-50/80 border-rose-200'
                         }`}
@@ -1863,12 +2058,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
                         </div>
                         <p
                           className={`text-sm font-black font-mono mt-0.5 ${
-                            profitMetrics.profitMarginPercent >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                            profitMetrics.subcontractorCost <= 0
+                              ? 'text-slate-700'
+                              : profitMetrics.profitMarginPercent >= 0
+                              ? 'text-indigo-700'
+                              : 'text-rose-700'
                           }`}
                         >
-                          {profitMetrics.profitMarginPercent.toFixed(1)}%
+                          {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
                         </p>
-                        <span className="text-[9px] text-slate-500">(Net Profit / Billed) * 100</span>
+                        <span className="text-[9px] text-slate-500">
+                          {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : '(Net Profit / Billed) * 100'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -2179,12 +2380,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
 
               <button
                 type="button"
-                onClick={() => setShowPreviewModal(true)}
+                onClick={handleDirectDownloadPDF}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="Real-time live PDF preview using @react-pdf/renderer before committing"
+                title="Directly compile and download invoice PDF"
               >
-                <Eye className="w-4 h-4 text-indigo-600" />
-                <span>Preview PDF</span>
+                <Download className="w-4 h-4 text-indigo-600" />
+                <span>Download PDF</span>
               </button>
 
               {activeTab !== 'documents_actions' ? (
@@ -2210,96 +2411,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ vehicles, customers, accounts
           </div>
         </form>
       </div>
-
-      {/* Real-time Left-Side Split Document Preview Modal */}
-      {showPreviewModal && (
-        <SplitDocumentPreviewModal
-          isOpen={showPreviewModal}
-          onClose={() => setShowPreviewModal(false)}
-          documentType="invoice"
-          documentTitle="Invoice Live Preview"
-          documentReference={formData.invoiceNumber || 'INV-DRAFT'}
-          baseCompanyDetails={companyDetails}
-          initialBankId={selectedBankId || formData.bankAccountId}
-          renderDocument={(effectiveCompanyDetails) => {
-            const chosenBank =
-              effectiveCompanyDetails?.selectedBank ||
-              formData.bankAllocation ||
-              availableBankAccounts.find((b) => b.id === selectedBankId) ||
-              availableBankAccounts[0];
-            const activeInv = buildActiveInvoice(chosenBank);
-            const vehicle = vehicles.find((v) => v.id === formData.vehicleId);
-            const customer =
-              customers.find((c) => c.id === formData.customerId) ||
-              (formData.useCustomCustomer
-                ? ({ name: formData.customerName, mobile: formData.customerPhone } as any)
-                : undefined);
-            return (
-              <InvoiceDocument
-                data={{
-                  ...activeInv,
-                  vehicle,
-                  customer,
-                  bankAllocation: chosenBank,
-                  bankName: chosenBank?.bankName,
-                  accountName: chosenBank?.accountName,
-                  accountNumber: chosenBank?.accountNumber,
-                  sortCode: chosenBank?.sortCode,
-                  iban: chosenBank?.iban,
-                }}
-                companyDetails={{
-                  ...effectiveCompanyDetails,
-                  selectedBank: chosenBank,
-                }}
-              />
-            );
-          }}
-          onCommitAndGenerate={async (effectiveCompanyDetails) => {
-            if (effectiveCompanyDetails?.selectedBank) {
-              handleBankAllocationChange(effectiveCompanyDetails.selectedBank.id);
-            }
-            try {
-              const chosenBank =
-                effectiveCompanyDetails?.selectedBank ||
-                formData.bankAllocation ||
-                availableBankAccounts.find((b) => b.id === selectedBankId);
-              const activeInv = buildActiveInvoice(chosenBank);
-              const vehicle = vehicles.find((v) => v.id === formData.vehicleId);
-              const customer =
-                customers.find((c) => c.id === formData.customerId) ||
-                (formData.useCustomCustomer
-                  ? ({ name: formData.customerName, mobile: formData.customerPhone } as any)
-                  : undefined);
-              const blob = await pdf(
-                <InvoiceDocument
-                  data={{
-                    ...activeInv,
-                    vehicle,
-                    customer,
-                    bankAllocation: chosenBank,
-                    bankName: chosenBank?.bankName,
-                    accountName: chosenBank?.accountName,
-                    accountNumber: chosenBank?.accountNumber,
-                    sortCode: chosenBank?.sortCode,
-                    iban: chosenBank?.iban,
-                  }}
-                  companyDetails={{
-                    ...effectiveCompanyDetails,
-                    selectedBank: chosenBank,
-                  }}
-                />
-              ).toBlob();
-              const fileName = `Invoice_${activeInv.invoiceNumber || 'draft'}.pdf`;
-              saveAs(blob, fileName);
-              toast.success('Invoice PDF downloaded!');
-              setShowPreviewModal(false);
-            } catch (err: any) {
-              console.error('Error downloading preview PDF:', err);
-              toast.error('Failed to generate PDF');
-            }
-          }}
-        />
-      )}
 
 
       {/* Share / Communication Modal (Triggered automatically post-save or via Quick Actions) */}

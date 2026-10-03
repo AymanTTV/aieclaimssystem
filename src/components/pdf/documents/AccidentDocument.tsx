@@ -3,6 +3,8 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Accident } from '../../../types';
 import { styles } from '../styles';
 import { formatDate } from '../../../utils/dateHelpers';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 
 interface AccidentDocumentProps {
@@ -16,9 +18,11 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
       {/* Header */}
       <View style={styles.header} fixed>
         <View style={styles.headerLeft}>
-          {companyDetails?.logoUrl && (
-            <Image src={companyDetails.logoUrl} style={styles.logo} />
-          )}
+          <SafePdfLogo
+            src={companyDetails?.logoUrl}
+            companyName={companyDetails?.fullName || 'AIE Skyline Limited'}
+            style={styles.logo}
+          />
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
@@ -304,7 +308,13 @@ const AccidentDocument: React.FC<AccidentDocumentProps> = ({ data, companyDetail
           <View style={styles.grid}>
             {data.images.map((url, i) => (
               <View key={i} style={styles.gridItem}>
-                <Image src={url} style={styles.vehicleImage} />
+                {isValidPdfImageSrc(url) ? (
+                  <Image src={url} style={styles.vehicleImage} />
+                ) : (
+                  <View style={[styles.vehicleImage, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 8, color: '#64748B' }}>Image File</Text>
+                  </View>
+                )}
               </View>
             ))}
           </View>

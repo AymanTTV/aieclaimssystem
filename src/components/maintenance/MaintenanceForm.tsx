@@ -447,11 +447,15 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
         laborRate: formData.laborRate,
         laborCost: laborTotal,
         cost: totalAmount,
-        subcontractorCost: editLog ? profitMetrics.subcontractorCost : totalAmount,
+        subcontractorCost: profitMetrics.subcontractorCost,
+        dealerCost: profitMetrics.subcontractorCost,
         customerBilled: totalAmount,
-        netProfit: editLog ? profitMetrics.netProfit : 0,
-        profitMarginPercent: editLog ? profitMetrics.profitMarginPercent : 0,
-        isProfitEdited: Boolean(editLog),
+        netProfit: profitMetrics.subcontractorCost > 0 && Math.abs(totalAmount - profitMetrics.subcontractorCost) >= 0.01 ? profitMetrics.netProfit : 0,
+        profitMarginPercent: profitMetrics.subcontractorCost > 0 && Math.abs(totalAmount - profitMetrics.subcontractorCost) >= 0.01 ? profitMetrics.profitMarginPercent : 0,
+        isProfitEdited: profitMetrics.subcontractorCost > 0,
+        isPassThrough: profitMetrics.subcontractorCost > 0 && Math.abs(totalAmount - profitMetrics.subcontractorCost) < 0.01,
+        passThrough: profitMetrics.subcontractorCost > 0 && Math.abs(totalAmount - profitMetrics.subcontractorCost) < 0.01,
+        isPassThroughMaintenance: profitMetrics.subcontractorCost > 0 && Math.abs(totalAmount - profitMetrics.subcontractorCost) < 0.01,
         netAmount,
         vatAmount,
         paidAmount: totalPaidAmount,
@@ -531,15 +535,20 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
       toast.success(editLog ? 'Maintenance updated successfully' : 'Maintenance scheduled successfully');
 
       if (typeof window !== 'undefined') {
+        const isPassThrough = Math.abs(totalAmount - profitMetrics.subcontractorCost) < 0.01;
         const optimisticEventDetail = {
           logId: optimisticLogId,
           orderId: orderNumber,
           orderNumber: orderNumber,
           invoiceNumber: invoiceNumber,
-          subcontractorCost: editLog ? profitMetrics.subcontractorCost : totalAmount,
+          subcontractorCost: profitMetrics.subcontractorCost,
+          dealerCost: profitMetrics.subcontractorCost,
           customerBilled: totalAmount,
-          netProfit: editLog ? profitMetrics.netProfit : 0,
-          profitMarginPercent: editLog ? profitMetrics.profitMarginPercent : 0,
+          netProfit: isPassThrough ? 0 : profitMetrics.netProfit,
+          profitMarginPercent: isPassThrough ? 0 : profitMetrics.profitMarginPercent,
+          isPassThrough,
+          passThrough: isPassThrough,
+          isPassThroughMaintenance: isPassThrough,
           status: formData.status,
           vehicleId: manualEntry ? null : selectedVehicleId,
           action: editLog ? 'UPDATE_MAINTENANCE' : 'CREATE_MAINTENANCE',
@@ -612,52 +621,53 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
               });
             }
           } else { 
+            const isPassThrough = Math.abs(totalAmount - profitMetrics.subcontractorCost) < 0.01;
             const docRef = await addDoc(collection(db, 'maintenanceLogs'), {
               ...maintenanceData,
               orderId: orderNumber,
               orderNumber: orderNumber,
               invoiceNumber: invoiceNumber,
-              subcontractorCost: totalAmount,
+              subcontractorCost: profitMetrics.subcontractorCost,
+              dealerCost: profitMetrics.subcontractorCost,
               customerBilled: totalAmount,
-              netProfit: 0,
-              profitMarginPercent: 0,
-              isProfitEdited: false,
+              netProfit: isPassThrough ? 0 : profitMetrics.netProfit,
+              profitMarginPercent: isPassThrough ? 0 : profitMetrics.profitMarginPercent,
+              isPassThrough,
+              passThrough: isPassThrough,
+              isPassThroughMaintenance: isPassThrough,
+              isProfitEdited: true,
               vehicleId: manualEntry ? null : selectedVehicleId,
               vehicleDetails: manualEntry ? maintenanceData.vehicleDetails : null,
               createdAt: new Date(),
               createdBy: user.id,
             });
-      
-            if (totalPaidAmount > 0) {
-              await createFinanceTransaction({
-                type: 'expense',
-                category: maintenanceData.type,
-                amount: totalPaidAmount,
-                description: `Maintenance: ${maintenanceData.type} | Order: ${orderNumber} | Inv: ${invoiceNumber}`,
-                customerName: maintenanceData.serviceProvider,
-                referenceId: docRef.id,
-                vehicleId: vehicleToUseForTransaction.id,
-                vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
-                vehicleOwner,
-                accountFrom: vehicleOwner?.accountId || undefined,
-                paymentMethod: paymentMethod,
-                paymentReference: invoiceNumber || paymentReference || undefined, 
-                paymentStatus: maintenanceData.paymentStatus,
-                status: 'completed',
-                date: new Date(),
-                subcontractorCost: totalAmount,
-                customerBilled: totalAmount,
-                netProfit: 0,
-                profitMarginPercent: 0,
-                orderId: orderNumber,
-                orderNumber: orderNumber,
-                invoiceNumber: invoiceNumber,
-                groupId: vehicleToUseForTransaction.assignedGroupId || undefined,
-                groupName: vehicleToUseForTransaction.assignedGroupName || undefined,
-                departmentId: vehicleToUseForTransaction.assignedDepartmentId || undefined,
-                departmentName: vehicleToUseForTransaction.assignedDepartmentName || undefined
-              });
-            }
+
+            // Single unified Financial Ledger record sync for maintenance
+            await syncMaintenanceRecord(docRef.id, {
+              ...maintenanceData,
+              orderId: orderNumber,
+              orderNumber: orderNumber,
+              invoiceNumber: invoiceNumber,
+              subcontractorCost: profitMetrics.subcontractorCost,
+              dealerCost: profitMetrics.subcontractorCost,
+              customerBilled: totalAmount,
+              netProfit: isPassThrough ? 0 : profitMetrics.netProfit,
+              profitMarginPercent: isPassThrough ? 0 : profitMetrics.profitMarginPercent,
+              isPassThrough,
+              passThrough: isPassThrough,
+              isPassThroughMaintenance: isPassThrough,
+              isProfitEdited: true,
+              paidAmount: totalPaidAmount,
+              remainingAmount: Math.max(0, totalAmount - totalPaidAmount),
+              paymentMethod: paymentMethod || undefined,
+              paymentReference: invoiceNumber || paymentReference || undefined,
+              paymentStatus: maintenanceData.paymentStatus,
+              vehicleId: vehicleToUseForTransaction.id,
+              vehicleName: `${vehicleToUseForTransaction.make} ${vehicleToUseForTransaction.model} (${vehicleToUseForTransaction.registrationNumber})`,
+              vehicleOwner,
+              updatedAt: new Date(),
+              updatedBy: user.id,
+            });
       
             if (newAttachments.length) {
               const uploaded = await uploadMaintenanceAttachments(docRef.id, newAttachments);
@@ -1442,14 +1452,18 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <div
                           className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                            profitMetrics.netProfit >= 0
+                            profitMetrics.subcontractorCost <= 0
+                              ? 'bg-slate-50 border-slate-200'
+                              : profitMetrics.netProfit >= 0
                               ? 'bg-emerald-50/80 border-emerald-200'
                               : 'bg-rose-50/80 border-rose-200'
                           }`}
                         >
                           <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 uppercase">
-                            <span>Live Net Profit</span>
-                            {profitMetrics.netProfit >= 0 ? (
+                            <span>{profitMetrics.subcontractorCost <= 0 ? 'Net Profit / Mark-Up' : 'Live Net Profit'}</span>
+                            {profitMetrics.subcontractorCost <= 0 ? (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                            ) : profitMetrics.netProfit >= 0 ? (
                               <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                             ) : (
                               <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
@@ -1457,18 +1471,27 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                           </div>
                           <p
                             className={`text-base font-black font-mono mt-0.5 ${
-                              profitMetrics.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                              profitMetrics.subcontractorCost <= 0
+                                ? 'text-slate-700'
+                                : profitMetrics.netProfit >= 0
+                                ? 'text-emerald-700'
+                                : 'text-rose-700'
                             }`}
                           >
-                            {profitMetrics.netProfit >= 0 ? '+' : ''}
-                            {formatCurrency(profitMetrics.netProfit)}
+                            {profitMetrics.subcontractorCost <= 0
+                              ? '£0.00'
+                              : `${profitMetrics.netProfit >= 0 ? '+' : ''}${formatCurrency(profitMetrics.netProfit)}`}
                           </p>
-                          <span className="text-[10px] text-slate-500">Billed – Dealer Cost</span>
+                          <span className="text-[10px] text-slate-500">
+                            {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Billed – Dealer Cost'}
+                          </span>
                         </div>
 
                         <div
                           className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                            profitMetrics.profitMarginPercent >= 0
+                            profitMetrics.subcontractorCost <= 0
+                              ? 'bg-slate-50 border-slate-200'
+                              : profitMetrics.profitMarginPercent >= 0
                               ? 'bg-indigo-50/80 border-indigo-200'
                               : 'bg-rose-50/80 border-rose-200'
                           }`}
@@ -1479,14 +1502,18 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({ vehicles, onClose, ed
                           </div>
                           <p
                             className={`text-base font-black font-mono mt-0.5 ${
-                              profitMetrics.profitMarginPercent >= 0
+                              profitMetrics.subcontractorCost <= 0
+                                ? 'text-slate-700'
+                                : profitMetrics.profitMarginPercent >= 0
                                 ? 'text-indigo-700'
                                 : 'text-rose-700'
                             }`}
                           >
-                            {profitMetrics.profitMarginPercent.toFixed(1)}%
+                            {profitMetrics.subcontractorCost <= 0 ? '0.0%' : `${profitMetrics.profitMarginPercent.toFixed(1)}%`}
                           </p>
-                          <span className="text-[10px] text-slate-500">Margin on billed</span>
+                          <span className="text-[10px] text-slate-500">
+                            {profitMetrics.subcontractorCost <= 0 ? 'N/A (Direct Transaction)' : 'Margin on billed'}
+                          </span>
                         </div>
                       </div>
                     </div>

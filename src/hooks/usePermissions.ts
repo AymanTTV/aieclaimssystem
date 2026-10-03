@@ -53,6 +53,27 @@ export const usePermissions = () => {
         return true;
       }
     }
+    if (action === 'manageDynamicTerms' || (action as any) === 'manage_dynamic_terms') {
+      if (
+        user.permissions?.settings?.manageDynamicTerms === false ||
+        (user.permissions?.settings as any)?.['manageDynamicTerms'] === false ||
+        user.manageDynamicTerms === false ||
+        (user as any)['manageDynamicTerms'] === false
+      ) {
+        return false;
+      }
+      if (
+        user.manageDynamicTerms === true ||
+        (user as any)['manageDynamicTerms'] === true ||
+        user.permissions?.settings?.manageDynamicTerms === true ||
+        (user.permissions?.settings as any)?.['manageDynamicTerms'] === true ||
+        (['manager', 'superadmin', 'admin'].includes(user.role?.toLowerCase() || '') &&
+          user.permissions?.settings?.manageDynamicTerms !== false)
+      ) {
+        return true;
+      }
+      return false;
+    }
 
     // Strict Universal Explicit-Allow (Deny-by-Default):
     // Access is granted ONLY if the user's specific permission switch is explicitly set to true.

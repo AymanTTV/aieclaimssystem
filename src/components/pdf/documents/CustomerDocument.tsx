@@ -3,6 +3,8 @@ import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
 import { Customer } from '../../../types/customer';
 import { formatDate } from '../../../utils/dateHelpers';
 import { styles } from '../styles';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import { formatInlineCompanyFooter } from '../../../utils/legalDocumentUtils';
 import { formatSignatureTimestamp } from '../../../utils/signatureStamp';
 
@@ -45,7 +47,11 @@ const CustomerDocument: React.FC<CustomerDocumentProps> = ({ data, companyDetail
         {/* Header */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            {companyDetails?.logoUrl && <Image src={companyDetails.logoUrl} style={styles.logo} />}
+            <SafePdfLogo
+              src={companyDetails?.logoUrl}
+              companyName={companyDetails?.fullName || 'AIE Skyline Limited'}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companyDetails?.fullName || 'AIE Skyline Limited'}</Text>
@@ -127,16 +133,18 @@ const CustomerDocument: React.FC<CustomerDocumentProps> = ({ data, companyDetail
                   <View style={styles.signatureSection}>
                     <View style={styles.signatureBox}>
                       <Text style={{ fontWeight: 'bold' }}>Customer Name: {data.name}</Text>
-                      <Image src={data.signature} style={styles.signature} />
+                      {isValidPdfImageSrc(data.signature) && (
+                        <Image src={data.signature} style={styles.signature} />
+                      )}
                       <Text style={styles.signatureLine}>Customer Signature (Legally Verified)</Text>
                       <Text style={{ fontSize: 7, color: '#334155', marginTop: 2, fontWeight: 'bold' }}>
-                        {data.signatureTimestamp || (data.signedAt ? formatSignatureTimestamp(data.signedAt) : `Electronically Signed on ${formatDate(data.updatedAt || data.createdAt)}`)}
+                        {data.signatureTimestamp ? (data.signatureTimestamp.startsWith('Date:') ? data.signatureTimestamp : `Date: ${data.signatureTimestamp}`) : (data.signedAt ? `Date: ${formatSignatureTimestamp(data.signedAt)}` : (data.createdAt ? `Date: ${formatSignatureTimestamp(data.createdAt)}` : 'Legally Signed & Verified'))}
                       </Text>
                       <Text style={{ fontSize: 6.5, color: '#16a34a', marginTop: 1 }}>
                         ✓ Mandatory Terms &amp; Conditions explicitly agreed and verified
                       </Text>
                     </View>
-                    {companyDetails.signature && (
+                    {isValidPdfImageSrc(companyDetails.signature) && (
                       <View style={styles.signatureBox}>
                         <Image src={companyDetails.signature} style={styles.signature} />
                         <Text style={styles.signatureLine}>For and on behalf of {companyDetails.fullName}</Text>

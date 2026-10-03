@@ -13,8 +13,8 @@ import { isAfter } from 'date-fns';
 import { useCustomers } from '../../hooks/useCustomers';
 import toast from 'react-hot-toast';
 import { useFormattedDisplay } from '../../hooks/useFormattedDisplay';
-import { Pencil, Trash2, Receipt, CreditCard, AlertCircle, CheckCircle, Car } from 'lucide-react';
-import { deleteRentalPayment, updateRentalPayment } from '../../utils/paymentUtils';
+import { Pencil, Trash2, Receipt, CreditCard, AlertCircle, CheckCircle, Car, RotateCcw } from 'lucide-react';
+import { deleteRentalPayment, updateRentalPayment, refundRentalPayment } from '../../utils/paymentUtils';
 
 const formatDateForInput = (t?: any) => {
   if (!t) return new Date().toISOString().slice(0, 10);
@@ -169,6 +169,26 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
     }
   };
 
+  const handleRefund = async (paymentId: string) => {
+    const reason = prompt('Please enter a reason for refunding this payment (optional):');
+    if (reason === null) return;
+    try {
+      setLoading(true);
+      const paymentToRefund = rental.payments?.find(p => p.id === paymentId);
+      const allocatedVId = paymentToRefund?.allocatedVehicleId || rental.vehicleId;
+      const allocatedVehicle = vehicles.find(v => v.id === allocatedVId) || vehicle;
+
+      await refundRentalPayment(rental, paymentId, reason || 'Customer Refund', allocatedVehicle);
+      toast.success('Payment refunded and synced to Finance Ledger');
+      onClose();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || 'Failed to refund payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -237,7 +257,8 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         createdAt: new Date(),
         createdBy: user.id,
         allocatedVehicleId: formData.allocatedVehicleId,
-        allocatedVehicleName: allocatedName
+        allocatedVehicleName: allocatedName,
+        status: 'paid' as const
       };
 
       const newPaidAmount = paid + paymentAmount;
@@ -274,33 +295,52 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
         ? { name: targetVehicle.owner.name, isDefault: targetVehicle.owner.isDefault ?? false }
         : undefined;
 
+      const targetVehicleReg = targetVehicle?.registrationNumber || vehicle?.registrationNumber || '';
+      const targetAccountId = targetVehicle?.owner?.accountId || vehicle?.owner?.accountId || undefined;
+      const rentalAgreementRef = rental.rentalAgreementNumber || rental.documents?.invoice || formData.reference || `RA-${rental.id.slice(-6).toUpperCase()}`;
+
       await createFinanceTransaction({
         type: 'income',
-        category: 'Rental',
+        transactionType: 'INCOME',
+        entryType: 'CREDIT',
+        category: 'Vehicle Rental Income',
+        departmentName: 'Vehicle Rental / Fleet',
+        departmentId: targetVehicle?.assignedDepartmentId || undefined,
         amount: paymentAmount,
+        customerBilled: paymentAmount,
+        grossBilling: paymentAmount,
+        paid: paymentAmount,
+        paidAmount: paymentAmount,
         netAmount: parseFloat(paymentNetAmount.toFixed(2)), 
         vatAmount: parseFloat(paymentVatAmount.toFixed(2)), 
-        description: `A ${rental.type} rental payment from customer (${paymentCustomer?.name || 'N/A'})${formData.notes ? ` – ${formData.notes}` : ''}`,
+        description: `Rental payment for agreement #${rentalAgreementRef}${targetVehicleReg ? ` (${targetVehicleReg})` : ''} from customer (${paymentCustomer?.name || 'N/A'})${formData.notes ? ` – ${formData.notes}` : ''}`,
         referenceId: rental.id,
+        sourceReferenceId: rental.id,
+        linkedInvoiceRef: rental.id,
+        entityId: rental.id,
+        entityType: 'RENTAL',
+        orderNumber: rental.rentalAgreementNumber || undefined,
+        paymentId: payment.id,
+        paymentReference: rentalAgreementRef,
         vehicleId: targetVehicle ? targetVehicle.id : formData.allocatedVehicleId,
-        vehicleName: allocatedName,
+        vehicleRegistration: targetVehicleReg,
+        vehicleReg: targetVehicleReg,
+        vehicleName: targetVehicleReg ? `${targetVehicle?.make || ''} ${targetVehicle?.model || ''} (${targetVehicleReg})`.trim() : allocatedName,
         vehicleOwner,
         customerId: rental.customerId,
         customerName: paymentCustomer?.name,
         paymentMethod: formData.method,
-        paymentReference: formData.reference || undefined,
         status: 'completed',
         paymentStatus: newPaymentStatus,
         date: parsedPaymentDate, 
-        accountTo: targetVehicle?.owner?.accountId || undefined,
-        groupId: targetVehicle?.assignedGroupId || undefined, // Already here
-        // ✅ ADD THESE LINES:
+        accountTo: targetAccountId,
+        accountId: targetAccountId,
+        accountsTo: targetAccountId ? [targetAccountId] : undefined,
+        groupId: targetVehicle?.assignedGroupId || undefined, 
         groupName: targetVehicle?.assignedGroupName || undefined,
-        departmentId: targetVehicle?.assignedDepartmentId || undefined,
-        departmentName: targetVehicle?.assignedDepartmentName || undefined
       });
 
-      toast.success('Payment recorded successfully');
+      toast.success('Payment recorded and synced to Finance Ledger');
       onClose();
     } catch (error) {
       console.error('Error saving payment:', error);
@@ -357,7 +397,14 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-bold text-gray-900 text-lg">£{p.amount.toFixed(2)}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-900 text-lg">£{p.amount.toFixed(2)}</span>
+                      {p.status === 'refunded' && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                          Refunded
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 capitalize flex flex-wrap items-center gap-2">
                       <span className="font-medium bg-gray-100 px-2 py-0.5 rounded-full">{p.method.replace('_', ' ')}</span>
                       <span>•</span>
@@ -370,12 +417,22 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {can('rentals', 'editPayment') && (
+                <div className="flex items-center gap-1.5">
+                  {can('rentals', 'editPayment') && p.status !== 'refunded' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRefund(p.id)}
+                      className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                      title="Refund Payment"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  )}
+                  {can('rentals', 'editPayment') && p.status !== 'refunded' && (
                     <button
                       type="button"
                       onClick={() => { setEditingPaymentId(p.id); prefillFromPayment(p); }}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                       title="Edit Payment"
                     >
                       <Pencil className="h-4 w-4" />
@@ -385,8 +442,8 @@ const RentalPaymentModal: React.FC<RentalPaymentModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDelete(p.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Payment"
+                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      title="Delete / Reverse Payment"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

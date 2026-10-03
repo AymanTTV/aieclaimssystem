@@ -4,35 +4,43 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { Claim } from '../../../types';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import {
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  AIE_CLAIMS_FOOTER_TEXT
+  AIE_CLAIMS_FOOTER_TEXT,
+  getCompanyBrandingForPdf,
+  extractActiveCorporateEntityProfile,
 } from '../../../utils/legalDocumentUtils';
+import { resolveClaimDocumentTerms } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './PdfTermsWarningNotice';
 
 const localStyles = StyleSheet.create({
   signatureSectionStyle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 0,
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   refCard: {
     borderWidth: 1,
     borderColor: '#3B82F6',
     borderRadius: 6,
-    padding: 10,
-    marginBottom: 15,
+    padding: 8,
+    marginBottom: 10,
     backgroundColor: '#F8FAFC',
   },
   refRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   refItem: {
     flex: 1,
@@ -45,15 +53,15 @@ const localStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   refValue: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: '#1F2937',
     marginTop: 1,
   },
   paragraph: {
     fontSize: 9,
     color: '#374151',
-    lineHeight: 1.4,
-    marginBottom: 8,
+    lineHeight: 1.35,
+    marginBottom: 4.5,
     textAlign: 'justify',
   },
 });
@@ -109,49 +117,72 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({
     claim?.claimNumber ||
     (claim?.id ? String(claim.id).slice(-8).toUpperCase() : 'N/A');
 
-  const defaultStatement = `I, ${clientName}, confirm that I fully understand and agree to my duty to mitigate my losses, and I confirm the following to be true:
+  // Strict Dynamic T&C Resolution: Pulls Mitigation Statement clauses directly from Claims tab
+  const termsResolution = resolveClaimDocumentTerms('creditHireMitigation', companyDetails);
 
-1. Explanation of Procedure: The hire company has thoroughly explained their process for recovering my credit hire losses from the at-fault party / insurer.
-2. Vehicle Consideration: I have carefully considered and selected the type and specification of the hire vehicle to ensure I am mitigating my financial losses during this period.
-3. Reason for Hire: I understand that this hire vehicle (${vehicleReg}) is necessary because my own vehicle is currently not fit for purpose, unroadworthy, or undergoing authorized repair due to the incident.
-4. Duration of Hire: I commit to hiring this vehicle for the shortest possible duration required for my vehicle to be repaired or replaced, and I understand that this period will not exceed reasonable necessity.
-5. Communication: I agree to keep ${companyDetails?.fullName || 'the Hire Company'} informed at all times of any progress or delays related to the repair or replacement of my vehicle, to ensure effective handling of my claim.
-6. Responsibility for Charges: I understand and accept that I am cooperating with the recovery of all hire charges incurred under credit hire terms from the commencement of the hire period (${hireStartDateFormatted}).
-7. Financial Capability: I confirm that I did not have immediate disposable funds available to hire a replacement vehicle on standard commercial prepaid terms without this credit hire facility.
-8. Duty to Mitigate: My legal duty to keep all hire and loss expenses to a minimum has been clearly explained to me prior to entering into this agreement.
-9. Acknowledgement: I have read, understood, and agree to the above statements, and I declare that all information I have provided in relation to this agreement is true and accurate.`;
-
-  const rawStatement =
-    companyDetails?.creditHireMitigationText ||
-    companyDetails?.termsAndConditions ||
-    defaultStatement;
-
-  const processedStatement = parseLegalVariables(rawStatement, {
-    companyName: 'AIE Claims LTD',
-    companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
-    companyPhone: '+442080505337',
-    companyEmail: 'claims@aieclaims.co.uk',
-    companyVat: companyDetails?.vatNumber || '',
-    companyRegistration: '15616639',
-    hirerName: clientName,
-    customerName: clientName,
-    hirerAddress: clientAddress,
-    customerAddress: clientAddress,
-    hirerPhone: clientPhone,
-    vehicleReg: vehicleReg,
-    vehicleMake: vehicleMake,
-    vehicleModel: vehicleModel,
-    vehicleMakeModel: vehicleMakeModel,
-    agreementNumber: agreementRef,
-    agreementRef: agreementRef,
-    claimRef: agreementRef,
-    startDate: hireStartDateFormatted,
-    hireStartDate: hireStartDateFormatted,
+  const branding = getCompanyBrandingForPdf(companyDetails, 'aie_claims');
+  const activeCompanyProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...claim?.rental,
+    corporateEntityKey: claim?.rental?.corporateEntityKey || claim?.corporateEntityKey,
+    corporateEntityName: claim?.rental?.corporateEntityName || claim?.corporateEntityName,
   });
+  const resolvedCompanyName =
+    claim?.rental?.corporateEntityName ||
+    claim?.corporateEntityName ||
+    activeCompanyProfile.companyName ||
+    branding.companyName;
+  const resolvedCompanyReg =
+    activeCompanyProfile.companyNumber ||
+    companyDetails?.registrationNumber ||
+    '15616639';
+  const resolvedCompanyVat =
+    activeCompanyProfile.vatNumber ||
+    companyDetails?.vatNumber ||
+    '453448875';
+  const resolvedCompanyAddress =
+    activeCompanyProfile.companyAddress ||
+    companyDetails?.officialAddress ||
+    branding.companyAddress;
+
+  const processedStatement = termsResolution.isConfigured
+    ? parseLegalVariables(termsResolution.content, {
+        company_name: resolvedCompanyName,
+        companyName: resolvedCompanyName,
+        claims_team: activeCompanyProfile.claimsTeam,
+        claimsTeam: activeCompanyProfile.claimsTeam,
+        website: activeCompanyProfile.website || branding.website,
+        company_website: activeCompanyProfile.website || branding.website,
+        companyWebsite: activeCompanyProfile.website || branding.website,
+        company_phone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        companyPhone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        company_email: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        companyEmail: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        company_number: resolvedCompanyReg,
+        companyRegistration: resolvedCompanyReg,
+        company_address: resolvedCompanyAddress,
+        companyAddress: resolvedCompanyAddress,
+        vat_number: resolvedCompanyVat,
+        companyVat: resolvedCompanyVat,
+        hirerName: clientName,
+        customerName: clientName,
+        hirerAddress: clientAddress,
+        customerAddress: clientAddress,
+        hirerPhone: clientPhone,
+        vehicleReg: vehicleReg,
+        vehicleMake: vehicleMake,
+        vehicleModel: vehicleModel,
+        vehicleMakeModel: vehicleMakeModel,
+        agreementNumber: agreementRef,
+        agreementRef: agreementRef,
+        claimRef: agreementRef,
+        startDate: hireStartDateFormatted,
+        hireStartDate: hireStartDateFormatted,
+      })
+    : '';
 
   const paragraphs = splitParagraphs(processedStatement);
-
-  const footerText = AIE_CLAIMS_FOOTER_TEXT;
+  const footerText = branding.footerText;
 
   return (
     <Document>
@@ -159,13 +190,20 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({
         {/* HEADER - fixed across all pages */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={aieClaimsLogo} style={styles.logo} />
+            <SafePdfLogo
+              src={branding.companyLogo || aieClaimsLogo}
+              companyName={resolvedCompanyName}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>AIE Claims LTD</Text>
-            <Text style={styles.companyDetail}>United House, 39-41 North Road, London, N7 9DP</Text>
-            <Text style={styles.companyDetail}>Tel: +442080505337</Text>
-            <Text style={styles.companyDetail}>Email: claims@aieclaims.co.uk</Text>
+            <Text style={styles.companyName}>{resolvedCompanyName}</Text>
+            <Text style={styles.companyDetail}>{resolvedCompanyAddress}</Text>
+            <Text style={styles.companyDetail}>Tel: {activeCompanyProfile.phone || branding.companyPhone || '+442080505337'}</Text>
+            <Text style={styles.companyDetail}>Email: {activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk'}</Text>
+            {Boolean(activeCompanyProfile.website || branding.website) && (
+              <Text style={styles.companyDetail}>Web: {activeCompanyProfile.website || branding.website}</Text>
+            )}
           </View>
         </View>
 
@@ -209,20 +247,24 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({
         </View>
 
         {/* STATEMENT AND DECLARATION */}
-        <View style={{ marginBottom: 15 }} wrap>
-          <Text style={styles.sectionTitle}>STATEMENT AND DECLARATION</Text>
-          {paragraphs.map((p, idx) => (
-            <Text key={idx} style={localStyles.paragraph}>
-              {p}
-            </Text>
-          ))}
+        <View style={{ marginBottom: 10 }} wrap={true}>
+          <Text style={styles.sectionTitle}>{termsResolution.title || 'STATEMENT AND DECLARATION'}</Text>
+          {termsResolution.isConfigured ? (
+            paragraphs.map((p, idx) => (
+              <Text key={idx} wrap={true} style={localStyles.paragraph}>
+                {p}
+              </Text>
+            ))
+          ) : (
+            <PdfTermsWarningNotice message={termsResolution.warningMessage} />
+          )}
         </View>
 
         {/* SIGNATURES - Stamped with Hire Start Date */}
-        <View style={localStyles.signatureSectionStyle} wrap={false}>
+        <View style={localStyles.signatureSectionStyle} wrap={false} minPresenceAhead={150}>
           <View style={[styles.signatureBox, { borderWidth: 1, borderColor: '#3B82F6' }]}>
             <Text style={styles.signatureLine}>Hirer’s Signature</Text>
-            {claim?.clientInfo?.signature && (
+            {isValidPdfImageSrc(claim?.clientInfo?.signature) && (
               <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
             <Text style={{ fontSize: 9, marginTop: 4 }}>{clientName}</Text>
@@ -235,10 +277,10 @@ const CreditHireMitigation: React.FC<CreditHireMitigationProps> = ({
             <Text style={styles.signatureLine}>
               Authorized Signature (for Hire Company)
             </Text>
-            {companyDetails?.signature && (
+            {isValidPdfImageSrc(companyDetails?.signature) && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text style={{ fontSize: 9, marginTop: 4 }}>AIE Claims LTD</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>{resolvedCompanyName}</Text>
             <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
               Date: {hireStartDateFormatted}
             </Text>

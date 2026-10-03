@@ -4,35 +4,43 @@ import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/render
 import { Claim } from '../../../types';
 import { styles } from '../styles';
 import aieClaimsLogo from '../../../assets/aieclaim.png';
+import SafePdfLogo from '../SafePdfLogo';
+import { isValidPdfImageSrc } from '../../../utils/safePdfImage';
 import {
   formatHireCommencementDate,
   parseLegalVariables,
   splitParagraphs,
   getVehicleDetails,
-  AIE_CLAIMS_FOOTER_TEXT
+  AIE_CLAIMS_FOOTER_TEXT,
+  getCompanyBrandingForPdf,
+  extractActiveCorporateEntityProfile,
 } from '../../../utils/legalDocumentUtils';
+import { resolveClaimDocumentTerms } from '../../../utils/documentTemplateTerms';
+import PdfTermsWarningNotice from './PdfTermsWarningNotice';
 
 const localStyles = StyleSheet.create({
   signatureSectionStyle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 0,
     breakInside: 'avoid',
     pageBreakInside: 'avoid',
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   refCard: {
     borderWidth: 1,
     borderColor: '#3B82F6',
     borderRadius: 6,
-    padding: 10,
-    marginBottom: 15,
+    padding: 8,
+    marginBottom: 10,
     backgroundColor: '#F8FAFC',
   },
   refRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   refItem: {
     flex: 1,
@@ -45,15 +53,15 @@ const localStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   refValue: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: '#1F2937',
     marginTop: 1,
   },
   paragraph: {
     fontSize: 9,
     color: '#374151',
-    lineHeight: 1.4,
-    marginBottom: 8,
+    lineHeight: 1.35,
+    marginBottom: 4.5,
     textAlign: 'justify',
   },
 });
@@ -122,77 +130,78 @@ const CreditStorageRecoveryAgreement: React.FC<CreditStorageRecoveryAgreementPro
   const recoveryCost =
     Number(claim?.recovery?.cost || claim?.rental?.recoveryCost || 0);
 
-  const defaultTerms = `1. Definitions and Interpretation
-(a) "Agreement" refers to this Credit Storage and Recovery Agreement.
-(b) "Lender" refers to AIE Claims LTD.
-(c) "Borrower" refers to ${clientName} identified as the client in this agreement.
-(d) "Credit Facility" refers to the credit limit and terms extended by the Lender to the Borrower for vehicle storage, securing, and recovery services.
-(e) "Collateral" refers to the vehicle (${vehicleReg}) and any assets provided or held in connection with these services.
+  // Strict Dynamic T&C Resolution: Pulls Storage and Recovery clauses directly from Claims tab
+  const termsResolution = resolveClaimDocumentTerms('creditStorageAndRecovery', companyDetails);
 
-2. Grant of Credit Facility
-The Lender agrees to provide a Credit Storage and Recovery Facility to the Borrower, subject to the terms and conditions set forth in this Agreement. The specific charges for storage at £${storageCostPerDay.toFixed(2)}/day and recovery of £${recoveryCost.toFixed(2)} are detailed in the schedule above.
-
-3. Storage of Collateral & Vehicle Custody
-(a) The Borrower authorizes the Lender or its nominated storage facility to safely hold and secure the vehicle (${vehicleReg}).
-(b) The Borrower and Lender shall ensure reasonable care, insurance, and safekeeping throughout the storage period.
-(c) The Lender shall maintain a continuous log of storage days and condition reports.
-
-4. Recovery of Credit
-(a) In the event of insurance claim settlement or default, the Lender shall have the right to recover all accrued storage and recovery charges directly from the at-fault insurer or client.
-(b) The Borrower assigns all rights of recovery for storage and recovery costs against any third-party tortfeasor or insurer to the Lender.
-(c) The Borrower agrees to cooperate fully with the Lender in pursuing and recovering these outlay costs.
-
-5. Charges and Accruals
-Storage charges shall accrue on a daily credit basis until the vehicle is repaired, collected, or total-loss proceeds are disbursed. Late administrative charges may apply if information is withheld.
-
-6. Borrower's Covenants
-The Borrower covenants that:
-(a) All incident, insurance, and ownership details provided to the Lender are accurate and truthful.
-(b) They hold full authority as owner, registered keeper, or authorized agent to commission storage and recovery.
-(c) They will notify the Lender promptly of any changes in contact details or claim status.
-
-7. Governing Law
-This Agreement shall be governed by and construed in accordance with the laws of England and Wales.`;
-
-  // Fetch dynamically from Company Profile settings
-  const rawTerms =
-    companyDetails?.creditStorageAndRecoveryText ||
-    companyDetails?.creditStorageRecoveryAgreementText ||
-    companyDetails?.termsAndConditions ||
-    defaultTerms;
-
-  const processedTerms = parseLegalVariables(rawTerms, {
-    companyName: 'AIE Claims LTD',
-    companyAddress: 'United House, 39-41 North Road, London, N7 9DP',
-    companyPhone: '+442080505337',
-    companyEmail: 'claims@aieclaims.co.uk',
-    companyVat: companyDetails?.vatNumber || '',
-    companyRegistration: '15616639',
-    hirerName: clientName,
-    borrowerName: clientName,
-    customerName: clientName,
-    hirerAddress: clientAddress,
-    customerAddress: clientAddress,
-    hirerPhone: clientPhone,
-    vehicleReg: vehicleReg,
-    vehicleMake: vehicleMake,
-    vehicleModel: vehicleModel,
-    vehicleMakeModel: vehicleMakeModel,
-    agreementNumber: agreementRef,
-    agreementRef: agreementRef,
-    claimRef: agreementRef,
-    startDate: hireStartDateFormatted,
-    hireStartDate: hireStartDateFormatted,
-    storageCostPerDay: `£${storageCostPerDay.toFixed(2)}`,
-    storageRate: `£${storageCostPerDay.toFixed(2)}`,
-    storageDays: String(storageDays),
-    storageTotal: `£${storageTotal.toFixed(2)}`,
-    recoveryCost: `£${recoveryCost.toFixed(2)}`,
+  const branding = getCompanyBrandingForPdf(companyDetails, 'aie_claims');
+  const activeCompanyProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...claim?.rental,
+    corporateEntityKey: claim?.rental?.corporateEntityKey || claim?.corporateEntityKey,
+    corporateEntityName: claim?.rental?.corporateEntityName || claim?.corporateEntityName,
   });
+  const resolvedCompanyName =
+    claim?.rental?.corporateEntityName ||
+    claim?.corporateEntityName ||
+    activeCompanyProfile.companyName ||
+    branding.companyName;
+  const resolvedCompanyReg =
+    activeCompanyProfile.companyNumber ||
+    companyDetails?.registrationNumber ||
+    '15616639';
+  const resolvedCompanyVat =
+    activeCompanyProfile.vatNumber ||
+    companyDetails?.vatNumber ||
+    '453448875';
+  const resolvedCompanyAddress =
+    activeCompanyProfile.companyAddress ||
+    companyDetails?.officialAddress ||
+    branding.companyAddress;
+
+  const processedTerms = termsResolution.isConfigured
+    ? parseLegalVariables(termsResolution.content, {
+        company_name: resolvedCompanyName,
+        companyName: resolvedCompanyName,
+        claims_team: activeCompanyProfile.claimsTeam,
+        claimsTeam: activeCompanyProfile.claimsTeam,
+        website: activeCompanyProfile.website || branding.website,
+        company_website: activeCompanyProfile.website || branding.website,
+        companyWebsite: activeCompanyProfile.website || branding.website,
+        company_phone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        companyPhone: activeCompanyProfile.phone || branding.companyPhone || '+442080505337',
+        company_email: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        companyEmail: activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk',
+        company_number: resolvedCompanyReg,
+        companyRegistration: resolvedCompanyReg,
+        company_address: resolvedCompanyAddress,
+        companyAddress: resolvedCompanyAddress,
+        vat_number: resolvedCompanyVat,
+        companyVat: resolvedCompanyVat,
+        hirerName: clientName,
+        borrowerName: clientName,
+        customerName: clientName,
+        hirerAddress: clientAddress,
+        customerAddress: clientAddress,
+        hirerPhone: clientPhone,
+        vehicleReg: vehicleReg,
+        vehicleMake: vehicleMake,
+        vehicleModel: vehicleModel,
+        vehicleMakeModel: vehicleMakeModel,
+        agreementNumber: agreementRef,
+        agreementRef: agreementRef,
+        claimRef: agreementRef,
+        startDate: hireStartDateFormatted,
+        hireStartDate: hireStartDateFormatted,
+        storageCostPerDay: `£${storageCostPerDay.toFixed(2)}`,
+        storageRate: `£${storageCostPerDay.toFixed(2)}`,
+        storageDays: String(storageDays),
+        storageTotal: `£${storageTotal.toFixed(2)}`,
+        recoveryCost: `£${recoveryCost.toFixed(2)}`,
+      })
+    : '';
 
   const paragraphs = splitParagraphs(processedTerms);
-
-  const footerText = AIE_CLAIMS_FOOTER_TEXT;
+  const footerText = branding.footerText;
 
   return (
     <Document>
@@ -200,13 +209,20 @@ This Agreement shall be governed by and construed in accordance with the laws of
         {/* HEADER */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Image src={aieClaimsLogo} style={styles.logo} />
+            <SafePdfLogo
+              src={branding.companyLogo || aieClaimsLogo}
+              companyName={resolvedCompanyName}
+              style={styles.logo}
+            />
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.companyName}>AIE Claims LTD</Text>
-            <Text style={styles.companyDetail}>United House, 39-41 North Road, London, N7 9DP</Text>
-            <Text style={styles.companyDetail}>Tel: +442080505337</Text>
-            <Text style={styles.companyDetail}>Email: claims@aieclaims.co.uk</Text>
+            <Text style={styles.companyName}>{resolvedCompanyName}</Text>
+            <Text style={styles.companyDetail}>{resolvedCompanyAddress}</Text>
+            <Text style={styles.companyDetail}>Tel: {activeCompanyProfile.phone || branding.companyPhone || '+442080505337'}</Text>
+            <Text style={styles.companyDetail}>Email: {activeCompanyProfile.email || branding.companyEmail || 'claims@aieclaims.co.uk'}</Text>
+            {Boolean(activeCompanyProfile.website || branding.website) && (
+              <Text style={styles.companyDetail}>Web: {activeCompanyProfile.website || branding.website}</Text>
+            )}
           </View>
         </View>
 
@@ -270,21 +286,25 @@ This Agreement shall be governed by and construed in accordance with the laws of
         </View>
 
         {/* TERMS AND CONDITIONS */}
-        <View style={{ marginBottom: 15 }} wrap>
-          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
-          {paragraphs.map((p, idx) => (
-            <Text key={idx} style={localStyles.paragraph}>
-              {p}
-            </Text>
-          ))}
+        <View style={{ marginBottom: 10 }} wrap={true}>
+          <Text style={styles.sectionTitle}>{termsResolution.title || 'TERMS AND CONDITIONS'}</Text>
+          {termsResolution.isConfigured ? (
+            paragraphs.map((p, idx) => (
+              <Text key={idx} wrap={true} style={localStyles.paragraph}>
+                {p}
+              </Text>
+            ))
+          ) : (
+            <PdfTermsWarningNotice message={termsResolution.warningMessage} />
+          )}
         </View>
 
         {/* SIGNATURES - Stamped with Hire Start Date */}
-        <View style={localStyles.signatureSectionStyle} wrap={false}>
+        <View style={localStyles.signatureSectionStyle} wrap={false} minPresenceAhead={150}>
           {/* Borrower’s Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Borrower’s Signature</Text>
-            {claim?.clientInfo?.signature && (
+            {isValidPdfImageSrc(claim?.clientInfo?.signature) && (
               <Image src={claim.clientInfo.signature} style={styles.signature} />
             )}
             <Text style={{ fontSize: 9, marginTop: 4 }}>{clientName}</Text>
@@ -296,10 +316,10 @@ This Agreement shall be governed by and construed in accordance with the laws of
           {/* Authorized Signature */}
           <View style={[styles.signatureBox, { borderColor: '#3B82F6', borderWidth: 1 }]}>
             <Text style={styles.signatureLine}>Authorized Signature (for Lender)</Text>
-            {companyDetails?.signature && (
+            {isValidPdfImageSrc(companyDetails?.signature) && (
               <Image src={companyDetails.signature} style={styles.signature} />
             )}
-            <Text style={{ fontSize: 9, marginTop: 4 }}>AIE Claims LTD</Text>
+            <Text style={{ fontSize: 9, marginTop: 4 }}>{resolvedCompanyName}</Text>
             <Text style={{ fontSize: 8, color: '#4B5563', marginTop: 2 }}>
               Date: {hireStartDateFormatted}
             </Text>

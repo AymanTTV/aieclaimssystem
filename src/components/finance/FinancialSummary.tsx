@@ -90,17 +90,19 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   // Standard 3-Card Profit & Loss (P&L) Summary Metrics calculation:
   // 1. TOTAL INCOME: Sum of all rows marked as 'INCOME' (or Credit)
   // 2. TOTAL EXPENSES: Sum of all rows marked as 'EXPENSE' (or Debit) + all subcontractor/dealer costs
-  // 3. NET PROFIT: (Total Income) - (Total Expenses)
+  // 3. NET PROFIT: (Total Income) - Math.abs(Total Expenses)
   const computedSummaryMetrics = useMemo(() => {
     return calculateDeduplicatedSummaryMetrics(transactions);
   }, [transactions]);
 
   const activeSummaryMetrics = useMemo(() => {
     const metrics = propSummaryMetrics || computedSummaryMetrics;
-    const inc = metrics.totalIncome ?? (metrics as any).grossBilling ?? 0;
-    const exp = metrics.totalExpenses ?? 0;
-    const dealer = (metrics as any).subcontractorCost ?? (metrics as any).dealerCost ?? 0;
-    const profit = metrics.netProfit !== undefined ? metrics.netProfit : Number((inc - exp).toFixed(2));
+    const inc = Number(metrics.totalIncome ?? (metrics as any).grossBilling ?? totalIncome ?? 0);
+    const exp = Math.abs(Number(metrics.totalExpenses ?? totalExpenses ?? 0));
+    const dealer = Number((metrics as any).subcontractorCost ?? (metrics as any).dealerCost ?? 0);
+    // Formula strictly: Net Profit = Total Income - Math.abs(Total Expenses)
+    // Never copy Total Expenses into Net Profit!
+    const profit = Number((inc - exp).toFixed(2));
 
     return {
       totalIncome: inc,
@@ -111,7 +113,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       grossBilling: inc,
       totalReceived: (metrics as any).totalReceived ?? inc,
     };
-  }, [propSummaryMetrics, computedSummaryMetrics]);
+  }, [propSummaryMetrics, computedSummaryMetrics, totalIncome, totalExpenses]);
 
   const dynamicProfitMargin =
     activeSummaryMetrics.totalIncome > 0
@@ -310,103 +312,111 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 
   // TOP 3-CARD PERFORMANCE SUMMARY DASHBOARD (P&L Tracking Model)
   const topThreeCards = (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* CARD 1: TOTAL INCOME */}
-      <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-emerald-300 transition-all flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-              TOTAL INCOME
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-100/90 border border-emerald-300/80 text-emerald-800 shadow-2xs flex items-center justify-center font-bold text-sm">
-              £
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 block tracking-tight">
-              {formatCurrency(activeSummaryMetrics.totalIncome)}
-            </span>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              Income / Credit
-            </span>
-          </div>
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Company Performance Overview
+        </span>
       </div>
 
-      {/* CARD 2: TOTAL EXPENSES */}
-      <div className="bg-rose-50/50 border border-rose-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-rose-300 transition-all flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
-              TOTAL EXPENSES
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-100/90 border border-rose-300/80 text-rose-800 shadow-2xs flex items-center justify-center font-bold text-sm">
-              £
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-rose-700 block tracking-tight">
-              -{formatCurrency(activeSummaryMetrics.totalExpenses)}
-            </span>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-              Debit &amp; Subcontractor Costs
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 3: NET PROFIT */}
-      <div className={`border rounded-2xl shadow-xs p-4 sm:p-5 transition-all flex flex-col justify-between ${
-        activeSummaryMetrics.netProfit >= 0
-          ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'
-          : 'bg-rose-50 border-rose-300 hover:border-rose-400'
-      }`}>
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span className={`text-xs font-bold uppercase tracking-wider ${
-              activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-            }`}>
-              NET PROFIT
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                activeSummaryMetrics.netProfit >= 0
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-100 text-rose-800 border-rose-200'
-              }`}>
-                {activeSummaryMetrics.netProfit >= 0 ? (
-                  <TrendingUp className="w-3 h-3 mr-0.5" />
-                ) : (
-                  <TrendingDown className="w-3 h-3 mr-0.5" />
-                )}
-                {dynamicProfitMargin}%
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* CARD 1: TOTAL INCOME */}
+        <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-emerald-300 transition-all flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                TOTAL INCOME
               </span>
-              <div className={`w-8 h-8 rounded-xl border shadow-2xs flex items-center justify-center font-bold text-sm ${
-                activeSummaryMetrics.netProfit >= 0
-                  ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                  : 'bg-rose-100 border-rose-300 text-rose-800'
-              }`}>
-                {activeSummaryMetrics.netProfit >= 0 ? (
-                  <TrendingUp className="w-4 h-4" />
-                ) : (
-                  <TrendingDown className="w-4 h-4" />
-                )}
+              <div className="w-8 h-8 rounded-xl bg-emerald-100/90 border border-emerald-300/80 text-emerald-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+                £
               </div>
             </div>
+            <div className="mt-3">
+              <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 block tracking-tight">
+                {formatCurrency(activeSummaryMetrics.totalIncome)}
+              </span>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                Income / Credit
+              </span>
+            </div>
           </div>
-          <div className="mt-3">
-            <span className={`text-2xl sm:text-3xl font-black font-mono block tracking-tight ${
-              activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'
-            }`}>
-              {activeSummaryMetrics.netProfit >= 0 ? '+' : ''}{formatCurrency(activeSummaryMetrics.netProfit)}
-            </span>
-            <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeSummaryMetrics.netProfit >= 0
-                ? 'bg-emerald-200/70 text-emerald-900'
-                : 'bg-rose-200/70 text-rose-900'
-            }`}>
-              Total Income - Total Expenses
-            </span>
+        </div>
+
+        {/* CARD 2: TOTAL EXPENSES */}
+        <div className="bg-rose-50/50 border border-rose-200 rounded-2xl shadow-xs p-4 sm:p-5 hover:border-rose-300 transition-all flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+                TOTAL EXPENSES
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-rose-100/90 border border-rose-300/80 text-rose-800 shadow-2xs flex items-center justify-center font-bold text-sm">
+                £
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className="text-2xl sm:text-3xl font-black font-mono text-rose-700 block tracking-tight">
+                {activeSummaryMetrics.totalExpenses > 0 ? `-${formatCurrency(activeSummaryMetrics.totalExpenses)}` : formatCurrency(0)}
+              </span>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                Debit &amp; Subcontractor Costs
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 3: NET PROFIT */}
+        <div className={`border rounded-2xl shadow-xs p-4 sm:p-5 transition-all flex flex-col justify-between ${
+          activeSummaryMetrics.netProfit >= 0
+            ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'
+            : 'bg-rose-50 border-rose-300 hover:border-rose-400'
+        }`}>
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              }`}>
+                NET PROFIT
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  activeSummaryMetrics.netProfit >= 0
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-200'
+                }`}>
+                  {activeSummaryMetrics.netProfit >= 0 ? (
+                    <TrendingUp className="w-3 h-3 mr-0.5" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 mr-0.5" />
+                  )}
+                  {activeSummaryMetrics.netProfit > 0 ? '+' : ''}{dynamicProfitMargin}%
+                </span>
+                <div className={`w-8 h-8 rounded-xl border shadow-2xs flex items-center justify-center font-bold text-sm ${
+                  activeSummaryMetrics.netProfit >= 0
+                    ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                    : 'bg-rose-100 border-rose-300 text-rose-800'
+                }`}>
+                  {activeSummaryMetrics.netProfit >= 0 ? (
+                    <TrendingUp className="w-4 h-4" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4" />
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3">
+              <span className={`text-2xl sm:text-3xl font-black font-mono block tracking-tight ${
+                activeSummaryMetrics.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'
+              }`}>
+                {activeSummaryMetrics.netProfit > 0 ? '+' : ''}{formatCurrency(activeSummaryMetrics.netProfit)}
+              </span>
+              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeSummaryMetrics.netProfit >= 0
+                  ? 'bg-emerald-200/70 text-emerald-900'
+                  : 'bg-rose-200/70 text-rose-900'
+              }`}>
+                Total Income - Total Expenses
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -526,22 +526,27 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
             );
             const displayProfit = isEditingProfit ? profitMetrics.netProfit : realized.realizedProfit;
             const displayMargin = isEditingProfit ? profitMetrics.profitMarginPercent : realized.realizedMargin;
-            const isUncollected = !isEditingProfit && realized.isUnpaid;
+            const isDirectTx = profitMetrics.subcontractorCost <= 0;
+            const isUncollected = !isEditingProfit && !isDirectTx && realized.isUnpaid;
 
             return (
               <>
                 <div
                   className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                    displayProfit >= 0
+                    isDirectTx
+                      ? 'bg-slate-50 border-slate-200'
+                      : displayProfit >= 0
                       ? 'bg-emerald-50/80 border-emerald-200'
                       : 'bg-rose-50/80 border-rose-200'
                   }`}
                 >
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase">
-                    <span className={displayProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}>
-                      {isUncollected ? 'Realized Profit' : 'Net Profit'}
+                    <span className={isDirectTx ? 'text-slate-600' : displayProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}>
+                      {isDirectTx ? 'Net Profit / Mark-Up' : isUncollected ? 'Realized Profit' : 'Net Profit'}
                     </span>
-                    {displayProfit >= 0 ? (
+                    {isDirectTx ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Direct</span>
+                    ) : displayProfit >= 0 ? (
                       <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                     ) : (
                       <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
@@ -549,28 +554,29 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
                   </div>
                   <p
                     className={`text-base font-black font-mono mt-0.5 ${
-                      displayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                      isDirectTx ? 'text-slate-700' : displayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
                     }`}
                   >
-                    {displayProfit >= 0 ? '+' : ''}
-                    {formatCurrency(displayProfit)}
+                    {isDirectTx ? '£0.00' : `${displayProfit >= 0 ? '+' : ''}${formatCurrency(displayProfit)}`}
                   </p>
                   <span className="text-[10px] text-slate-500">
-                    {isUncollected ? 'Uncollected (Cash Pending)' : 'Collected – Dealer Cost'}
+                    {isDirectTx ? 'N/A (Direct Transaction)' : isUncollected ? 'Uncollected (Cash Pending)' : 'Collected – Dealer Cost'}
                   </span>
                 </div>
 
                 {/* Tile 4: Profit Margin */}
                 <div
                   className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-                    displayMargin >= 0
+                    isDirectTx
+                      ? 'bg-slate-50 border-slate-200'
+                      : displayMargin >= 0
                       ? 'bg-indigo-50/80 border-indigo-200'
                       : 'bg-rose-50/80 border-rose-200'
                   }`}
                 >
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase">
                     <span
-                      className={displayMargin >= 0 ? 'text-indigo-800' : 'text-rose-800'}
+                      className={isDirectTx ? 'text-slate-600' : displayMargin >= 0 ? 'text-indigo-800' : 'text-rose-800'}
                     >
                       Profit Margin
                     </span>
@@ -578,13 +584,13 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
                   </div>
                   <p
                     className={`text-base font-black font-mono mt-0.5 ${
-                      displayMargin >= 0 ? 'text-indigo-700' : 'text-rose-700'
+                      isDirectTx ? 'text-slate-700' : displayMargin >= 0 ? 'text-indigo-700' : 'text-rose-700'
                     }`}
                   >
-                    {displayMargin.toFixed(1)}%
+                    {isDirectTx ? '0.0%' : `${displayMargin.toFixed(1)}%`}
                   </p>
                   <span className="text-[10px] text-slate-500">
-                    {isUncollected ? '0.0% (Unpaid)' : 'Margin on collected'}
+                    {isDirectTx ? 'N/A (Direct Transaction)' : isUncollected ? '0.0% (Unpaid)' : 'Margin on collected'}
                   </span>
                 </div>
               </>

@@ -12,8 +12,10 @@ import { styles as globalStyles } from './styles';
 import logo from '../../assets/logo.png';
 import logoBlur from '../../assets/logo.png'; // blurred logo for watermark
 import signatureImg from '../../assets/signiture.png';
+import SafePdfLogo from './SafePdfLogo';
+import { isValidPdfImageSrc } from '../../utils/safePdfImage';
 import { Rental, Vehicle, Customer } from '../../types';
-import { formatInlineCompanyFooter } from '../../utils/legalDocumentUtils';
+import { formatInlineCompanyFooter, extractActiveCorporateEntityProfile } from '../../utils/legalDocumentUtils';
 
 interface ParkingPermitLetterProps {
   rental: Rental;
@@ -80,7 +82,9 @@ const localStyles = StyleSheet.create({
     lineHeight: 1.4,
   },
   signatureSection: {
-    marginTop: 24,
+    marginTop: 18,
+    flexGrow: 0,
+    minPresenceAhead: 150,
   },
   signatureImage: {
     width: 120,
@@ -118,6 +122,24 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
   customer,
   companyDetails,
 }) => {
+  const activeProfile = extractActiveCorporateEntityProfile({
+    ...companyDetails,
+    ...rental,
+    corporateEntityKey: rental?.corporateEntityKey,
+    corporateEntityName: rental?.corporateEntityName,
+  });
+
+  const effectiveDetails = {
+    ...companyDetails,
+    fullName: activeProfile.companyName || companyDetails.fullName,
+    officialAddress: activeProfile.companyAddress || companyDetails.officialAddress,
+    phone: activeProfile.phone || companyDetails.phone,
+    email: activeProfile.email || companyDetails.email,
+    website: activeProfile.website || companyDetails.website,
+    registrationNumber: activeProfile.companyNumber || companyDetails.registrationNumber,
+    vatNumber: activeProfile.vatNumber || companyDetails.vatNumber,
+  };
+
   const today = new Date().toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
@@ -129,25 +151,30 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
       {/* FIXED: Overriding global paddingBottom (was 90) to 60 to prevent blank page */}
       <Page size="A4" style={[globalStyles.page, { paddingBottom: 60 }]}>
         {/* Watermark */}
-        <Image
-          src={companyDetails.logoUrl || logoBlur}
-          style={localStyles.watermark}
-        />
+        {isValidPdfImageSrc(companyDetails.logoUrl || logoBlur) && (
+          <Image
+            src={companyDetails.logoUrl || logoBlur}
+            style={localStyles.watermark}
+          />
+        )}
 
         {/* Header */}
         <View style={globalStyles.header}>
           <View style={globalStyles.headerLeft}>
-            <Image
+            <SafePdfLogo
               src={companyDetails.logoUrl || logo}
+              companyName={effectiveDetails.fullName}
               style={globalStyles.logo}
               cache={false}
             />
           </View>
           <View style={globalStyles.headerRight}>
-            <Text style={globalStyles.companyDetail}>Tel: {companyDetails.phone}</Text>
-            <Text style={globalStyles.companyDetail}>Email: {companyDetails.email}</Text>
-            <Text style={globalStyles.companyDetail}>Web: {companyDetails.website}</Text>
-            <Text style={globalStyles.companyDetail}>{companyDetails.officialAddress}</Text>
+            <Text style={globalStyles.companyDetail}>Tel: {effectiveDetails.phone}</Text>
+            <Text style={globalStyles.companyDetail}>Email: {effectiveDetails.email}</Text>
+            {Boolean(effectiveDetails.website) && (
+              <Text style={globalStyles.companyDetail}>Web: {effectiveDetails.website}</Text>
+            )}
+            <Text style={globalStyles.companyDetail}>{effectiveDetails.officialAddress}</Text>
           </View>
         </View>
 
@@ -194,30 +221,32 @@ export const ParkingPermitLetter: React.FC<ParkingPermitLetterProps> = ({
         </View>
         <View style={localStyles.infoRow}>
           <Text style={localStyles.bulletText}>
-            Registered Owner: {companyDetails.fullName}
+            Registered Owner: {effectiveDetails.fullName}
           </Text>
         </View>
 
         {/* Concluding Text */}
         <Text style={[localStyles.paragraph, { marginTop: 8 }]}>
-          We confirm that {customer.name} is the legitimate user of this vehicle under an active hire agreement with {companyDetails.fullName}.
+          We confirm that {customer.name} is the legitimate user of this vehicle under an active hire agreement with {effectiveDetails.fullName}.
         </Text>
         <Text style={localStyles.paragraph}>
           Please let us know if any further information or documentation is required from us as the vehicle's registered owner.
         </Text>
 
         {/* Signature */}
-        <View style={localStyles.signatureSection}>
+        <View style={localStyles.signatureSection} wrap={false} minPresenceAhead={150}>
           <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Yours faithfully,</Text>
-          <Image src={signatureImg} style={localStyles.signatureImage} />
+          {isValidPdfImageSrc(signatureImg) && (
+            <Image src={signatureImg} style={localStyles.signatureImage} />
+          )}
           <Text style={localStyles.signerName}>Admin Team</Text>
-          <Text>{companyDetails.fullName}</Text>
+          <Text>{effectiveDetails.fullName}</Text>
         </View>
 
         {/* Footer */}
         <View style={localStyles.footerContainer}>
           <Text style={[localStyles.footerText, { fontSize: 8, lineHeight: 1.35, marginBottom: 4 }]}>
-            {formatInlineCompanyFooter(companyDetails)}
+            {formatInlineCompanyFooter(effectiveDetails)}
           </Text>
           <View style={localStyles.footerBarGreen} />
           <View style={localStyles.footerBarBlue} />

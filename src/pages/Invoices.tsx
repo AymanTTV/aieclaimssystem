@@ -5,6 +5,8 @@ import { useCustomers } from '../hooks/useCustomers';
 import { useInvoices } from '../hooks/useInvoices';
 import { useInvoiceFilters } from '../hooks/useInvoiceFilters';
 import { useFinances } from '../hooks/useFinances';
+import { useCompanyDetails } from '../hooks/useCompanyDetails';
+import { getAvailableCompanyEntities, buildEffectiveDocumentCompanyDetails } from '../utils/entityBranding';
 import InvoiceTable from '../components/finance/InvoiceTable';
 import InvoiceForm from '../components/finance/InvoiceForm';
 import InvoiceDetails from '../components/finance/InvoiceDetails';
@@ -40,7 +42,6 @@ import { useSharedAccounts } from '../hooks/useSharedAccounts';
 import { generateBulkDocuments, generateAndUploadDocument, getCompanyDetails } from '../utils/documentGenerator';
 import { InvoiceBulkDocument, InvoiceDocument } from '../components/pdf/documents';
 import { pdf } from '@react-pdf/renderer';
-import SplitDocumentPreviewModal from '../components/common/SplitDocumentPreviewModal';
 import { useFormattedDisplay } from '../hooks/useFormattedDisplay';
 import { reverseFinanceTransaction, purgeFinanceTransactionsForInvoice } from '../utils/financeTransactions';
 import { invalidateFinanceLedgerCache, manuallyRefetchFinanceLedger } from '../state/financeLedgerAtom';
@@ -55,6 +56,7 @@ const Invoices: React.FC = () => {
   const { invoices, loading: invoicesLoading } = useInvoices();
   const { transactions, refetchTransactions } = useFinances();
   const { accounts, loading: accountsLoading } = useSharedAccounts();
+  const { companyDetails } = useCompanyDetails();
   const { can } = usePermissions();
   const { user } = useAuth();
   const { saveAndSync: saveAndSyncFinancialRecord } = useFinancialSync();
@@ -151,48 +153,84 @@ const Invoices: React.FC = () => {
   const summaryMetrics = useMemo(() => {
     return finalFilteredInvoices.reduce((acc, item: any) => {
       // 1. Extract values safely
-      const paymentsSum = Array.isArray(item.payments)
-        ? item.payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
-        : 0;
-      const paidAmount = Math.max(Number(item.paid ?? item.paidAmount ?? 0), paymentsSum); 
-      const billedAmount = Number(item.amount ?? item.billed ?? item.total ?? 0);
-      const rawDealerCost = item.dealerCost != null 
-        ? Number(item.dealerCost) 
-        : (item.subcontractorCost != null 
-            ? Number(item.subcontractorCost) 
-            : (Array.isArray(item.lineItems) ? item.lineItems.reduce((s: number, li: any) => s + (Number(li.subcontractorCost) || 0), 0) : 0));
-      const dealerCost = isNaN(rawDealerCost) ? 0 : rawDealerCost;
+      const payments = Array.isArray(item.payments) ? item.payments : [];
+      const hasPaymentsArray = Array.isArray(item.payments);
+      const paymentsSum = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
       
-      // 2. CRITICAL FIX: ALWAYS count collected cash as Income, regardless of invoice type
-      acc.totalIncome += paidAmount;
+      // When payment history has no payments, paid is strictly 0.00
+      const paidAmount = hasPaymentsArray
+        ? paymentsSum
+        : Math.max(0, Number(item.paid ?? item.paidAmount ?? 0));
+        
+      const billedTotal = Math.max(0, Number(
+        item.totalAmount ??
+        item.billedTotal ??
+        item.amount ??
+        item.billed ??
+        item.total ??
+        item.customerBilled ??
+        0
+      ));
 
-      // 3. Bucket the expenses
-      const isExpense = item.type === 'EXPENSE' || item.type === 'LOAN' || item.isLoan === true || item.type?.includes?.('Expense') || String(item.type || '').toUpperCase() === 'EXPENSE' || String(item.type || '').toUpperCase() === 'LOAN';
+      const rawSubCost = item.subcontractorCost != null 
+        ? Number(item.subcontractorCost) 
+        : (item.dealerCost != null 
+            ? Number(item.dealerCost) 
+            : (Array.isArray(item.lineItems) ? item.lineItems.reduce((s: number, li: any) => s + (Number(li.subcontractorCost ?? li.dealerCost) || 0), 0) : 0));
+      const subcontractorCost = Math.max(0, isNaN(rawSubCost) ? 0 : rawSubCost);
 
-      if (isExpense) {
-        // For expense/loan invoices, the billed amount and dealer cost are expenses
-        acc.totalExpenses += billedAmount; 
-        acc.totalExpenses += dealerCost;
+      // Check if invoice type is explicitly "Loan (Expense)" or "Expense Invoice"
+      const rawType = String(item.type || '').trim().toLowerCase();
+      const isExplicitLoanExpense = Boolean(
+        rawType === 'loan (expense)' ||
+        (item.isLoan && (item.loanTransactionType === 'expense' || (!item.loanTransactionType && (item.transactionType === 'EXPENSE' || item.type === 'expense')))) ||
+        item.loanTransactionType === 'expense' ||
+        (rawType.includes('loan') && rawType.includes('expense'))
+      );
+
+      const isExplicitExpenseInvoice = Boolean(
+        rawType === 'expense invoice' ||
+        rawType === 'expense' ||
+        item.transactionType === 'EXPENSE'
+      );
+
+      const isPureExpense = isExplicitLoanExpense || isExplicitExpenseInvoice;
+
+      if (isPureExpense) {
+        // Pure Expense / Loan (Expense) Invoice:
+        // • Include full invoice total in Expenses
+        // • Never include in Income
+        // • Prevent double counting: do NOT add subcontractorCost
+        acc.totalExpenses += billedTotal;
       } else {
-        // For standard income invoices, only the dealer cost counts as an expense
-        acc.totalExpenses += dealerCost; 
+        // Standard Customer Revenue / Sales Invoice:
+        // • Count collected cash (or full billed revenue) as Income
+        const income = paidAmount > 0 ? paidAmount : billedTotal;
+        acc.totalIncome += income;
+
+        // • EXPENSES = Sum of actual subcontractorCost / dealerCost fields across visible invoices
+        // • DO NOT include gross invoice total (totalAmount / billedTotal) in Expenses
+        // • Ensure billedTotal and subcontractorCost are never added together for a single invoice row
+        if (subcontractorCost > 0) {
+          acc.totalExpenses += subcontractorCost;
+        }
       }
 
       return acc;
     }, { totalIncome: 0, totalExpenses: 0 });
   }, [finalFilteredInvoices]);
 
-  // Calculate Balance
-  const balance = summaryMetrics.totalIncome - summaryMetrics.totalExpenses;
+  // Synchronized Net Profit / Balance Calculation:
+  // Apply Finance page Net Profit formula: Balance / Net Profit = Income - Actual Expense
+  const balance = Number((summaryMetrics.totalIncome - summaryMetrics.totalExpenses).toFixed(2));
   const netProfit = balance;
   const dynamicProfitMargin = summaryMetrics.totalIncome > 0
     ? Number(((balance / summaryMetrics.totalIncome) * 100).toFixed(1))
-    : 0;
+    : (summaryMetrics.totalExpenses > 0 ? -100.0 : 0);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
 
@@ -547,20 +585,32 @@ const Invoices: React.FC = () => {
     }
   };
 
-  const handleOpenLatestInvoicePDF = (inv: Invoice) => {
-    setPreviewInvoice(inv);
-  };
-
-  const handleGenerateAndCommitInvoice = async (inv: Invoice, effectiveCompanyDetails: any) => {
-    const toastId = toast.loading('Compiling and downloading customized invoice PDF…');
+  const handleDirectDownloadInvoicePDF = async (inv: Invoice) => {
+    const toastId = toast.loading('Generating Invoice PDF...');
     try {
       const vehicle = vehicles.find((v) => v.id === inv.vehicleId);
-      const customer = customers.find((c) => c.id === inv.customerId) || (inv.customerName ? { name: inv.customerName, mobile: inv.customerPhone } : undefined);
+      const customer =
+        customers.find((c) => c.id === inv.customerId) ||
+        (inv.customerName
+          ? ({ name: inv.customerName, mobile: inv.customerPhone } as any)
+          : undefined);
+
+      const effectiveCompanyDetails = companyDetails || (await getCompanyDetails());
+      const availableEntities = getAvailableCompanyEntities(effectiveCompanyDetails);
+      const targetKey =
+        inv.corporateEntityKey ||
+        inv.issuingEntity ||
+        (inv.companyId ? availableEntities.find((e) => e.id === inv.companyId || e.key === inv.companyId)?.key : undefined) ||
+        'aie_skyline';
+      const chosenEntity = availableEntities.find((e) => e.key === targetKey || e.id === targetKey) || availableEntities[0];
+      const brandedCompanyDetails = buildEffectiveDocumentCompanyDetails(effectiveCompanyDetails, chosenEntity, {
+        selectedBank: (inv as any).bankAllocation,
+      });
 
       const blob = await pdf(
         <InvoiceDocument
           data={{ ...inv, vehicle, customer }}
-          companyDetails={effectiveCompanyDetails}
+          companyDetails={brandedCompanyDetails}
         />
       ).toBlob();
 
@@ -572,16 +622,22 @@ const Invoices: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
 
-      toast.success('Invoice PDF generated and downloaded successfully!', { id: toastId });
+      try {
+        window.open(url, '_blank');
+      } catch {}
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      toast.success('Invoice PDF downloaded successfully!', { id: toastId });
     } catch (err: any) {
-      console.error('Failed to generate customized invoice PDF:', err);
+      console.error('Failed to generate invoice PDF:', err);
       toast.error(`Failed to generate invoice PDF: ${err?.message || 'Error'}`, { id: toastId });
     }
   };
 
-  const handleGenerateDocument = handleOpenLatestInvoicePDF;
+  const handleOpenLatestInvoicePDF = handleDirectDownloadInvoicePDF;
+  const handleGenerateDocument = handleDirectDownloadInvoicePDF;
 
   const handleGenerateBulkPDF = async () => {
     try {
@@ -666,7 +722,7 @@ const Invoices: React.FC = () => {
                 {formatCurrency(summaryMetrics.totalIncome)}
               </span>
               <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                Collected Cash
+                Customer Billed &amp; Revenue
               </span>
             </div>
           </div>
@@ -688,7 +744,7 @@ const Invoices: React.FC = () => {
                 -{formatCurrency(summaryMetrics.totalExpenses)}
               </span>
               <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-                Expenses, Loans &amp; Costs
+                Subcontractor &amp; Dealer Costs
               </span>
             </div>
           </div>
@@ -714,11 +770,16 @@ const Invoices: React.FC = () => {
                     : 'bg-rose-100 text-rose-800 border-rose-200'
                 }`}>
                   {balance >= 0 ? (
-                    <TrendingUp className="w-3 h-3 mr-0.5" />
+                    <>
+                      <TrendingUp className="w-3 h-3 mr-0.5" />
+                      +{Math.abs(dynamicProfitMargin).toFixed(1)}% Margin
+                    </>
                   ) : (
-                    <TrendingDown className="w-3 h-3 mr-0.5" />
+                    <>
+                      <TrendingDown className="w-3 h-3 mr-0.5" />
+                      -{Math.abs(dynamicProfitMargin).toFixed(1)}% Loss
+                    </>
                   )}
-                  {dynamicProfitMargin}%
                 </span>
                 <div className={`w-8 h-8 rounded-xl border shadow-2xs flex items-center justify-center font-bold text-sm ${
                   balance >= 0
@@ -731,9 +792,9 @@ const Invoices: React.FC = () => {
             </div>
             <div className="mt-3">
               <span className={`text-2xl sm:text-3xl font-black font-mono block tracking-tight ${
-                balance >= 0 ? 'text-emerald-950' : 'text-rose-950'
+                balance >= 0 ? 'text-emerald-700' : 'text-rose-700'
               }`}>
-                {balance >= 0 ? '+' : ''}{formatCurrency(balance)}
+                {balance >= 0 ? `+${formatCurrency(Math.abs(balance))}` : `-${formatCurrency(Math.abs(balance))}`}
               </span>
               <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                 balance >= 0 ? 'bg-emerald-100/80 text-emerald-800' : 'bg-rose-100/80 text-rose-800'
@@ -1006,37 +1067,6 @@ const Invoices: React.FC = () => {
       <Modal isOpen={!!deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} title="Delete Invoice">
         {deletingInvoiceId && <InvoiceDeleteModal invoiceId={deletingInvoiceId} onClose={() => setDeletingInvoiceId(null)} />}
       </Modal>
-
-      {/* --- STANDARDIZED LEFT-SIDE SPLIT PREVIEW CANVAS --- */}
-      {previewInvoice && (
-        <SplitDocumentPreviewModal
-          isOpen={!!previewInvoice}
-          onClose={() => setPreviewInvoice(null)}
-          documentType="invoice"
-          documentTitle="Invoice Live Preview"
-          documentReference={previewInvoice.invoiceNumber || previewInvoice.id}
-          baseCompanyDetails={companyDetails}
-          initialBankId={(previewInvoice as any).bankAllocation?.id || (previewInvoice as any).bankAccountId}
-          renderDocument={(effectiveCompanyDetails) => {
-            const vehicle = vehicles.find((v) => v.id === previewInvoice.vehicleId);
-            const customer =
-              customers.find((c) => c.id === previewInvoice.customerId) ||
-              (previewInvoice.customerName
-                ? ({ name: previewInvoice.customerName, mobile: previewInvoice.customerPhone } as any)
-                : undefined);
-            return (
-              <InvoiceDocument
-                data={{ ...previewInvoice, vehicle, customer }}
-                companyDetails={effectiveCompanyDetails}
-              />
-            );
-          }}
-          onCommitAndGenerate={async (effectiveCompanyDetails) => {
-            await handleGenerateAndCommitInvoice(previewInvoice, effectiveCompanyDetails);
-            setPreviewInvoice(null);
-          }}
-        />
-      )}
 
      <Modal isOpen={!!payingInvoice} onClose={() => setPayingInvoice(null)} title="Record Payment" size="xl">
         {payingInvoice && (
